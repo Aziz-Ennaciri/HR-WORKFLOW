@@ -1,0 +1,18 @@
+{
+  "name": "HR Workflow Dev Container",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [8080, 5432],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "pivotal.vscode-spring-boot",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "postCreateCommand": "mvn clean install",
+  "remoteUser": "vscode"
+}
