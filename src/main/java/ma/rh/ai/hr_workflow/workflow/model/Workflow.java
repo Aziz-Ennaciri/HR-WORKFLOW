@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import ma.rh.ai.hr_workflow.user.model.User;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "workflows")
@@ -23,6 +25,13 @@ public class Workflow {
 
     @ManyToOne
     private User createdBy;
+    @OneToMany(
+        mappedBy = "workflow",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    @OrderBy("orderIndex ASC")
+    private List<Node> nodes = new ArrayList<>();
 
     private LocalDateTime createdAt;
 }
