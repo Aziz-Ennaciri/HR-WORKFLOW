@@ -4,14 +4,14 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
-import ma.rh.ai.hr_workflow.workflow.service.IWorkflow;
+import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import org.springframework.data.domain.Page;
 
 
-import java.awt.print.Pageable;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
-public class WorkflowService implements IWorkflow {
+public class WorkflowServiceImpl implements ma.rh.ai.hr_workflow.workflow.service.WorkflowService {
     @Override
     public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
         return null;
@@ -43,7 +43,7 @@ public class WorkflowService implements IWorkflow {
     }
 
     @Override
-    public List<WorkflowResponseDTO> getWorkflowsByStatus(String status) {
+    public List<WorkflowResponseDTO> getWorkflowsByStatus(WorkflowStatus status) {
         return List.of();
     }
 
@@ -53,7 +53,7 @@ public class WorkflowService implements IWorkflow {
     }
 
     @Override
-    public WorkflowResponseDTO publishWorkflow(Long id) {
+    public WorkflowResponseDTO activateWorkflow(Long id) {
         return null;
     }
 
@@ -65,10 +65,5 @@ public class WorkflowService implements IWorkflow {
     @Override
     public WorkflowResponseDTO archiveWorkflow(Long id) {
         return null;
-    }
-
-    @Override
-    public boolean existsById(Long id) {
-        return false;
     }
 }
