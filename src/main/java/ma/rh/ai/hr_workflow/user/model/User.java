@@ -1,9 +1,12 @@
 package ma.rh.ai.hr_workflow.user.model;
 
 import jakarta.persistence.*;
+import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -25,11 +28,14 @@ public class User {
 
     private boolean enabled = true;
 
+    @OneToMany(mappedBy = "createdBy")
+    private Set<Workflow> workflows = new HashSet<>();
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
+        name = "user_roles",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles = new HashSet<>();
 

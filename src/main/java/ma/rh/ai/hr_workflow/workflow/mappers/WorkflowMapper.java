@@ -5,6 +5,9 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
+
+import java.util.List;
+
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
@@ -37,5 +40,7 @@ public interface WorkflowMapper {
 
     @Mapping(target = "status", expression = "java(workflow.getStatus().name())")
     WorkflowResponseDTO toResponseDTO(Workflow workflow);
+
+    List<WorkflowResponseDTO> toResponseDTO(List<Workflow> workflows);
 }
 

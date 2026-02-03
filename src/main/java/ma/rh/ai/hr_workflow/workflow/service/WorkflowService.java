@@ -24,8 +24,6 @@ public interface WorkflowService {
 
     List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId);
 
-    List<WorkflowResponseDTO> getWorkflowsByStatus(WorkflowStatus status);
-
     WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto);
 
     WorkflowResponseDTO activateWorkflow(Long id);
