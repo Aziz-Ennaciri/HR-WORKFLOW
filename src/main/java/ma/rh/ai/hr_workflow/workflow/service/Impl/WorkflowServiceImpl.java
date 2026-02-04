@@ -10,7 +10,7 @@ import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
-import ma.rh.ai.hr_workflow.workflow.service.WorkflowService;
+import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 
 import org.springframework.data.domain.Page;
 
@@ -25,7 +25,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class WorkflowServiceImpl implements WorkflowService {
+public class WorkflowServiceImpl implements IWorkflowService {
 
     private final WorkflowRepository workflowRepository;
     private final UserRepository userRepository;

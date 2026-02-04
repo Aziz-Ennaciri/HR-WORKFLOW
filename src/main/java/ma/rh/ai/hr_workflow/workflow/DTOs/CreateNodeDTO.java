@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 
 public class CreateNodeDTO {
     @NotNull
-    private String type;   // GPT, DRIVE, EMAIL, EXCEL
+    private String type;
 
     @NotNull
     private Integer order;
