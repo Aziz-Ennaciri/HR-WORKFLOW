@@ -7,6 +7,7 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowMapper;
+import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowWithNodesMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -30,19 +32,15 @@ public class WorkflowServiceImpl implements IWorkflowService {
     private final WorkflowRepository workflowRepository;
     private final UserRepository userRepository;
     private final WorkflowMapper workflowMapper;
+    private final WorkflowWithNodesMapper workflowWithNodesMapper;
 
+    @Transactional
     @Override
     public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Workflow workflow = new Workflow();
-        workflow.setName(dto.getName());
-        workflow.setDescription(dto.getDescription());
-        workflow.setCreatedBy(creator);
-        workflow.setStatus(WorkflowStatus.DRAFT);
-        workflow.setVersion(1);
-        workflow.setCreatedAt(LocalDateTime.now());
+        Workflow workflow = workflowMapper.toEntity(dto, creator);
 
         Workflow savedWorkflow = workflowRepository.save(workflow);
 
@@ -58,15 +56,16 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id) {
-        return null;
+        Workflow workflow = workflowRepository.findWorkflowWithNodes(id);
+        if (workflow == null) {
+        throw new RuntimeException("Workflow not found with id: " + id);
+    }
+        return workflowWithNodesMapper.toDTO(workflow,workflow.getNodes());
     }
 
     @Override
     public List<WorkflowResponseDTO> getAllWorkflows() {
         List<Workflow> workflows = workflowRepository.findByDeletedFalse();
-        if(workflows.isEmpty()){
-            throw new RuntimeException("Workflow not found");
-        }
         /* return workflows.stream().map(workflowMapper::toResponseDTO).toList(); */
         return workflowMapper.toResponseDTO(workflows);
     }
@@ -79,22 +78,40 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId) {
-        return List.of();
+        List<Workflow> workflowCreatedByUser = workflowRepository.findCreateById(creatorId);
+        return workflowMapper.toResponseDTO(workflowCreatedByUser);
     }
 
+    @Transactional
     @Override
     public WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto) {
-        Workflow workflow = workflowRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Workflow not found"));
-        
-        workflow.setName(dto.getName());
-        workflow.setDescription(dto.getDescription());
-        return null;
+
+        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        if (workflow.getStatus() != WorkflowStatus.DRAFT) {
+            throw new IllegalStateException("Only DRAFT workflows can be updated");
+        }
+
+        workflow.setUpdatedAt(LocalDateTime.now());
+        workflowMapper.updateEntity(dto, workflow);
+
+        return workflowMapper.toResponseDTO(workflow);
     }
 
+
+    @Transactional
     @Override
     public WorkflowResponseDTO activateWorkflow(Long id) {
-        return null;
+        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        if(workflow.getStatus() != WorkflowStatus.DRAFT){
+            throw new IllegalStateException("Only DRAFT workflows can be activated");
+        }
+        if(workflow.getNodes().isEmpty()){
+            throw new IllegalStateException("Workflow must have at least one node");
+        }
+
+        workflow.setStatus(WorkflowStatus.ACTIVE);
+        return workflowMapper.toResponseDTO(workflow);
     }
 
     @Override
@@ -106,8 +123,17 @@ public class WorkflowServiceImpl implements IWorkflowService {
         workflowRepository.save(workflow);
     }
 
+    @Transactional
     @Override
     public WorkflowResponseDTO archiveWorkflow(Long id) {
-        return null;
+        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
+            throw new IllegalStateException("the workflow still activated , you should deactivate if you wanna archive it");
+        }
+
+        workflow.setStatus(WorkflowStatus.ARCHIVED);
+        workflow.setUpdatedAt(LocalDateTime.now());
+        return workflowMapper.toResponseDTO(workflow);
     }
 }

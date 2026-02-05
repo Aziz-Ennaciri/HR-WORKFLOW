@@ -29,6 +29,8 @@ public class Workflow {
 
     private String description;
 
+    private String workflowKey;
+
     private Integer version;
 
     @Enumerated(EnumType.STRING)
@@ -49,4 +51,5 @@ public class Workflow {
     private boolean isDeleted;
 
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }
