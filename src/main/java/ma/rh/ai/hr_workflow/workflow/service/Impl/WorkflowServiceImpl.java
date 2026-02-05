@@ -38,7 +38,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
         User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
         Workflow workflow = workflowMapper.toEntity(dto, creator);
 
