@@ -97,7 +97,7 @@ public class NodeServiceImpl implements INodeService {
             node.setType(NodeType.valueOf(dto.getType().toUpperCase()));
         }
         if (node.getOrderIndex() != null) {
-            node.setConfigJson(dto.getConfigJson());
+            node.setOrderIndex(dto.getOrder());
         }
         if (node.getConfigJson() != null) {
             node.setConfigJson(dto.getConfigJson());
@@ -132,6 +132,7 @@ public class NodeServiceImpl implements INodeService {
     }
 
     @Override
+    @Transactional
     public void deleteNode(Long id) {
         Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found"));
         if (node.getWorkflow().getStatus() != WorkflowStatus.DRAFT) {
@@ -141,6 +142,7 @@ public class NodeServiceImpl implements INodeService {
     }
 
     @Override
+    @Transactional
     public void deleteNodesByWorkflowId(Long workflowId) {
         Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new RuntimeException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {

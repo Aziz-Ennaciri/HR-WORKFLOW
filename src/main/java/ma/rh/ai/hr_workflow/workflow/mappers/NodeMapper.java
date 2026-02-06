@@ -21,7 +21,7 @@ public interface NodeMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "workflow", ignore = true)
-    @Mapping(target = "type", ignore = true) // type is immutable
+    @Mapping(target = "type", ignore = true)
     @Mapping(target = "orderIndex", ignore = true)
     void updateEntity(UpdateNodeDTO dto, @MappingTarget Node node);
 
