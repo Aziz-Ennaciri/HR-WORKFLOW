@@ -87,22 +87,21 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public NodeResponseDTO updateNode(Long id, UpdateNodeDTO dto) {
-        Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found"));
+        Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found with id: " + id));
+
         if (node.getWorkflow().getStatus() != WorkflowStatus.DRAFT) {
             throw new RuntimeException("Nodes can only be updated in DRAFT workflows");
         }
-
-        if (node.getType() != null) {
+        if (dto.getType() != null) {
             validateNodeType(dto.getType());
             node.setType(NodeType.valueOf(dto.getType().toUpperCase()));
         }
-        if (node.getOrderIndex() != null) {
+        if (dto.getOrder() != null) {
             node.setOrderIndex(dto.getOrder());
         }
-        if (node.getConfigJson() != null) {
+        if (dto.getConfigJson() != null) {
             node.setConfigJson(dto.getConfigJson());
         }
-        
         return nodeMapper.toResponseDTO(node);
     }
 
