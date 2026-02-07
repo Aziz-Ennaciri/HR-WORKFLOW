@@ -37,6 +37,15 @@ public class NodeController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    @PostMapping("/workflow/{workflowId}/batch")
+    @Operation(summary = "Create multiple nodes", description = "Batch creates multiple nodes for a workflow")
+    public ResponseEntity<List<NodeResponseDTO>> createNodes(
+            @Valid @RequestBody List<CreateNodeDTO> createNodeDTOList,
+            @PathVariable @Parameter(description = "Workflow ID")Long workflowId){
+        List<NodeResponseDTO> dtos = nodeService.createNodes(createNodeDTOList,workflowId);
+        return new ResponseEntity<>(dtos,HttpStatus.CREATED);
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get node by ID", description = "Retrieves a node by its ID")
     public ResponseEntity<NodeResponseDTO> getNodeId(@PathVariable @Parameter(description = "Node ID")Long id){
