@@ -106,7 +106,7 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public void disableSer(Long id){
+    public void disableUser(Long id){
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
         user.setEnabled(false);
     }

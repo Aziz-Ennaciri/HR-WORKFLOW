@@ -18,5 +18,5 @@ public interface IUserService {
 
     List<UserResponseDTO> getAllUsers();
 
-    void disableSer(Long id);
+    void disableUser(Long id);
 }
