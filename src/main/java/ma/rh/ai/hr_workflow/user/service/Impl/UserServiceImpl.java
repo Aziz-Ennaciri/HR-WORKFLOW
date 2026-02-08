@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.user.service.Impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginRequestDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginResponseDTO;
@@ -28,8 +29,10 @@ public class UserServiceImpl implements IUserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
+    @Transactional
     public UserResponseDTO register(CreateUserDTO dto) {
         if (userRepository.existsByEmail(dto.getEmail())){
             throw new RuntimeException("Email already exists: " + dto.getEmail());
@@ -62,9 +65,7 @@ public class UserServiceImpl implements IUserService {
             throw new RuntimeException("Invalid email or password");
         }
 
-        // Generate JWT token (you'll need to implement JwtTokenProvider)
-        // String token = jwtTokenProvider.generateToken(user);
-        String token = "DUMMY_TOKEN_" + user.getId(); // Placeholder
+        String token = jwtTokenProvider.generateToken(user);
 
         LoginResponseDTO response = new LoginResponseDTO();
         response.setToken(token);
