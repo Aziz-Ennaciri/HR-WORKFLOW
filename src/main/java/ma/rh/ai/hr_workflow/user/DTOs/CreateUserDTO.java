@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CreateUserDTIO {
+public class CreateUserDTO {
     @Email
     @NotBlank
     private String email;
