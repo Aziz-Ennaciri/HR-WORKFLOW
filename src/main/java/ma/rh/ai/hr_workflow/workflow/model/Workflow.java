@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.user.model.User;
 
 import java.time.LocalDateTime;
@@ -48,8 +49,22 @@ public class Workflow {
     @OrderBy("orderIndex ASC")
     private List<Node> nodes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "workflow",fetch = FetchType.LAZY)
+    private List<WorkflowInstance> instances = new ArrayList<>();
+
     private boolean isDeleted;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
