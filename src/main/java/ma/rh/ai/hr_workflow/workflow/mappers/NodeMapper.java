@@ -2,12 +2,10 @@ package ma.rh.ai.hr_workflow.workflow.mappers;
 
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateNodeDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.NodeResponseDTO;
-import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateNodeDTO;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
 
 @Mapper(componentModel = "spring")
 public interface NodeMapper {
