@@ -52,7 +52,8 @@ public class Workflow {
     @OneToMany(mappedBy = "workflow",fetch = FetchType.LAZY)
     private List<WorkflowInstance> instances = new ArrayList<>();
 
-    private boolean isDeleted;
+    @Column(nullable = false)
+    private boolean isDeleted = false;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
