@@ -63,12 +63,12 @@ public class WorkflowServiceImpl implements IWorkflowService {
         return workflowWithNodesMapper.toDTO(workflow,workflow.getNodes());
     }
 
-    @Override
-    public List<WorkflowResponseDTO> getAllWorkflows() {
-        List<Workflow> workflows = workflowRepository.findByDeletedFalse();
-        /* return workflows.stream().map(workflowMapper::toResponseDTO).toList(); */
-        return workflowMapper.toResponseDTO(workflows);
-    }
+//    @Override
+//    public List<WorkflowResponseDTO> getAllWorkflows() {
+//        List<Workflow> workflows = workflowRepository.findByDeletedFalse();
+//        /* return workflows.stream().map(workflowMapper::toResponseDTO).toList(); */
+//        return workflowMapper.toResponseDTO(workflows);
+//    }
 
     @Override
     public Page<WorkflowResponseDTO> getAllWorkflows(Pageable pageable) {

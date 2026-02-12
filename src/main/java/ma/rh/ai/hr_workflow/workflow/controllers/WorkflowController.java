@@ -7,12 +7,7 @@ import org.springframework.http.ResponseEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +16,7 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 
 @RestController
+@RequestMapping("/api/v1/workflows")
 @RequiredArgsConstructor
 public class WorkflowController {
     private final IWorkflowService workflowService;
@@ -41,9 +37,9 @@ public class WorkflowController {
         return ResponseEntity.ok(responseDTO);
     }
 
-    @GetMapping
-    public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows(){
-        List<WorkflowResponseDTO> responseDTOs = workflowService.getAllWorkflows();
-        return ResponseEntity.ok(responseDTOs);
-    }
+//    @GetMapping
+//    public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows(){
+//        List<WorkflowResponseDTO> responseDTOs = workflowService.getAllWorkflows();
+//        return ResponseEntity.ok(responseDTOs);
+//    }
 }

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface WorkflowRepository extends JpaRepository<Workflow,Long> {
-    List<Workflow> findByDeletedFalse();
+//    List<Workflow> findByDeletedFalse();
     Page<Workflow> findByDeletedFalse(Pageable pageable);
     
     List<Workflow> findCreateById(Long creatorId);
