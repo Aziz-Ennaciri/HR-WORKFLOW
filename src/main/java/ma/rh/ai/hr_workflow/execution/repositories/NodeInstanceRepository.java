@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,5 +12,7 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 public interface NodeInstanceRepository extends JpaRepository<NodeInstance,Long>{
 
     Optional<NodeInstance> findByWorkflowInstanceIdAndNodeId(Long workflowInstanceId, Long nodeId);
+
+    List<NodeInstance> findByWorkflowInstanceIdOrderByExecutionOrderAsc(Long instanceId);
     
 }

@@ -6,9 +6,6 @@ spring:
     url: jdbc:postgresql://postgres:5432/hr_workflow_db
     username: admin
     password: Livefree1128*
-  jwt:
-    secret: "j1tY7XfQe1ZMfSN/9Td8qz1UHcyUT0T1Rp7Z+NOO27cQyx69g9OcwYRwji3gNkK0Jm9z2IIKCWl8FVM0CVG95g=="
-    expiration: 86400000
   jpa:
     hibernate:
       ddl-auto: update
@@ -20,6 +17,9 @@ spring:
   sql:
     init:
       mode: never
-
+jwt:
+  # secret: "j1tY7XfQe1ZMfSN/9Td8qz1UHcyUT0T1Rp7Z+NOO27cQyx69g9OcwYRwji3gNkK0Jm9z2IIKCWl8FVM0CVG95g=="
+  secret: "lKx6Cq9Wz7YpQ3nVt8mJr2Hs5DfUa1BcX4eTg0NyZsQ="
+  expiration: 86400000
 server:
   port: 8080
