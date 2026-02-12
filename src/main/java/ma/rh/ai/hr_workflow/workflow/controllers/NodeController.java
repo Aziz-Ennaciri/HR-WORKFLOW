@@ -4,13 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,6 +18,7 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateNodeDTO;
 import ma.rh.ai.hr_workflow.workflow.service.INodeService;
 
 @RestController
+@RequestMapping("/api/v1/nodes")
 @RequiredArgsConstructor
 public class NodeController {
     private final INodeService nodeService;
@@ -53,14 +48,14 @@ public class NodeController {
         return ResponseEntity.ok(nodeResponseDTO);
     }
 
-    @GetMapping
+    @GetMapping("/workflow/{workflowId}")
     @Operation(summary = "Get all nodes for a workflow", description = "Retrieves all nodes for a workflow, ordered by execution order (orderIndex)")
     public ResponseEntity<List<NodeResponseDTO>> getNodesByWorkflowId(@PathVariable @Parameter(description = "Workflow ID")Long workflowId){
         List<NodeResponseDTO> responseDTOs = nodeService.getNodesByWorkflowId(workflowId);
         return ResponseEntity.ok(responseDTOs);
     }
 
-    @GetMapping
+    @GetMapping("/workflow/{workflowId}/type/{type}")
     @Operation(summary = "Get nodes by type", description = "Retrieves nodes of a specific type for a workflow (GPT, DRIVE, EMAIL, EXCEL)")
     public ResponseEntity<List<NodeResponseDTO>> getNodesByWorkflowIdAndType(
         @PathVariable @Parameter(description = "Workflow ID")Long workflowId,
