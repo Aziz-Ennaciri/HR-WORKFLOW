@@ -1,11 +1,9 @@
 spring:
-  application:
-    name: hr-workflow
-
   datasource:
-    url: jdbc:postgresql://postgres:5432/hr_workflow_db
+    url: jdbc:postgresql://localhost:5432/hr_workflow_db
     username: admin
     password: Livefree1128*
+
   jpa:
     hibernate:
       ddl-auto: update
