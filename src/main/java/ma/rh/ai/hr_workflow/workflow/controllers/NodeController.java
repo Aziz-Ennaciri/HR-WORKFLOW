@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateNodeDTO;
@@ -26,8 +25,8 @@ public class NodeController {
     @PostMapping("/workflow/{workflowId}")
     @Operation(summary = "Create a new node", description = "Creates a new node for a workflow (only allowed in DRAFT workflows)")
     public ResponseEntity<NodeResponseDTO> createNode(
-        @Valid @RequestBody CreateNodeDTO dto,
-        @PathVariable @Parameter(description = "Workflow ID") Long workflowId) {
+            @PathVariable @Parameter(description = "Workflow ID") Long workflowId,
+            @Valid @RequestBody CreateNodeDTO dto) {
         NodeResponseDTO response = nodeService.createNode(dto, workflowId);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
@@ -84,14 +83,14 @@ public class NodeController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a node", description = "Deletes a node (only allowed in DRAFT workflows)")
-    public ResponseEntity<NodeResponseDTO> deleteNode(@PathVariable @Parameter(description = "Node ID")Long nodeId){
+    public ResponseEntity<Void> deleteNode(@PathVariable("id") @Parameter(description = "Node ID") Long nodeId){
         nodeService.deleteNode(nodeId);
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/workflow/{workflowId}/")
+    @DeleteMapping("/workflow/{workflowId}")  // Remove trailing slash
     @Operation(summary = "Delete all nodes for a workflow", description = "Deletes all nodes in a workflow (only allowed in DRAFT workflows)")
-    public ResponseEntity<List<NodeResponseDTO>> deleteNodesByWorkflowId(@PathVariable @Parameter(description = "Workflow ID")Long workflowId){
+    public ResponseEntity<Void> deleteNodesByWorkflowId(@PathVariable @Parameter(description = "Workflow ID") Long workflowId){
         nodeService.deleteNodesByWorkflowId(workflowId);
         return ResponseEntity.noContent().build();
     }
