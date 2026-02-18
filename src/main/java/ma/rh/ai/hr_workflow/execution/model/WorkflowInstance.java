@@ -14,7 +14,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
@@ -62,19 +61,15 @@ public class WorkflowInstance {
 
     private Long durationMs;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String inputData;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String outputData;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String errorStackTrace;
 

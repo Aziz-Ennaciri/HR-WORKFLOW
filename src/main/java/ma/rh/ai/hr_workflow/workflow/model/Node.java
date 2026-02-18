@@ -1,10 +1,14 @@
 package ma.rh.ai.hr_workflow.workflow.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "nodes")
 public class Node {
 
@@ -21,6 +25,6 @@ public class Node {
 
     private Integer orderIndex;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String configJson;
 }
