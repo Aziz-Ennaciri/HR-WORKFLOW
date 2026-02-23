@@ -57,15 +57,12 @@ public class NodeInstance {
 
     private Long durationMs;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String inputData;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String outputData;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
