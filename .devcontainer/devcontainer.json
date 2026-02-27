@@ -1,18 +1,21 @@
 {
-  "name": "HR Workflow Dev Container",
+  "name": "HR Workflow (Full Stack)",
   "dockerComposeFile": "../docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspace",
-  "forwardPorts": [8080, 5432],
+  "forwardPorts": [8080, 5432, 3000],
   "customizations": {
     "vscode": {
       "extensions": [
         "vscjava.vscode-java-pack",
         "pivotal.vscode-spring-boot",
-        "redhat.vscode-yaml"
+        "redhat.vscode-yaml",
       ]
     }
   },
-  "postCreateCommand": "mvn clean install",
-  "remoteUser": "vscode"
+  "postCreateCommand": "cd hr-workflow-backend && mvn clean install",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+  }
 }

@@ -3,7 +3,7 @@ version: "3.8"
 services:
   app:
     build:
-      context: .
+      context: ./hr-workflow-backend
       dockerfile: Dockerfile
     volumes:
       - .:/workspace:cached
@@ -32,12 +32,9 @@ services:
 
   frontend:
     build:
-      context: ../../hr-workflow-frontednd
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ../../hr-workflow-frontednd:/app
-      - /app/node_modules
-      - /app/.next
+      context: ./hr-workflow-frontednd
+      dockerfile: Dockerfile
+      network: host
     ports:
       - "3000:3000"
     environment:
@@ -52,7 +49,7 @@ services:
 
 volumes:
   postgres-data:
-
+  node_modules:
 networks:
   hr-network:
     driver: bridge
