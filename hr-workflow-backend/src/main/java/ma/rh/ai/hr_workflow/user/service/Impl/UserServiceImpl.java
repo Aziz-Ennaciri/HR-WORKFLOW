@@ -37,6 +37,7 @@ public class UserServiceImpl implements IUserService {
         if (userRepository.existsByEmail(dto.getEmail())){
             throw new RuntimeException("Email already exists: " + dto.getEmail());
         }
+
         User user = new User();
         user.setEmail(dto.getEmail());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
@@ -45,7 +46,11 @@ public class UserServiceImpl implements IUserService {
         user.setEnabled(true);
         user.setCreatedAt(LocalDateTime.now());
 
-        Role userRole = roleRepository.findByName(RoleName.ROLE_RH).orElseThrow(() -> new RuntimeException("Default role not found"));
+        final RoleName roleName = determineRole(dto.getRole());
+
+        Role userRole = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+
         Set<Role> roles = new HashSet<>();
         roles.add(userRole);
         user.setRoles(roles);
@@ -109,5 +114,21 @@ public class UserServiceImpl implements IUserService {
     public void disableUser(Long id){
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
         user.setEnabled(false);
+    }
+
+    private RoleName determineRole(String roleStr) {
+        if (roleStr == null || roleStr.isEmpty()) {
+            return RoleName.ROLE_RH;
+        }
+
+        try {
+            String normalizedRole = roleStr.toUpperCase();
+            if (!normalizedRole.startsWith("ROLE_")) {
+                normalizedRole = "ROLE_" + normalizedRole;
+            }
+            return RoleName.valueOf(normalizedRole);
+        } catch (IllegalArgumentException e) {
+            return RoleName.ROLE_RH;
+        }
     }
 }
