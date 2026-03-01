@@ -37,9 +37,10 @@ public class WorkflowController {
         return ResponseEntity.ok(responseDTO);
     }
 
-//    @GetMapping
-//    public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows(){
-//        List<WorkflowResponseDTO> responseDTOs = workflowService.getAllWorkflows();
-//        return ResponseEntity.ok(responseDTOs);
-//    }
+    @GetMapping
+    @Operation(summary = "Get all workflows", description = "Returns all workflows")
+    public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows() {
+        List<WorkflowResponseDTO> workflows = workflowService.getAllWorkflows();
+        return ResponseEntity.ok(workflows);
+    }
 }

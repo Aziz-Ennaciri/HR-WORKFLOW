@@ -17,8 +17,9 @@ public interface IWorkflowService {
 
     WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id);
 
+    List<WorkflowResponseDTO> getAllWorkflows();
 
-    Page<WorkflowResponseDTO> getAllWorkflows(Pageable pageable);
+    Page<WorkflowResponseDTO> getAllWorkflowsPageable(Pageable pageable);
 
     List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId);
 

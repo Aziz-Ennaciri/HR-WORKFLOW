@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -63,15 +64,16 @@ public class WorkflowServiceImpl implements IWorkflowService {
         return workflowWithNodesMapper.toDTO(workflow,workflow.getNodes());
     }
 
-//    @Override
-//    public List<WorkflowResponseDTO> getAllWorkflows() {
-//        List<Workflow> workflows = workflowRepository.findByDeletedFalse();
-//        /* return workflows.stream().map(workflowMapper::toResponseDTO).toList(); */
-//        return workflowMapper.toResponseDTO(workflows);
-//    }
+    @Override
+    public List<WorkflowResponseDTO> getAllWorkflows() {
+        List<Workflow> workflows = workflowRepository.findAll();
+        return workflows.stream()
+                .map(workflowMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
 
     @Override
-    public Page<WorkflowResponseDTO> getAllWorkflows(Pageable pageable) {
+    public Page<WorkflowResponseDTO> getAllWorkflowsPageable(Pageable pageable) {
         Page<Workflow> workflowsPage = workflowRepository.findByDeletedFalse(pageable);
         return workflowsPage.map(workflowMapper::toResponseDTO);
     }
