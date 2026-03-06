@@ -13,4 +13,13 @@ public class UpdateWorkflowDTO {
     private String name;
 
     private String description;
+
+    @NotBlank
+    private String workflowKey;
+
+    private Integer version;
+
+    private String status;
+
+    private Long createdById;
 }

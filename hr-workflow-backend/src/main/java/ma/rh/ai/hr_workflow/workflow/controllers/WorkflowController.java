@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.workflow.controllers;
 
 import java.util.List;
 
+import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,5 +43,14 @@ public class WorkflowController {
     public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows() {
         List<WorkflowResponseDTO> workflows = workflowService.getAllWorkflows();
         return ResponseEntity.ok(workflows);
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Update workflow", description = "Updates an existing workflow")
+    public ResponseEntity<WorkflowResponseDTO> updateWorkflow(
+            @PathVariable Long id,
+            @RequestBody UpdateWorkflowDTO dto) {
+        WorkflowResponseDTO updated = workflowService.updateWorkflow(id, dto);
+        return ResponseEntity.ok(updated);
     }
 }
