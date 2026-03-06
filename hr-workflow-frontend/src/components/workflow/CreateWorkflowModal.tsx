@@ -25,19 +25,23 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
 
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}')
-      
-      await api.post('/workflows', {
-        ...formData,
+
+      // Send createdById as query parameter
+      const response = await api.post(`/workflows?creatorId=${user.id}`, {
+        name: formData.name,
+        description: formData.description,
+        workflowKey: formData.workflowKey,
         version: 1,
-        status: 'DRAFT',
-        createdById: user.id
+        status: 'DRAFT'
       })
 
+      alert('Workflow created successfully!')
       onSuccess()
       onClose()
       setFormData({ name: '', description: '', workflowKey: '' })
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create workflow')
+      console.error('Create workflow error:', err)
+      setError(err.response?.data?.message || err.message || 'Failed to create workflow')
     } finally {
       setLoading(false)
     }
@@ -49,7 +53,7 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 transition-opacity bg-gray-900 bg-opacity-75"
           onClick={onClose}
         />
