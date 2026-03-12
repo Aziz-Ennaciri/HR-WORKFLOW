@@ -18,6 +18,23 @@ spring:
     baseline-version: 0
     locations: classpath:db/migration
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: azizennaciri0@gmail.com
+    password: xhct dhje ilhk fbfh
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+
   sql:
     init:
       mode: never
@@ -27,3 +44,9 @@ jwt:
   expiration: 86400000
 server:
   port: 8080
+
+google:
+  credentials:
+    path: classpath:google-credentials.json
+  drive:
+    folder:1LbFcIv10YFH8l2UeshhRayG3zC8E79kL
