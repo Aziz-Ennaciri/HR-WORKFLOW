@@ -88,16 +88,23 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto) {
 
-        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
-        if (workflow.getStatus() != WorkflowStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT workflows can be updated");
+        workflow.setName(dto.getName());
+        workflow.setDescription(dto.getDescription());
+        workflow.setWorkflowKey(dto.getWorkflowKey());
+
+        if (dto.getVersion() != null) {
+            workflow.setVersion(dto.getVersion());
         }
 
-        workflow.setUpdatedAt(LocalDateTime.now());
-        workflowMapper.updateEntity(dto, workflow);
+        if (dto.getStatus() != null) {
+            workflow.setStatus(dto.getStatus());
+        }
 
-        return workflowMapper.toResponseDTO(workflow);
+        Workflow updated = workflowRepository.save(workflow);
+        return workflowMapper.toResponseDTO(updated);
     }
 
 

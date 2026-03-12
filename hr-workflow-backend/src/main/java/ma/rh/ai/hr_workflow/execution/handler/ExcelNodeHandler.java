@@ -24,7 +24,7 @@ public class ExcelNodeHandler implements NodeHandler {
         String configJson = node.getConfigJson();
         String inputData = nodeInstance.getInputData();
         
-        String result = excelService.processExcel(configJson, inputData);
+        String result = excelService.processData(configJson, inputData);
         
         return result;
     }

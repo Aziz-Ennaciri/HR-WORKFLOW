@@ -66,8 +66,8 @@ public class NodeController {
     @PutMapping("/{id}")
     @Operation(summary = "Update a node", description = "Updates a node's type, order, or configuration (only allowed in DRAFT workflows)")
     public ResponseEntity<NodeResponseDTO> updateNode(
-        @Valid @RequestBody UpdateNodeDTO dto,
-        @PathVariable @Parameter(description = "Node ID")Long id){
+        @PathVariable @Parameter(description = "Node ID")Long id,
+        @Valid @RequestBody UpdateNodeDTO dto){
         NodeResponseDTO responseDTO = nodeService.updateNode(id, dto);
         return ResponseEntity.ok(responseDTO);
     }

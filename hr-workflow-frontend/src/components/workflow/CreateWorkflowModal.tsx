@@ -1,30 +1,35 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import api from '@/lib/api'
+import { useState } from "react";
+import api from "@/lib/api";
+import Button from "@/components/ui/Button";
 
 interface CreateWorkflowModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSuccess: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
 }
 
-export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: CreateWorkflowModalProps) {
+export default function CreateWorkflowModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: CreateWorkflowModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    workflowKey: '',
-  })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+    name: "",
+    description: "",
+    workflowKey: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
 
       // Send createdById as query parameter
       const response = await api.post(`/workflows?creatorId=${user.id}`, {
@@ -32,22 +37,26 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
         description: formData.description,
         workflowKey: formData.workflowKey,
         version: 1,
-        status: 'DRAFT'
-      })
+        status: "DRAFT",
+      });
 
-      alert('Workflow created successfully!')
-      onSuccess()
-      onClose()
-      setFormData({ name: '', description: '', workflowKey: '' })
+      alert("Workflow created successfully!");
+      onSuccess();
+      onClose();
+      setFormData({ name: "", description: "", workflowKey: "" });
     } catch (err: any) {
-      console.error('Create workflow error:', err)
-      setError(err.response?.data?.message || err.message || 'Failed to create workflow')
+      console.error("Create workflow error:", err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to create workflow",
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -62,13 +71,25 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
         <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
           <div className="bg-white px-6 pt-6 pb-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-gray-900">Create New Workflow</h3>
+              <h3 className="text-2xl font-bold text-gray-900">
+                Create New Workflow
+              </h3>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -88,8 +109,10 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="e.g., Employee Onboarding"
                 />
               </div>
@@ -100,9 +123,11 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
                 </label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="Describe what this workflow does..."
                 />
               </div>
@@ -115,8 +140,15 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
                   type="text"
                   required
                   value={formData.workflowKey}
-                  onChange={(e) => setFormData({ ...formData, workflowKey: e.target.value.toUpperCase().replace(/\s/g, '_') })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      workflowKey: e.target.value
+                        .toUpperCase()
+                        .replace(/\s/g, "_"),
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="EMPLOYEE_ONBOARDING"
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -125,25 +157,27 @@ export default function CreateWorkflowModal({ isOpen, onClose, onSuccess }: Crea
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <button
+                <Button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition font-medium"
+                  variant="secondary"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  variant="primary"
+                  className="flex-1"
                   disabled={loading}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
                 >
-                  {loading ? 'Creating...' : 'Create Workflow'}
-                </button>
+                  {loading ? "Creating..." : "Create Workflow"}
+                </Button>
               </div>
             </form>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -8,8 +8,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ExcelConfigDTO {
-    private String operation;
     private String sheetName;
-    private Integer headerRow;
-    private boolean skipEmptyRows;
+    private String operation;
+    private Integer startRow;
+    private Integer startColumn;
+    private String outputPath;
+    private String fileFormat; // CSV, XLS, XLSX
+    private String fileName;   // Name of the file to create/read
+    private String uploadedFile; // Base64-encoded file content for READ operations
 }
