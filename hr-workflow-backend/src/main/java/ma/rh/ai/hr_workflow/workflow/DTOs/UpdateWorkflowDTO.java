@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 
 @Data
 @AllArgsConstructor
@@ -19,7 +20,7 @@ public class UpdateWorkflowDTO {
 
     private Integer version;
 
-    private String status;
+    private WorkflowStatus status;
 
     private Long createdById;
 }

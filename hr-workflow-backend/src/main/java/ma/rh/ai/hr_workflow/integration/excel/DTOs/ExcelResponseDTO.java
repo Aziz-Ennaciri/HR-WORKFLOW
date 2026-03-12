@@ -14,7 +14,10 @@ import lombok.NoArgsConstructor;
 public class ExcelResponseDTO {
     private Integer rowsProcessed;
     private Integer columnsProcessed;
-    private List<Map<String, Object>> data;
     private String outputFileUrl;
-    private LocalDateTime processedAt;
+    private Long fileSize;
+    private String sheetName;
+    private String operation;
+    private LocalDateTime createdAt;
+    private List<Object> data;
 }

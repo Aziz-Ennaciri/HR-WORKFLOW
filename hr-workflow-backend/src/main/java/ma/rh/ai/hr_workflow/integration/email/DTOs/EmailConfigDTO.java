@@ -12,6 +12,7 @@ public class EmailConfigDTO {
     private String cc;
     private String bcc;
     private String subject;
+    private String body;
     private String templateId;
     private boolean isHtml;
 }

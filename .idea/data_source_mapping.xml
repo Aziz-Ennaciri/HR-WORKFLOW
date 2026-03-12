@@ -2,5 +2,7 @@
 <project version="4">
   <component name="DataSourcePerFileMappings">
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/1d3df583-bb85-4a39-8638-b0271b57092a/console.sql" value="1d3df583-bb85-4a39-8638-b0271b57092a" />
+    <file url="file://$PROJECT_DIR$/hr-workflow-backend/src/main/resources/db/migration/V11__add_cascade_delete_workflow_instances.sql" value="1d3df583-bb85-4a39-8638-b0271b57092a" />
+    <file url="file://$PROJECT_DIR$/hr-workflow-backend/src/main/resources/db/migration/VX__add_cascade_delete.sql" value="1d3df583-bb85-4a39-8638-b0271b57092a" />
   </component>
 </project>

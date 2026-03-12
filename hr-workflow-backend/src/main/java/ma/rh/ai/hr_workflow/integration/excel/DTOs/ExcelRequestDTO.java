@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ExcelRequestDTO {
     private String fileUrl;
+    private String sheetName;
     private List<Map<String, Object>> data;
-    private String operation;
+    private Map<String,String> variables;
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
+import Footer from "../components/layout/Footer";
 
 export const metadata: Metadata = {
   title: "HR Workflow System",
@@ -8,16 +10,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-      </head>
-      <body className="antialiased bg-gray-50">
-        {children}
+      <body className="flex flex-col min-h-screen bg-background text-foreground">
+        <main className="flex-grow">{children}</main>
+        <Footer />
+        <Toaster position="top-right" />
       </body>
     </html>
   );

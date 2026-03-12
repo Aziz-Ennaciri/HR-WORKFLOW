@@ -87,22 +87,25 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public NodeResponseDTO updateNode(Long id, UpdateNodeDTO dto) {
-        Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found with id: " + id));
+        Node node = nodeRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Node not found"));
 
-        if (node.getWorkflow().getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be updated in DRAFT workflows");
+        if (!node.getWorkflow().getStatus().equals(WorkflowStatus.DRAFT)) {
+            throw new IllegalStateException("Nodes can only be updated in DRAFT workflows");
         }
-        if (dto.getType() != null) {
-            validateNodeType(dto.getType());
-            node.setType(NodeType.valueOf(dto.getType().toUpperCase()));
+
+        try {
+            NodeType nodeType = NodeType.valueOf(dto.getType());
+            node.setType(nodeType);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid node type: " + dto.getType());
         }
-        if (dto.getOrder() != null) {
-            node.setOrderIndex(dto.getOrder());
-        }
-        if (dto.getConfigJson() != null) {
-            node.setConfigJson(dto.getConfigJson());
-        }
-        return nodeMapper.toResponseDTO(node);
+
+        node.setOrderIndex(dto.getOrder());
+        node.setConfigJson(dto.getConfigJson());
+
+        Node updated = nodeRepository.save(node);
+        return nodeMapper.toResponseDTO(updated);
     }
 
     @Override
