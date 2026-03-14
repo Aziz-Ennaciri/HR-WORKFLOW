@@ -81,6 +81,13 @@ public class WorkflowExecutionController {
         return ResponseEntity.ok(instanceMapper.toResponseDTO(instances));
     }
 
+    @GetMapping
+    @Operation(summary = "Get all workflow instances")
+    public ResponseEntity<List<WorkflowInstanceResponseDTO>> getAllExecutions() {
+        List<WorkflowInstance> instances = instanceRepository.findAll();
+        return ResponseEntity.ok(instanceMapper.toResponseDTO(instances));
+    }
+
     @PostMapping("/{id}/continue")
     @Operation(summary = "Continue/resume execution")
     public ResponseEntity<Void> continueExecution(@PathVariable Long id) {
