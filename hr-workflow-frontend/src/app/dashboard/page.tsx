@@ -8,12 +8,34 @@ import CreateWorkflowModal from "@/components/workflow/CreateWorkflowModal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import type { Workflow } from "@/types";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import toast from "react-hot-toast";
 
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [stats, setStats] = useState({
+    totalWorkflows: 0,
+    activeWorkflows: 0,
+    totalExecutions: 0,
+    successRate: 0,
+  });
+  const [executionData, setExecutionData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const router = useRouter();
+
+  // when a workflow is created we want to refresh our stats/workflows
+  const handleNewWorkflow = () => {
+    fetchStats();
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -21,15 +43,49 @@ export default function DashboardPage() {
       router.push("/login");
       return;
     }
-    fetchWorkflows();
+    fetchStats();
   }, [router]);
 
-  const fetchWorkflows = async () => {
+  const fetchStats = async () => {
     try {
-      const response = await api.get("/workflows");
-      setWorkflows(response.data);
+      const workflowsRes = await api.get("/workflows");
+      const executionsRes = await api.get("/executions");
+
+      const workflowsData = workflowsRes.data;
+      const executionsData = executionsRes.data;
+
+      setWorkflows(workflowsData);
+      setStats({
+        totalWorkflows: workflowsData.length,
+        activeWorkflows: workflowsData.filter((w: any) => w.status === "ACTIVE")
+          .length,
+        totalExecutions: executionsData.length,
+        successRate: executionsData.length
+          ? Math.round(
+              (executionsData.filter((e: any) => e.status === "COMPLETED")
+                .length /
+                executionsData.length) *
+                100,
+            )
+          : 0,
+      });
+
+      // build chart data by workflow name
+      const counts: Record<string, number> = {};
+      executionsData.forEach((e: any) => {
+        const wf = workflowsData.find((w: any) => w.id === e.workflowId);
+        const name = wf ? wf.name : `#${e.workflowId}`;
+        counts[name] = (counts[name] || 0) + 1;
+      });
+      setExecutionData(
+        Object.entries(counts).map(([name, executions]) => ({
+          name,
+          executions,
+        })),
+      );
     } catch (error) {
-      console.error("Failed to fetch workflows:", error);
+      console.error("Failed to fetch stats:", error);
+      toast.error("Unable to load dashboard stats");
     } finally {
       setLoading(false);
     }
@@ -113,88 +169,110 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Stats Cards */}
-              <div className="bg-gradient-to-br from-primary to-primary/90 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-primary/20 text-sm font-medium">
-                      Total Workflows
-                    </p>
-                    <p className="text-4xl font-bold mt-2">
-                      {workflows.length}
-                    </p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* Stats Cards using state */}
+                <div className="bg-gradient-to-br from-primary to-primary/90 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-yellow-100 text-sm font-medium">
+                        Total Workflows
+                      </p>
+                      <p className="text-4xl font-bold mt-2">
+                        {stats.totalWorkflows}
+                      </p>
+                    </div>
+                    <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+                      <svg
+                        className="w-8 h-8"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                    <svg
-                      className="w-8 h-8"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-green-100 text-sm font-medium">
+                        Active
+                      </p>
+                      <p className="text-4xl font-bold mt-2">
+                        {stats.activeWorkflows}
+                      </p>
+                    </div>
+                    <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+                      <svg
+                        className="w-8 h-8"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-yellow-100 text-sm font-medium">
+                        Success%
+                      </p>
+                      <p className="text-4xl font-bold mt-2">
+                        {stats.successRate}%
+                      </p>
+                    </div>
+                    <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+                      <svg
+                        className="w-8 h-8"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm font-medium">Active</p>
-                    <p className="text-4xl font-bold mt-2">
-                      {workflows.filter((w) => w.status === "ACTIVE").length}
-                    </p>
-                  </div>
-                  <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                    <svg
-                      className="w-8 h-8"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+              {/* Chart */}
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-xl font-semibold mb-4">
+                  Executions by Workflow
+                </h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={executionData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="executions" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-
-              <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-yellow-100 text-sm font-medium">Draft</p>
-                    <p className="text-4xl font-bold mt-2">
-                      {workflows.filter((w) => w.status === "DRAFT").length}
-                    </p>
-                  </div>
-                  <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                    <svg
-                      className="w-8 h-8"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
+            </>
           )}
 
           {/* Quick Actions */}
@@ -271,7 +349,7 @@ export default function DashboardPage() {
       <CreateWorkflowModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={fetchWorkflows}
+        onSuccess={handleNewWorkflow}
       />
     </div>
   );

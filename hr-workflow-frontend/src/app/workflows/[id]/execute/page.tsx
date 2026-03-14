@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
+import Button from "@/components/ui/Button";
+// XLSX is only needed in the downloadExcel helper, we load it dynamically to avoid
+// bundler complaints about default exports and to keep it client‑side.
 
 export default function ExecuteWorkflowPage() {
   const params = useParams();
@@ -11,6 +14,7 @@ export default function ExecuteWorkflowPage() {
   const [workflow, setWorkflow] = useState<any>(null);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [execution, setExecution] = useState<any>(null);
+  const [nodeConfigMap, setNodeConfigMap] = useState<Record<number, any>>({});
 
   const [inputData, setInputData] = useState(`{
   "employeeName": "John Doe",
@@ -73,6 +77,31 @@ export default function ExecuteWorkflowPage() {
     }
   };
 
+  // helper used when excel node returns data or config to generate file on client
+  const downloadExcel = async (nodeInstance: any) => {
+    try {
+      const XLSX = await import("xlsx");
+      const config = nodeConfigMap[nodeInstance.nodeId] || {};
+      const input = nodeInstance.inputData
+        ? JSON.parse(nodeInstance.inputData)
+        : {};
+
+      const ws = XLSX.utils.json_to_sheet([input]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, config.sheetName || "Data");
+
+      const ext = (config.fileFormat || "XLSX").toLowerCase();
+      const filename =
+        (config.fileName || `workflow-${nodeInstance.id}`) +
+        (ext === "csv" ? ".csv" : ".xlsx");
+
+      XLSX.writeFile(wb, filename);
+    } catch (e) {
+      console.error("excel download failed", e);
+      alert("Unable to generate Excel file on client");
+    }
+  };
+
   const fetchWorkflows = async () => {
     try {
       const response = await api.get("/workflows");
@@ -132,6 +161,23 @@ export default function ExecuteWorkflowPage() {
     try {
       const response = await api.get(`/executions/${executionId}/detail`);
       setExecution(response.data);
+
+      // load node configs for excel nodes so we can reconstruct files
+      if (response.data.nodeInstances) {
+        const configs: Record<number, any> = {};
+        for (const ni of response.data.nodeInstances) {
+          if (ni.nodeType === "EXCEL") {
+            try {
+              const nodeResp = await api.get(`/nodes/${ni.nodeId}`);
+              configs[ni.nodeId] = JSON.parse(nodeResp.data.configJson || "{}");
+            } catch (e) {
+              console.warn("Couldn't fetch config for node", ni.nodeId, e);
+            }
+          }
+        }
+        setNodeConfigMap(configs);
+      }
+
       setExecuting(false);
       setLoading(false);
     } catch (error) {
@@ -176,12 +222,13 @@ export default function ExecuteWorkflowPage() {
             </h1>
             <p className="text-gray-600 mt-1">{workflow?.name}</p>
           </div>
-          <button
+          <Button
             onClick={clearExecutionHistory}
-            className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 transition font-medium text-sm"
+            variant="danger"
+            className="text-sm"
           >
             🗑️ Clear History
-          </button>
+          </Button>
 
           {/* Execution Plan */}
           {workflowNodes.length > 0 && (
@@ -238,27 +285,31 @@ export default function ExecuteWorkflowPage() {
               all nodes in the workflow.
             </p>
 
-            <button
-              onClick={executeWorkflow}
-              disabled={loading || workflow?.status !== "ACTIVE"}
-              className="mt-4 bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              {executing && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-xl p-8 max-w-md">
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mb-4"></div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        Executing Workflow
-                      </h3>
-                      <p className="text-gray-600 text-center">
-                        Running {workflowNodes.length} nodes...
-                      </p>
-                    </div>
+            <div className="mt-4">
+              <Button
+                onClick={executeWorkflow}
+                disabled={loading || workflow?.status !== "ACTIVE"}
+                variant="primary"
+                className="px-8 py-3 flex items-center justify-center"
+              >
+                Execute
+              </Button>
+            </div>
+            {executing && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-8 max-w-md">
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mb-4"></div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      Executing Workflow
+                    </h3>
+                    <p className="text-gray-600 text-center">
+                      Running {workflowNodes.length} nodes...
+                    </p>
                   </div>
                 </div>
-              )}
-            </button>
+              </div>
+            )}
           </div>
 
           {/* Execution Results */}
@@ -386,6 +437,31 @@ export default function ExecuteWorkflowPage() {
                               <pre className="bg-white p-3 rounded border text-xs overflow-x-auto">
                                 {nodeInstance.outputData}
                               </pre>
+
+                              {(() => {
+                                try {
+                                  const parsed = JSON.parse(
+                                    nodeInstance.outputData,
+                                  );
+                                  if (parsed.outputFileUrl) {
+                                    return (
+                                      <p className="mt-2">
+                                        <a
+                                          href={parsed.outputFileUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:underline text-xs"
+                                        >
+                                          📄 View/download file
+                                        </a>
+                                      </p>
+                                    );
+                                  }
+                                } catch {
+                                  // not json
+                                }
+                                return null;
+                              })()}
                             </div>
                           )}
 
@@ -397,6 +473,18 @@ export default function ExecuteWorkflowPage() {
                               <pre className="bg-red-50 p-3 rounded border border-red-200 text-xs text-red-800 overflow-x-auto">
                                 {nodeInstance.errorMessage}
                               </pre>
+                            </div>
+                          )}
+
+                          {nodeInstance.nodeType === "EXCEL" && (
+                            <div className="mt-3">
+                              <Button
+                                variant="primary"
+                                onClick={() => downloadExcel(nodeInstance)}
+                                className="text-sm"
+                              >
+                                📥 Download Excel
+                              </Button>
                             </div>
                           )}
 
