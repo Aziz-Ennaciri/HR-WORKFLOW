@@ -3,6 +3,8 @@ hr-workflow-backend/src/main/resources/google-credentials.json
 
 .env
 
+mvnw
+
 node_modules/
 
 target/
