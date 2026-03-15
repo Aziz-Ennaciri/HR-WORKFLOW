@@ -430,40 +430,149 @@ export default function ExecuteWorkflowPage() {
                           </div>
 
                           {nodeInstance.outputData && (
-                            <div className="mt-3">
+                            <div className="mt-2">
                               <p className="text-sm font-medium text-gray-700 mb-1">
                                 Output:
                               </p>
-                              <pre className="bg-white p-3 rounded border text-xs overflow-x-auto">
-                                {nodeInstance.outputData}
-                              </pre>
-
                               {(() => {
                                 try {
                                   const parsed = JSON.parse(
                                     nodeInstance.outputData,
                                   );
-                                  if (parsed.outputFileUrl) {
-                                    return (
-                                      <p className="mt-2">
-                                        <a
-                                          href={parsed.outputFileUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:underline text-xs"
-                                        >
-                                          📄 View/download file
-                                        </a>
-                                      </p>
-                                    );
-                                  }
-                                } catch {
-                                  // not json
+                                  return (
+                                    <div className="space-y-2">
+                                      {/* Show Analysis */}
+                                      {parsed.analysis && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                          <h4 className="font-semibold text-blue-900 mb-2">
+                                            AI Analysis:
+                                          </h4>
+                                          <p className="text-gray-800 whitespace-pre-wrap">
+                                            {parsed.analysis}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {/* Show Metadata */}
+                                      <div className="grid grid-cols-3 gap-2 text-xs">
+                                        {parsed.model && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <span className="text-gray-600">
+                                              Model:
+                                            </span>
+                                            <span className="ml-1 font-medium">
+                                              {parsed.model}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {parsed.tokensUsed && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <span className="text-gray-600">
+                                              Tokens:
+                                            </span>
+                                            <span className="ml-1 font-medium">
+                                              {parsed.tokensUsed}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {parsed.analyzedAt && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <span className="text-gray-600">
+                                              Time:
+                                            </span>
+                                            <span className="ml-1 font-medium">
+                                              {new Date(
+                                                parsed.analyzedAt,
+                                              ).toLocaleTimeString()}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Show Raw JSON (collapsible) */}
+                                      <details className="text-xs">
+                                        <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
+                                          Show raw JSON
+                                        </summary>
+                                        <pre className="mt-2 p-2 bg-gray-900 text-green-400 rounded overflow-x-auto">
+                                          {JSON.stringify(parsed, null, 2)}
+                                        </pre>
+                                      </details>
+                                    </div>
+                                  );
+                                } catch (e) {
+                                  // If not JSON, show as text
+                                  return (
+                                    <pre className="text-sm bg-gray-50 p-3 rounded border overflow-x-auto whitespace-pre-wrap">
+                                      {nodeInstance.outputData}
+                                    </pre>
+                                  );
                                 }
-                                return null;
                               })()}
                             </div>
                           )}
+
+                          {nodeInstance.node?.type === "DRIVE" &&
+                            nodeInstance.outputData &&
+                            (() => {
+                              try {
+                                const driveData = JSON.parse(
+                                  nodeInstance.outputData,
+                                );
+                                return (
+                                  <div className="mt-2 space-y-2">
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                      <h4 className="font-semibold text-green-900 mb-2">
+                                        📁 File Saved Successfully
+                                      </h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p>
+                                          <span className="text-gray-600">
+                                            File:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {driveData.fileName}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Size:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {(driveData.size / 1024).toFixed(2)}{" "}
+                                            KB
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Location:
+                                          </span>{" "}
+                                          <span className="font-mono text-xs">
+                                            {driveData.webViewLink}
+                                          </span>
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          // Copy path to clipboard
+                                          navigator.clipboard.writeText(
+                                            driveData.webViewLink,
+                                          );
+                                          alert(
+                                            "✅ File path copied to clipboard!",
+                                          );
+                                        }}
+                                        className="mt-3 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm"
+                                      >
+                                        📋 Copy File Path
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              } catch (e) {
+                                return null;
+                              }
+                            })()}
 
                           {nodeInstance.errorMessage && (
                             <div className="mt-3">
