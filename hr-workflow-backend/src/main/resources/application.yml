@@ -48,5 +48,15 @@ server:
 google:
   credentials:
     path: classpath:google-credentials.json
-  drive:
-    folder:1LbFcIv10YFH8l2UeshhRayG3zC8E79kL
+#  drive:
+#    folder:1LbFcIv10YFH8l2UeshhRayG3zC8E79kL
+
+  ollama:
+    url: http://localhost:11434/api/generate
+    default:
+      model: llama3.2:3b
+
+
+drive:
+  storage:
+    path: /home/ennaciri/hr-workflow-files
