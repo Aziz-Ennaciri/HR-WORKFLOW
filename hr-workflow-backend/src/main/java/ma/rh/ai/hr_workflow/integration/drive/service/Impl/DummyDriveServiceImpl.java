@@ -16,7 +16,6 @@ import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveResponseDTO;
 import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
 
 @Service
-@Primary
 @RequiredArgsConstructor
 public class DummyDriveServiceImpl implements DriveService{
     private final ObjectMapper objectMapper;
