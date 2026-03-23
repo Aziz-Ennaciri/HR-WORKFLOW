@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DriveConfigDTO {
+    private String action;
     private String folderId;
     private String fileName;
     private String mimeType;
