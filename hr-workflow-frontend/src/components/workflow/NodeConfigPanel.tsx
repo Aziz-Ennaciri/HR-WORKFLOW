@@ -135,15 +135,17 @@ export default function NodeConfigPanel({
                 Action *
               </label>
               <select
-                value={config.action || "upload"}
+                name="action"
+                value={config.action || "write"}
                 onChange={(e) =>
                   setConfig({ ...config, action: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
-                <option value="upload">Upload File</option>
+                <option value="read">Read Folder</option>
+                <option value="write">Upload File</option>
                 <option value="download">Download File</option>
-                <option value="create">Create Folder</option>
+                <option value="create_folder">Create Folder</option>
               </select>
             </div>
             <div>
