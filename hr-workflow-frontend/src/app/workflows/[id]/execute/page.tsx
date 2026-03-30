@@ -26,6 +26,33 @@ export default function ExecuteWorkflowPage() {
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
 
+  const fetchWorkflows = async () => {
+    try {
+      const response = await api.get("/workflows");
+      setWorkflows(response.data);
+    } catch (error) {
+      console.error("Failed to fetch workflows:", error);
+    }
+  };
+
+  const fetchWorkflow = async () => {
+    try {
+      const response = await api.get(`/workflows/${params.id}`);
+      setWorkflow(response.data);
+    } catch (error) {
+      console.error("Failed to fetch workflow:", error);
+    }
+  };
+
+  const fetchWorkflowNodes = async () => {
+    try {
+      const response = await api.get(`/nodes/workflow/${params.id}`);
+      setWorkflowNodes(response.data);
+    } catch (error) {
+      console.error("Failed to fetch nodes:", error);
+    }
+  };
+
   useEffect(() => {
     fetchWorkflow();
     fetchWorkflows();
@@ -59,27 +86,37 @@ export default function ExecuteWorkflowPage() {
     }
   };
 
-  const fetchWorkflowNodes = async () => {
-    try {
-      const response = await api.get(`/nodes/workflow/${params.id}`);
-      setWorkflowNodes(response.data);
-    } catch (error) {
-      console.error("Failed to fetch nodes:", error);
-    }
-  };
-
-  const fetchWorkflow = async () => {
-    try {
-      const response = await api.get(`/workflows/${params.id}`);
-      setWorkflow(response.data);
-    } catch (error) {
-      console.error("Failed to fetch workflow:", error);
-    }
-  };
-
   // helper used when excel node returns data or config to generate file on client
   const downloadExcel = async (nodeInstance: any) => {
     try {
+      // If the node has outputData with fileContent, use it
+      if (nodeInstance.outputData) {
+        const output = JSON.parse(nodeInstance.outputData);
+        if (output.fileContent) {
+          // Decode base64 and download
+          const byteCharacters = atob(output.fileContent);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          });
+
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `workflow-excel-${nodeInstance.id}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          return;
+        }
+      }
+
+      // Fallback: create Excel from input data (old logic)
       const XLSX = await import("xlsx");
       const config = nodeConfigMap[nodeInstance.nodeId] || {};
       const input = nodeInstance.inputData
@@ -98,16 +135,7 @@ export default function ExecuteWorkflowPage() {
       XLSX.writeFile(wb, filename);
     } catch (e) {
       console.error("excel download failed", e);
-      alert("Unable to generate Excel file on client");
-    }
-  };
-
-  const fetchWorkflows = async () => {
-    try {
-      const response = await api.get("/workflows");
-      setWorkflows(response.data);
-    } catch (error) {
-      console.error("Failed to fetch workflows:", error);
+      alert("Failed to download Excel file");
     }
   };
 
@@ -585,17 +613,72 @@ export default function ExecuteWorkflowPage() {
                             </div>
                           )}
 
-                          {nodeInstance.nodeType === "EXCEL" && (
-                            <div className="mt-3">
-                              <Button
-                                variant="primary"
-                                onClick={() => downloadExcel(nodeInstance)}
-                                className="text-sm"
-                              >
-                                📥 Download Excel
-                              </Button>
-                            </div>
-                          )}
+                          {(nodeInstance.node?.type ||
+                            nodeInstance.nodeType) === "EXCEL" &&
+                            nodeInstance.outputData &&
+                            (() => {
+                              try {
+                                const excelData = JSON.parse(
+                                  nodeInstance.outputData,
+                                );
+                                return (
+                                  <div className="mt-2 space-y-2">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                      <h4 className="font-semibold text-blue-900 mb-2">
+                                        📊 Excel File Generated
+                                      </h4>
+                                      <div className="space-y-1 text-sm">
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Sheet:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {excelData.sheetName}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Rows:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {excelData.rowsProcessed}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Columns:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {excelData.columnsProcessed}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-gray-600">
+                                            Size:
+                                          </span>{" "}
+                                          <span className="font-medium">
+                                            {(
+                                              excelData.fileSize / 1024
+                                            ).toFixed(2)}{" "}
+                                            KB
+                                          </span>
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() =>
+                                          downloadExcel(nodeInstance)
+                                        }
+                                        className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                                      >
+                                        📥 Download Excel File
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              } catch (e) {
+                                return null;
+                              }
+                            })()}
 
                           <div className="mt-3 flex items-center space-x-4 text-xs text-gray-600">
                             {nodeInstance.startedAt && (
