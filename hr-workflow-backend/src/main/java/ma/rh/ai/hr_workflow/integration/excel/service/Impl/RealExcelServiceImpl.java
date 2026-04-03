@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -83,21 +84,41 @@ public class RealExcelServiceImpl implements ExcelService {
                         }
                     } catch (Exception e) {
                         // Analysis is not JSON, treat as text
-                        log.warn("⚠️ Analysis field does not contain valid JSON, using text parsing");
-                        List<CandidateData> candidates = parseCandidatesFromText(analysisText);
-                        if (!candidates.isEmpty()) {
-                            rowNum = createCandidateTable(workbook, sheet, candidates, rowNum);
-                            dataList = candidates.stream().map(c -> Map.of(
-                                "name", c.name,
-                                "email", c.email,
-                                "experience", c.experience,
-                                "skills", c.skills,
-                                "score", c.score
-                            )).collect(Collectors.toList());
-                        } else {
-                            rowNum = createJsonTable(workbook, sheet, dataNode, rowNum);
-                            columnsProcessed = dataNode.size();
-                            dataList = objectMapper.convertValue(dataNode, List.class);
+                        log.warn("⚠️ Analysis field does not contain valid JSON, using text parsing. Raw analysis begins: {}", analysisText.substring(0, Math.min(200, analysisText.length())));
+
+                        // Additional fallback: try to extract first JSON array from code-like output
+                        String possibleJson = extractJsonFromText(analysisText);
+                        boolean fallbackApplied = false;
+                        if (possibleJson != null && !possibleJson.trim().isEmpty() && !possibleJson.trim().equals(analysisText.trim())) {
+                            try {
+                                JsonNode fallbackNode = objectMapper.readTree(possibleJson);
+                                if (fallbackNode.isArray()) {
+                                    log.info("📊 Excel: Fallback JSON array extracted from GPT code output");
+                                    rowNum = createCandidateArrayTable(workbook, sheet, fallbackNode, rowNum);
+                                    dataList = objectMapper.convertValue(fallbackNode, List.class);
+                                    fallbackApplied = true;
+                                }
+                            } catch (Exception innerEx) {
+                                log.warn("⚠️ Fallback JSON extraction failed: {}", innerEx.getMessage());
+                            }
+                        }
+
+                        if (!fallbackApplied) {
+                            List<CandidateData> candidates = parseCandidatesFromText(analysisText);
+                            if (!candidates.isEmpty()) {
+                                rowNum = createCandidateTable(workbook, sheet, candidates, rowNum);
+                                dataList = candidates.stream().map(c -> Map.of(
+                                        "name", c.name,
+                                        "email", c.email,
+                                        "experience", c.experience,
+                                        "skills", c.skills,
+                                        "score", c.score
+                                )).collect(Collectors.toList());
+                            } else {
+                                rowNum = createJsonTable(workbook, sheet, dataNode, rowNum);
+                                columnsProcessed = dataNode.size();
+                                dataList = objectMapper.convertValue(dataNode, List.class);
+                            }
                         }
                     }
                 } else {
@@ -138,6 +159,24 @@ public class RealExcelServiceImpl implements ExcelService {
             long fileSize = tempFile.length();
             String filePath = tempFile.getAbsolutePath();
 
+            // Also save to web-accessible directory for download links
+            String webFileName = "workflow-" + System.currentTimeMillis() + "-" + java.util.UUID.randomUUID().toString().substring(0, 8) + ".xlsx";
+            File webDir = new File(System.getProperty("java.io.tmpdir"), "hr-workflow-files");
+            if (!webDir.exists()) {
+                webDir.mkdirs();
+            }
+            File webFile = new File(webDir, webFileName);
+            try (FileOutputStream webOutputStream = new FileOutputStream(webFile)) {
+                // Re-write the workbook to the web file
+                Workbook webWorkbook = new XSSFWorkbook();
+                Sheet webSheet = webWorkbook.createSheet(sheetName);
+                copySheetData(sheet, webSheet); // Copy the data to new workbook
+                webWorkbook.write(webOutputStream);
+                webWorkbook.close();
+            }
+
+            String webFileUrl = "/api/v1/files/excel/" + webFileName;
+
             // Encode file content to base64
             byte[] fileBytes = Files.readAllBytes(tempFile.toPath());
             String fileContent = Base64.getEncoder().encodeToString(fileBytes);
@@ -149,6 +188,7 @@ public class RealExcelServiceImpl implements ExcelService {
             response.setRowsProcessed(rowNum);
             response.setColumnsProcessed(columnsProcessed);
             response.setOutputFileUrl(filePath);
+            response.setWebFileUrl(webFileUrl);
             response.setFileSize(fileSize);
             response.setSheetName(sheetName);
             response.setOperation(operation);
@@ -193,6 +233,39 @@ public class RealExcelServiceImpl implements ExcelService {
         }
         
         return text;
+    }
+
+    /**
+     * Copy sheet data from one sheet to another
+     */
+    private void copySheetData(Sheet sourceSheet, Sheet targetSheet) {
+        for (int i = 0; i <= sourceSheet.getLastRowNum(); i++) {
+            Row sourceRow = sourceSheet.getRow(i);
+            if (sourceRow != null) {
+                Row targetRow = targetSheet.createRow(i);
+                for (int j = 0; j < sourceRow.getLastCellNum(); j++) {
+                    Cell sourceCell = sourceRow.getCell(j);
+                    if (sourceCell != null) {
+                        Cell targetCell = targetRow.createCell(j);
+                        // Copy cell value and style
+                        switch (sourceCell.getCellType()) {
+                            case STRING:
+                                targetCell.setCellValue(sourceCell.getStringCellValue());
+                                break;
+                            case NUMERIC:
+                                targetCell.setCellValue(sourceCell.getNumericCellValue());
+                                break;
+                            case BOOLEAN:
+                                targetCell.setCellValue(sourceCell.getBooleanCellValue());
+                                break;
+                            default:
+                                targetCell.setCellValue("");
+                        }
+                        // Note: Cell styles are not copied to avoid workbook compatibility issues
+                    }
+                }
+            }
+        }
     }
 
     /**

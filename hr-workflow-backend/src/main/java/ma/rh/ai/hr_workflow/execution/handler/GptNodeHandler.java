@@ -22,10 +22,31 @@ public class GptNodeHandler implements NodeHandler {
     @Override
     public String execute(Node node, NodeInstance nodeInstance) throws Exception {
         String configJson = node.getConfigJson();
-        String inputData = nodeInstance.getInputData();
+        String nodeInputData = nodeInstance.getInputData(); // Data from previous node (e.g., DRIVE)
+        String workflowInputData = nodeInstance.getWorkflowInstance().getInputData(); // Original workflow input (filtering criteria)
         
-        String result = gptService.analyze(configJson, inputData);
+        // Combine both inputs for the GPT analysis
+        String combinedInput = combineInputs(workflowInputData, nodeInputData);
+        
+        String result = gptService.analyze(configJson, combinedInput);
         
         return result;
+    }
+
+    /**
+     * Combine workflow input data (filtering criteria) with node input data (candidate data)
+     */
+    private String combineInputs(String workflowInputData, String nodeInputData) {
+        StringBuilder combined = new StringBuilder();
+        
+        if (workflowInputData != null && !workflowInputData.trim().isEmpty()) {
+            combined.append("FILTERING_CRITERIA:").append(workflowInputData).append("\n\n");
+        }
+        
+        if (nodeInputData != null && !nodeInputData.trim().isEmpty()) {
+            combined.append("CANDIDATE_DATA:").append(nodeInputData);
+        }
+        
+        return combined.toString();
     }
 }

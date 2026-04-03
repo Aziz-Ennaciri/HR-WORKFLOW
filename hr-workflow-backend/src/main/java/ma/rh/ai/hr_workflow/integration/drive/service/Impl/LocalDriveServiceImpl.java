@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,6 @@ public class LocalDriveServiceImpl implements DriveService {
     public String saveFile(String configJson, String inputData) throws Exception {
         try {
             DriveConfigDTO config = objectMapper.readValue(configJson, DriveConfigDTO.class);
-
             String action = config.getAction() != null ? config.getAction().toLowerCase() : "write";
 
             if ("read".equals(action)) {
@@ -57,53 +57,18 @@ public class LocalDriveServiceImpl implements DriveService {
         }
     }
 
-    public String readFiles(String configJson, String inputData) throws Exception {
-        try {
-            log.info("📖 Local Drive: Reading files from folder...");
-
-            DriveConfigDTO config = objectMapper.readValue(configJson, DriveConfigDTO.class);
-            String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
-
-            Path folderPath = Paths.get(storagePath, folderId);
-
-            if (!Files.exists(folderPath)) {
-                throw new RuntimeException("Folder not found: " + folderPath);
-            }
-
-            // Read all files in folder
-            List<String> filesContent = new ArrayList<>();
-            Files.list(folderPath)
-                    .filter(Files::isRegularFile)
-                    .forEach(filePath -> {
-                        try {
-                            String content = extractTextFromFile(filePath);
-                            filesContent.add("=== " + filePath.getFileName() + " ===\n" + content);
-                        } catch (IOException e) {
-                            log.error("Failed to read file: " + filePath, e);
-                        }
-                    });
-
-            String allContent = String.join("\n\n", filesContent);
-
-            log.info("✅ Local Drive: Read {} files", filesContent.size());
-
-            DriveResponseDTO response = new DriveResponseDTO();
-            response.setFileId(folderId);
-            response.setFileName(filesContent.size() + " CVs");
-            response.setFileUrl("folder://" + folderPath.toAbsolutePath());
-            response.setWebViewLink(folderPath.toAbsolutePath().toString());
-            response.setSize((long) allContent.length());
-            response.setCreatedAt(LocalDateTime.now());
-
-            // Return the combined content for next node
-            return allContent;
-
-        } catch (Exception e) {
-            log.error("❌ Local Drive read failed", e);
-            throw new RuntimeException("Local Drive read failed: " + e.getMessage(), e);
-        }
-    }
-
+    /**
+     * Read all files from folder and combine with the original inputData.
+     *
+     * The output is a combined JSON object:
+     * {
+     *   "originalInput": { ...whatever the user typed / sent... },
+     *   "cvData": { "totalCVs": N, "folder": "...", "cvs": [...] }
+     * }
+     *
+     * This ensures the user's prompt/criteria is NEVER lost when data
+     * flows from DRIVE → GPT node.
+     */
     private String readFilesFromFolder(DriveConfigDTO config, String inputData) throws Exception {
         log.info("📖 Local Drive: Reading files from folder...");
 
@@ -118,6 +83,7 @@ public class LocalDriveServiceImpl implements DriveService {
         List<Map<String, String>> cvs = new ArrayList<>();
         Files.list(folderPath)
                 .filter(Files::isRegularFile)
+                .sorted() // consistent ordering
                 .forEach(filePath -> {
                     try {
                         String content = extractTextFromFile(filePath);
@@ -133,25 +99,45 @@ public class LocalDriveServiceImpl implements DriveService {
 
         log.info("✅ Local Drive: Read {} files", cvs.size());
 
-        // Return JSON with all CVs
-        Map<String, Object> result = new HashMap<>();
-        result.put("totalCVs", cvs.size());
-        result.put("folder", folderId);
-        result.put("cvs", cvs);
+        // Parse the original inputData so we can carry it forward
+        JsonNode originalInput = null;
+        if (inputData != null && inputData.trim().startsWith("{")) {
+            try {
+                originalInput = objectMapper.readTree(inputData.trim());
+                log.info("📦 Preserving original input: {}", inputData.trim());
+            } catch (Exception e) {
+                log.warn("⚠️ Could not parse inputData as JSON, storing as raw string");
+            }
+        }
 
-        return objectMapper.writeValueAsString(result);
+        // Build CV data section
+        Map<String, Object> cvData = new HashMap<>();
+        cvData.put("totalCVs", cvs.size());
+        cvData.put("folder", folderId);
+        cvData.put("cvs", cvs);
+
+        // Combine: original user input + CV data
+        Map<String, Object> combined = new HashMap<>();
+        if (originalInput != null) {
+            combined.put("originalInput", originalInput);
+        } else if (inputData != null) {
+            combined.put("originalInput", inputData); // keep as raw string fallback
+        }
+        combined.put("cvData", cvData);
+
+        String output = objectMapper.writeValueAsString(combined);
+        log.info("📤 DRIVE output (combined) length: {} characters", output.length());
+        return output;
     }
 
     /**
-     * Extract text from file - supports both PDF and text files
+     * Extract text from file - supports both PDF and plain text files
      */
     private String extractTextFromFile(Path filePath) throws IOException {
         String fileName = filePath.getFileName().toString().toLowerCase();
-
         if (fileName.endsWith(".pdf")) {
             return extractTextFromPDF(filePath);
         } else {
-            // Text file (.txt, .md, etc.)
             return Files.readString(filePath);
         }
     }
@@ -177,24 +163,18 @@ public class LocalDriveServiceImpl implements DriveService {
         String fileName = config.getFileName() != null ? config.getFileName() : generateFileName();
         String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
 
-        // Create directory structure
         Path folderPath = Paths.get(storagePath, folderId);
         Files.createDirectories(folderPath);
 
-        // Create file path
         Path filePath = folderPath.resolve(fileName);
-
-        // Write content to file
         try (FileWriter writer = new FileWriter(filePath.toFile())) {
             writer.write(inputData);
         }
 
         File file = filePath.toFile();
         long fileSize = file.length();
-
         log.info("✅ Local Drive: File saved - {} ({} bytes)", fileName, fileSize);
 
-        // Build response
         DriveResponseDTO response = new DriveResponseDTO();
         response.setFileId(file.getName());
         response.setFileName(fileName);

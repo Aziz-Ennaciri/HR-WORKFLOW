@@ -19,7 +19,7 @@ public class DummyEmailServiceImpl implements EmailService{
     private final ObjectMapper objectMapper;
 
     @Override
-    public String sendEmail(String configJson, String inputData) throws Exception {
+    public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey) throws Exception {
         try {
             EmailConfigDTO config = objectMapper.readValue(configJson, EmailConfigDTO.class);
             
