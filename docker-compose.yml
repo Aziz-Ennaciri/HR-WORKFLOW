@@ -32,7 +32,7 @@ services:
 
   frontend:
     build:
-      context: ./hr-workflow-frontednd
+      context: ./hr-workflow-frontend
       dockerfile: Dockerfile
       network: host
     ports:
