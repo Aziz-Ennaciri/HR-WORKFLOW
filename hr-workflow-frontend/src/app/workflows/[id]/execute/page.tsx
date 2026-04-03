@@ -310,7 +310,8 @@ export default function ExecuteWorkflowPage() {
             />
             <p className="text-sm text-gray-500 mt-2">
               ℹ️ Enter input data as valid JSON. This data will be available to
-              all nodes in the workflow.
+              all nodes in the workflow; GPT nodes will use it to filter and
+              tailor the response.
             </p>
 
             <div className="mt-4">
