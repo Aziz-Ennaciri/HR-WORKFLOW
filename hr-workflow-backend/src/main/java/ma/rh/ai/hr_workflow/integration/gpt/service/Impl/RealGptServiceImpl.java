@@ -40,18 +40,18 @@ public class RealGptServiceImpl implements GptService {
             String model = config.getModel() != null ? config.getModel() : "llama3.2:3b";
 
             String finalPrompt = buildPrompt(inputData);
-            log.info("📝 Final prompt sent to Ollama ({} characters)", finalPrompt.length());
+            log.info("📝 Final prompt ({} chars). Preview: {}", finalPrompt.length(),
+                    finalPrompt.substring(0, Math.min(300, finalPrompt.length())));
 
+            // Build Ollama request
             ObjectNode ollamaRequest = objectMapper.createObjectNode();
             ollamaRequest.put("model", model);
             ollamaRequest.put("prompt", finalPrompt);
             ollamaRequest.put("stream", false);
 
-            if (config.getTemperature() != null) {
-                ObjectNode options = objectMapper.createObjectNode();
-                options.put("temperature", config.getTemperature());
-                ollamaRequest.set("options", options);
-            }
+            ObjectNode options = objectMapper.createObjectNode();
+            options.put("temperature", config.getTemperature() != null ? config.getTemperature() : 0.1);
+            ollamaRequest.set("options", options);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -63,16 +63,14 @@ public class RealGptServiceImpl implements GptService {
             String analysis = responseNode.get("response").asText();
             int tokensUsed = responseNode.has("eval_count") ? responseNode.get("eval_count").asInt() : 0;
 
-            log.info("✅ Ollama: Analysis complete - {} tokens", tokensUsed);
-            log.info("📤 Ollama raw output: {}", analysis);
+            log.info("✅ Ollama done — {} tokens", tokensUsed);
+            log.info("📤 Raw output: {}", analysis);
 
             String cleanedAnalysis = extractJsonFromText(analysis);
             if (cleanedAnalysis == null || cleanedAnalysis.isBlank()) {
-                log.info("ℹ️ No JSON array found — keeping raw text response");
+                log.info("ℹ️ No JSON array found — keeping raw text");
                 cleanedAnalysis = analysis.trim();
             }
-
-            log.info("✅ Final analysis: {}", cleanedAnalysis);
 
             GptResponseDTO response = new GptResponseDTO();
             response.setAnalysis(cleanedAnalysis);
@@ -88,136 +86,141 @@ public class RealGptServiceImpl implements GptService {
         }
     }
 
-    /**
-     * Build the Ollama prompt from inputData.
-     *
-     * The DRIVE node now outputs a combined JSON:
-     * {
-     *   "originalInput": { "prompt": "user text..." }   ← from execute page
-     *   "cvData": { "totalCVs": N, "cvs": [...] }       ← from DRIVE node
-     * }
-     *
-     * We extract both and build a clean prompt for Ollama.
-     */
+
     private String buildPrompt(String inputData) {
-        try {
-            if (inputData == null || inputData.isBlank()) {
-                return "No input data provided.";
-            }
+        if (inputData == null || inputData.isBlank()) {
+            return "No input data provided.";
+        }
 
-            // ── Try to parse the combined DRIVE output ──────────────────────────
-            if (inputData.trim().startsWith("{")) {
-                try {
-                    JsonNode root = objectMapper.readTree(inputData.trim());
+        // 1. Try JSON (combined DRIVE output or plain prompt)
+        if (inputData.trim().startsWith("{")) {
+            try {
+                JsonNode root = objectMapper.readTree(inputData.trim());
 
-                    // Extract originalInput (what the user typed on execute page)
-                    JsonNode originalInput = root.get("originalInput");
+                JsonNode originalInput = root.get("originalInput");
+                JsonNode cvData = root.get("cvData");
 
-                    // Extract cvData (what DRIVE node read)
-                    JsonNode cvData = root.get("cvData");
-
-                    if (originalInput != null && cvData != null) {
-                        // This is the combined DRIVE output — most common case
-                        log.info("✅ Mode: Combined DRIVE output detected");
-                        return buildCombinedPrompt(originalInput, cvData);
-                    }
-
-                    // Plain {"prompt": "..."} without CVs (no DRIVE node)
-                    if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
-                        log.info("✅ Mode: Plain-text prompt (no CV data)");
-                        String userPrompt = root.get("prompt").asText().trim();
-                        return "You are an HR assistant. The user says:\n\n\"" + userPrompt
-                                + "\"\n\nRespond clearly and helpfully.";
-                    }
-
-                } catch (Exception e) {
-                    log.warn("⚠️ Could not parse inputData as JSON: {}", e.getMessage());
+                if (originalInput != null && cvData != null) {
+                    log.info("✅ Mode: Combined DRIVE output");
+                    return buildCombinedPrompt(originalInput, cvData);
                 }
+
+                if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
+                    log.info("✅ Mode: Plain prompt (no CVs)");
+                    return "You are an HR assistant. The user says:\n\n\""
+                            + root.get("prompt").asText().trim()
+                            + "\"\n\nRespond clearly and helpfully.";
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ JSON parse failed: {}", e.getMessage());
             }
-
-            // ── Legacy: FILTERING_CRITERIA: format ──────────────────────────────
-            if (inputData.contains("FILTERING_CRITERIA:")) {
-                log.info("✅ Mode: Legacy structured criteria");
-                return buildLegacyStructuredPrompt(inputData);
-            }
-
-            // ── Fallback ─────────────────────────────────────────────────────────
-            log.info("⚙️ Mode: Raw fallback");
-            return "You are an HR assistant. Here is a request:\n\n" + inputData
-                    + "\n\nRespond helpfully and concisely.";
-
-        } catch (Exception e) {
-            log.error("❌ Error building prompt: {}", e.getMessage(), e);
-            return "Analyze this: " + inputData;
         }
+
+        // 2. Legacy format
+        if (inputData.contains("FILTERING_CRITERIA:")) {
+            log.info("✅ Mode: Legacy");
+            return buildLegacyPrompt(inputData);
+        }
+
+        // 3. Fallback
+        log.info("⚙️ Mode: Fallback");
+        return "You are an HR assistant. Here is a request:\n\n" + inputData
+                + "\n\nRespond helpfully and concisely.";
     }
 
-    /**
-     * Build prompt from combined DRIVE output.
-     * originalInput can be {"prompt":"..."} or {"Profile":"...","Skills":"...",...}
-     */
+
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("You are an HR assistant. Your job is to analyze CVs and answer the user's request.\n\n");
+        StringBuilder p = new StringBuilder();
 
-        // ── Case A: user typed a free-text prompt ──────────────────────────────
         if (originalInput.has("prompt")) {
-            String userPrompt = originalInput.get("prompt").asText().trim();
-            log.info("💬 User prompt: {}", userPrompt);
-
-            prompt.append("=== USER REQUEST ===\n");
-            prompt.append(userPrompt).append("\n\n");
-            prompt.append("=== INSTRUCTIONS ===\n");
-            prompt.append("Read the CVs below and answer the user's request.\n");
-            prompt.append("Return ONLY a valid JSON array sorted by relevance score (highest first).\n");
-            prompt.append("No markdown, no explanation — JSON array only.\n");
-            prompt.append("Format: [{\"name\":\"...\", \"email\":\"...\", \"experience\": number, \"skills\":\"...\", \"score\": number}]\n\n");
-
-            // ── Case B: user sent structured criteria JSON ─────────────────────────
+            // ── FREE TEXT: user typed whatever they want ────────────────────────
+            buildFreeTextPrompt(p, originalInput.get("prompt").asText().trim());
         } else {
-            String profile    = originalInput.has("Profile")    ? originalInput.get("Profile").asText()    : "";
-            String experience = originalInput.has("Experience") ? originalInput.get("Experience").asText() : "";
-            String skills     = originalInput.has("Skills")     ? originalInput.get("Skills").asText()     : "";
-            String topN       = originalInput.has("TopN")       ? originalInput.get("TopN").asText()       : "5";
-
-            log.info("📋 Structured criteria — Profile:{} Exp:{} Skills:{} TopN:{}", profile, experience, skills, topN);
-
-            prompt.append("=== JOB REQUIREMENTS ===\n");
-            if (!profile.isEmpty())    prompt.append("- Target Profile     : ").append(profile).append("\n");
-            if (!experience.isEmpty()) prompt.append("- Minimum Experience : ").append(experience).append(" years\n");
-            if (!skills.isEmpty())     prompt.append("- Required Skills (at least one): ").append(skills).append("\n");
-            prompt.append("- Return top ").append(topN).append(" candidates\n\n");
-
-            prompt.append("=== STRICT RULES ===\n");
-            if (!experience.isEmpty())
-                prompt.append("1. EXCLUDE candidates with less than ").append(experience).append(" years of experience.\n");
-            if (!skills.isEmpty())
-                prompt.append("2. EXCLUDE candidates with none of these skills: ").append(skills).append(".\n");
-            prompt.append("3. Score each candidate 0–5 based on match quality.\n");
-            prompt.append("4. Sort by score DESCENDING.\n");
-            prompt.append("5. Return ONLY the top ").append(topN).append(" candidates.\n");
-            prompt.append("6. Output ONLY a valid JSON array — no markdown, no explanation.\n");
-            prompt.append("7. Format: [{\"name\":\"...\", \"email\":\"...\", \"experience\": number, \"skills\":\"...\", \"score\": number}]\n\n");
+            // ── STRUCTURED: form-based Profile/Experience/Skills/TopN ───────────
+            buildStructuredPrompt(p, originalInput);
         }
 
-        // ── Append CV data ──────────────────────────────────────────────────────
-        prompt.append("=== CANDIDATE CVs ===\n");
-        prompt.append(cvData.toString()).append("\n\n");
-        prompt.append("=== YOUR RESPONSE (JSON array only, nothing else) ===\n");
+        // Append CVs
+        p.append("=== CANDIDATE CVs ===\n");
+        p.append(cvData.toString()).append("\n\n");
+        p.append("=== YOUR RESPONSE (JSON array only, nothing else) ===\n");
 
-        return prompt.toString();
+        return p.toString();
     }
 
-    /**
-     * Legacy mode: inputData uses FILTERING_CRITERIA: / CANDIDATE_DATA: sections
-     */
-    private String buildLegacyStructuredPrompt(String inputData) {
+
+    private void buildFreeTextPrompt(StringBuilder p, String userPrompt) {
+        log.info("💬 Free-text prompt: {}", userPrompt);
+
+        p.append("You are a strict HR recruitment assistant.\n\n");
+
+        p.append("=== USER REQUEST ===\n");
+        p.append(userPrompt).append("\n\n");
+
+        p.append("=== WHAT YOU MUST DO ===\n");
+        p.append("Step 1: Read the user's request above carefully.\n");
+        p.append("Step 2: Extract the criteria — what role, how many years of experience, what skills, etc.\n");
+        p.append("Step 3: Read each CV below.\n");
+        p.append("Step 4: For each candidate, check if they match ALL the criteria.\n");
+        p.append("Step 5: REMOVE any candidate who does NOT match. Examples:\n");
+        p.append("  - User says '7+ years' → remove anyone with less than 7 years\n");
+        p.append("  - User says 'Java developer' → remove anyone who is not a Java developer\n");
+        p.append("  - User says 'knows Kubernetes' → remove anyone without Kubernetes\n");
+        p.append("Step 6: Score the remaining candidates 0-10 (10 = perfect match).\n");
+        p.append("Step 7: Sort by score, highest first.\n\n");
+
+        p.append("=== OUTPUT FORMAT ===\n");
+        p.append("Return ONLY a JSON array. No text before, no text after, no markdown.\n");
+        p.append("If nobody matches, return: []\n");
+        p.append("Format: [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
+
+        p.append("WARNING: Do NOT include candidates who fail the criteria. ONLY return matching candidates.\n\n");
+    }
+
+
+    private void buildStructuredPrompt(StringBuilder p, JsonNode criteria) {
+        String profile    = txt(criteria, "Profile");
+        String experience = txt(criteria, "Experience");
+        String skills     = txt(criteria, "Skills");
+        String topN       = criteria.has("TopN") ? criteria.get("TopN").asText() : "5";
+
+        log.info("📋 Structured — Profile:{} Exp:{} Skills:{} TopN:{}", profile, experience, skills, topN);
+
+        p.append("You are a strict HR recruitment assistant.\n\n");
+
+        p.append("=== JOB REQUIREMENTS ===\n");
+        if (!profile.isEmpty())    p.append("- Role       : ").append(profile).append("\n");
+        if (!experience.isEmpty()) p.append("- Min Years  : ").append(experience).append("\n");
+        if (!skills.isEmpty())     p.append("- Skills     : ").append(skills).append("\n");
+        p.append("- Return top : ").append(topN).append(" candidates\n\n");
+
+        p.append("=== WHAT YOU MUST DO ===\n");
+        if (!experience.isEmpty())
+            p.append("1. REMOVE candidates with less than ").append(experience).append(" years experience.\n");
+        if (!skills.isEmpty())
+            p.append("2. REMOVE candidates who have NONE of: ").append(skills).append(".\n");
+        p.append("3. Score remaining candidates 0-10.\n");
+        p.append("4. Sort by score, highest first.\n");
+        p.append("5. Return ONLY the top ").append(topN).append(".\n");
+        p.append("6. If nobody matches, return: []\n\n");
+
+        p.append("=== OUTPUT FORMAT ===\n");
+        p.append("Return ONLY a JSON array. No text, no markdown.\n");
+        p.append("Format: [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
+
+        p.append("WARNING: Do NOT include candidates who fail the criteria.\n\n");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  LEGACY FORMAT  →  FILTERING_CRITERIA: / CANDIDATE_DATA:
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private String buildLegacyPrompt(String inputData) {
         try {
             String criteriaJson = extractSection(inputData, "FILTERING_CRITERIA:");
             String candidateData = extractSection(inputData, "CANDIDATE_DATA:");
 
             String profile = "", experience = "", skills = "", topN = "5";
-
             if (criteriaJson != null) {
                 JsonNode c = objectMapper.readTree(criteriaJson.trim());
                 if (c.has("Profile"))    profile    = c.get("Profile").asText();
@@ -226,57 +229,67 @@ public class RealGptServiceImpl implements GptService {
                 if (c.has("TopN"))       topN       = c.get("TopN").asText();
             }
 
-            StringBuilder prompt = new StringBuilder();
-            prompt.append("You are an HR assistant. Filter and rank candidates based on these rules.\n\n");
-            prompt.append("=== JOB REQUIREMENTS ===\n");
-            if (!profile.isEmpty())    prompt.append("- Profile    : ").append(profile).append("\n");
-            if (!experience.isEmpty()) prompt.append("- Min Exp    : ").append(experience).append(" years\n");
-            if (!skills.isEmpty())     prompt.append("- Skills     : ").append(skills).append("\n");
-            prompt.append("- Return top ").append(topN).append(" candidates\n\n");
-            prompt.append("=== STRICT RULES ===\n");
+            StringBuilder p = new StringBuilder();
+            p.append("You are a strict HR recruitment assistant.\n\n");
+            p.append("=== REQUIREMENTS ===\n");
+            if (!profile.isEmpty())    p.append("- Role  : ").append(profile).append("\n");
+            if (!experience.isEmpty()) p.append("- Min   : ").append(experience).append(" years\n");
+            if (!skills.isEmpty())     p.append("- Skills: ").append(skills).append("\n");
+            p.append("- Top   : ").append(topN).append("\n\n");
+
+            p.append("=== RULES ===\n");
             if (!experience.isEmpty())
-                prompt.append("1. EXCLUDE candidates with less than ").append(experience).append(" years.\n");
+                p.append("1. REMOVE candidates with less than ").append(experience).append(" years.\n");
             if (!skills.isEmpty())
-                prompt.append("2. EXCLUDE candidates missing all of: ").append(skills).append(".\n");
-            prompt.append("3. Score 0–5, sort descending, return top ").append(topN).append(".\n");
-            prompt.append("4. Output ONLY a JSON array, no markdown.\n");
-            prompt.append("   Format: [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
-            prompt.append("=== CVs ===\n");
-            if (candidateData != null) prompt.append(candidateData.trim());
-            prompt.append("\n\n=== YOUR RESPONSE (JSON array only) ===\n");
-            return prompt.toString();
+                p.append("2. REMOVE candidates missing all of: ").append(skills).append(".\n");
+            p.append("3. Score 0-10, sort desc, return top ").append(topN).append(".\n");
+            p.append("4. If nobody matches: []\n");
+            p.append("5. JSON array only, no markdown.\n");
+            p.append("   [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
+
+            p.append("=== CVs ===\n");
+            if (candidateData != null) p.append(candidateData.trim());
+            p.append("\n\n=== RESPONSE ===\n");
+            return p.toString();
 
         } catch (Exception e) {
-            log.error("❌ Error in legacy prompt: {}", e.getMessage(), e);
+            log.error("❌ Legacy prompt error", e);
             return "Analyze: " + inputData;
         }
     }
 
-    private String extractSection(String inputData, String sectionPrefix) {
-        if (inputData == null) return null;
-        int start = inputData.indexOf(sectionPrefix);
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  UTILS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private String txt(JsonNode node, String field) {
+        return node.has(field) ? node.get(field).asText() : "";
+    }
+
+    private String extractSection(String data, String prefix) {
+        if (data == null) return null;
+        int start = data.indexOf(prefix);
         if (start == -1) return null;
-        start += sectionPrefix.length();
-        int end = inputData.indexOf("\n\n", start);
-        if (end == -1) end = inputData.length();
-        return inputData.substring(start, end).trim();
+        start += prefix.length();
+        int end = data.indexOf("\n\n", start);
+        if (end == -1) end = data.length();
+        return data.substring(start, end).trim();
     }
 
     private String extractJsonFromText(String text) {
         if (text == null) return null;
         text = text.replaceAll("(?s)```json\\s*", "").replaceAll("(?s)```\\s*", "").trim();
 
-        int startIndex = text.indexOf('[');
-        if (startIndex == -1) return null;
+        int start = text.indexOf('[');
+        if (start == -1) return null;
 
-        int braceCount = 0, endIndex = -1;
-        for (int i = startIndex; i < text.length(); i++) {
+        int depth = 0;
+        for (int i = start; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c == '[') braceCount++;
-            else if (c == ']') braceCount--;
-            if (braceCount == 0) { endIndex = i + 1; break; }
+            if (c == '[') depth++;
+            else if (c == ']') depth--;
+            if (depth == 0) return text.substring(start, i + 1);
         }
-
-        return endIndex != -1 ? text.substring(startIndex, endIndex) : null;
+        return null;
     }
 }
