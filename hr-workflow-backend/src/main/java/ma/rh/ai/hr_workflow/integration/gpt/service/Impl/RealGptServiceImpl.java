@@ -3,6 +3,7 @@ package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import lombok.RequiredArgsConstructor;
@@ -29,46 +31,61 @@ public class RealGptServiceImpl implements GptService {
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    private static final String OLLAMA_URL = "http://localhost:11434/api/generate";
+    @Value("${google.ollama.url:http://localhost:11434/api/generate}")
+    private String ollamaUrl;
+
+    @Value("${google.ollama.default.model:llama3.2:3b}")
+    private String defaultOllamaModel;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  MAIN ENTRY POINT
+    // ═══════════════════════════════════════════════════════════════════════════
 
     @Override
     public String analyze(String configJson, String inputData) throws Exception {
         try {
-            log.info("🤖 GPT: Analyzing with Ollama...");
-
             GptConfigDTO config = objectMapper.readValue(configJson, GptConfigDTO.class);
-            String model = config.getModel() != null ? config.getModel() : "llama3.2:3b";
+            String provider = config.getEffectiveProvider();
+
+            log.info("🤖 GPT: provider={}", provider);
 
             String finalPrompt = buildPrompt(inputData);
-            log.info("📝 Final prompt ({} chars). Preview: {}", finalPrompt.length(),
-                    finalPrompt.substring(0, Math.min(300, finalPrompt.length())));
+            log.info("📝 Prompt ({} chars). Preview: {}", finalPrompt.length(),
+                    finalPrompt.substring(0, Math.min(200, finalPrompt.length())));
 
-            // Build Ollama request
-            ObjectNode ollamaRequest = objectMapper.createObjectNode();
-            ollamaRequest.put("model", model);
-            ollamaRequest.put("prompt", finalPrompt);
-            ollamaRequest.put("stream", false);
+            // Route to the right provider
+            String analysis;
+            String model;
+            int tokensUsed;
 
-            ObjectNode options = objectMapper.createObjectNode();
-            options.put("temperature", config.getTemperature() != null ? config.getTemperature() : 0.1);
-            ollamaRequest.set("options", options);
+            switch (provider) {
+                case "openai":
+                    var openaiResult = callOpenAI(config, finalPrompt);
+                    analysis = openaiResult[0];
+                    model = openaiResult[1];
+                    tokensUsed = Integer.parseInt(openaiResult[2]);
+                    break;
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<String> entity = new HttpEntity<>(ollamaRequest.toString(), headers);
+                case "anthropic":
+                    var anthropicResult = callAnthropic(config, finalPrompt);
+                    analysis = anthropicResult[0];
+                    model = anthropicResult[1];
+                    tokensUsed = Integer.parseInt(anthropicResult[2]);
+                    break;
 
-            String ollamaResponse = restTemplate.postForObject(OLLAMA_URL, entity, String.class);
-            JsonNode responseNode = objectMapper.readTree(ollamaResponse);
+                default: // "ollama"
+                    var ollamaResult = callOllama(config, finalPrompt);
+                    analysis = ollamaResult[0];
+                    model = ollamaResult[1];
+                    tokensUsed = Integer.parseInt(ollamaResult[2]);
+                    break;
+            }
 
-            String analysis = responseNode.get("response").asText();
-            int tokensUsed = responseNode.has("eval_count") ? responseNode.get("eval_count").asInt() : 0;
-
-            log.info("✅ Ollama done — {} tokens", tokensUsed);
+            log.info("✅ {} done — {} tokens", provider, tokensUsed);
             log.info("📤 Raw output: {}", analysis);
 
             String cleanedAnalysis = extractJsonFromText(analysis);
             if (cleanedAnalysis == null || cleanedAnalysis.isBlank()) {
-                log.info("ℹ️ No JSON array found — keeping raw text");
                 cleanedAnalysis = analysis.trim();
             }
 
@@ -86,13 +103,156 @@ public class RealGptServiceImpl implements GptService {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  PROVIDER: OLLAMA (local)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private String[] callOllama(GptConfigDTO config, String prompt) {
+        String model = config.getModel() != null ? config.getModel() : defaultOllamaModel;
+        log.info("🦙 Ollama: model={}", model);
+
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("model", model);
+        request.put("prompt", prompt);
+        request.put("stream", false);
+
+        ObjectNode options = objectMapper.createObjectNode();
+        options.put("temperature", config.getTemperature() != null ? config.getTemperature() : 0.1);
+        request.set("options", options);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(request.toString(), headers);
+
+        String responseStr = restTemplate.postForObject(ollamaUrl, entity, String.class);
+        try {
+            JsonNode responseNode = objectMapper.readTree(responseStr);
+            String analysis = responseNode.get("response").asText();
+            int tokens = responseNode.has("eval_count") ? responseNode.get("eval_count").asInt() : 0;
+            return new String[]{analysis, model, String.valueOf(tokens)};
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Ollama response", e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  PROVIDER: OPENAI
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private String[] callOpenAI(GptConfigDTO config, String prompt) {
+        String apiKey = config.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RuntimeException("OpenAI API key is required. Set it in the GPT node config.");
+        }
+
+        String model = config.getModel() != null ? config.getModel() : "gpt-4o-mini";
+        double temperature = config.getTemperature() != null ? config.getTemperature() : 0.1;
+        int maxTokens = config.getMaxTokens() != null ? config.getMaxTokens() : 2000;
+
+        log.info("🧠 OpenAI: model={}", model);
+
+        try {
+            ObjectNode request = objectMapper.createObjectNode();
+            request.put("model", model);
+            request.put("temperature", temperature);
+            request.put("max_tokens", maxTokens);
+
+            ArrayNode messages = objectMapper.createArrayNode();
+
+            ObjectNode systemMsg = objectMapper.createObjectNode();
+            systemMsg.put("role", "system");
+            systemMsg.put("content", "You are a strict HR recruitment assistant. Always respond with valid JSON only.");
+            messages.add(systemMsg);
+
+            ObjectNode userMsg = objectMapper.createObjectNode();
+            userMsg.put("role", "user");
+            userMsg.put("content", prompt);
+            messages.add(userMsg);
+
+            request.set("messages", messages);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(apiKey);
+            HttpEntity<String> entity = new HttpEntity<>(request.toString(), headers);
+
+            String responseStr = restTemplate.postForObject(
+                    "https://api.openai.com/v1/chat/completions", entity, String.class);
+
+            JsonNode responseNode = objectMapper.readTree(responseStr);
+            String analysis = responseNode.get("choices").get(0).get("message").get("content").asText();
+            int tokens = responseNode.has("usage") ? responseNode.get("usage").get("total_tokens").asInt() : 0;
+
+            return new String[]{analysis, model, String.valueOf(tokens)};
+
+        } catch (Exception e) {
+            throw new RuntimeException("OpenAI call failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  PROVIDER: ANTHROPIC (Claude)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private String[] callAnthropic(GptConfigDTO config, String prompt) {
+        String apiKey = config.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RuntimeException("Anthropic API key is required. Set it in the GPT node config.");
+        }
+
+        String model = config.getModel() != null ? config.getModel() : "claude-sonnet-4-20250514";
+        double temperature = config.getTemperature() != null ? config.getTemperature() : 0.1;
+        int maxTokens = config.getMaxTokens() != null ? config.getMaxTokens() : 2000;
+
+        log.info("🟣 Anthropic: model={}", model);
+
+        try {
+            ObjectNode request = objectMapper.createObjectNode();
+            request.put("model", model);
+            request.put("max_tokens", maxTokens);
+
+            ArrayNode messages = objectMapper.createArrayNode();
+            ObjectNode userMsg = objectMapper.createObjectNode();
+            userMsg.put("role", "user");
+            userMsg.put("content", prompt);
+            messages.add(userMsg);
+            request.set("messages", messages);
+
+            request.put("system", "You are a strict HR recruitment assistant. Always respond with valid JSON only.");
+            request.put("temperature", temperature);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("x-api-key", apiKey);
+            headers.set("anthropic-version", "2023-06-01");
+            HttpEntity<String> entity = new HttpEntity<>(request.toString(), headers);
+
+            String responseStr = restTemplate.postForObject(
+                    "https://api.anthropic.com/v1/messages", entity, String.class);
+
+            JsonNode responseNode = objectMapper.readTree(responseStr);
+            String analysis = responseNode.get("content").get(0).get("text").asText();
+            int tokens = responseNode.has("usage")
+                    ? responseNode.get("usage").get("input_tokens").asInt()
+                    + responseNode.get("usage").get("output_tokens").asInt()
+                    : 0;
+
+            return new String[]{analysis, model, String.valueOf(tokens)};
+
+        } catch (Exception e) {
+            throw new RuntimeException("Anthropic call failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  PROMPT BUILDING (same as before — works for all providers)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private String buildPrompt(String inputData) {
         if (inputData == null || inputData.isBlank()) {
             return "No input data provided.";
         }
 
-        // 1. Try JSON (combined DRIVE output or plain prompt)
         if (inputData.trim().startsWith("{")) {
             try {
                 JsonNode root = objectMapper.readTree(inputData.trim());
@@ -116,38 +276,31 @@ public class RealGptServiceImpl implements GptService {
             }
         }
 
-        // 2. Legacy format
         if (inputData.contains("FILTERING_CRITERIA:")) {
             log.info("✅ Mode: Legacy");
             return buildLegacyPrompt(inputData);
         }
 
-        // 3. Fallback
         log.info("⚙️ Mode: Fallback");
         return "You are an HR assistant. Here is a request:\n\n" + inputData
                 + "\n\nRespond helpfully and concisely.";
     }
 
-
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
         StringBuilder p = new StringBuilder();
 
         if (originalInput.has("prompt")) {
-            // ── FREE TEXT: user typed whatever they want ────────────────────────
             buildFreeTextPrompt(p, originalInput.get("prompt").asText().trim());
         } else {
-            // ── STRUCTURED: form-based Profile/Experience/Skills/TopN ───────────
             buildStructuredPrompt(p, originalInput);
         }
 
-        // Append CVs
         p.append("=== CANDIDATE CVs ===\n");
         p.append(cvData.toString()).append("\n\n");
         p.append("=== YOUR RESPONSE (JSON array only, nothing else) ===\n");
 
         return p.toString();
     }
-
 
     private void buildFreeTextPrompt(StringBuilder p, String userPrompt) {
         log.info("💬 Free-text prompt: {}", userPrompt);
@@ -176,7 +329,6 @@ public class RealGptServiceImpl implements GptService {
 
         p.append("WARNING: Do NOT include candidates who fail the criteria. ONLY return matching candidates.\n\n");
     }
-
 
     private void buildStructuredPrompt(StringBuilder p, JsonNode criteria) {
         String profile    = txt(criteria, "Profile");
@@ -210,10 +362,6 @@ public class RealGptServiceImpl implements GptService {
 
         p.append("WARNING: Do NOT include candidates who fail the criteria.\n\n");
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  LEGACY FORMAT  →  FILTERING_CRITERIA: / CANDIDATE_DATA:
-    // ═══════════════════════════════════════════════════════════════════════════
 
     private String buildLegacyPrompt(String inputData) {
         try {
