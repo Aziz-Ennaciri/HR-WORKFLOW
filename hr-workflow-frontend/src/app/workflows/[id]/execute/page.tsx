@@ -41,68 +41,23 @@ export default function ExecuteWorkflowPage() {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const inputData = JSON.stringify({ prompt: prompt.trim() });
 
-      // Save placeholder to localStorage so dashboard shows it immediately
-      const stored = JSON.parse(
-        localStorage.getItem("runningExecutions") || "[]",
-      );
-      stored.push({
-        id: -1,
+      // API call - now returns immediately since backend runs async
+      const response = await api.post(`/executions/trigger?userId=${user.id}`, {
         workflowId: parseInt(params.id as string),
-        workflowName: workflow?.name || "Workflow",
-        startedAt: new Date().toISOString(),
-        status: "RUNNING",
+        inputData,
       });
-      localStorage.setItem("runningExecutions", JSON.stringify(stored));
 
-      // Navigate to dashboard immediately — don't wait for the API
-      router.push("/dashboard");
+      const executionId = response.data?.id;
 
-      // API call continues in background
-      try {
-        const response = await api.post(
-          `/executions/trigger?userId=${user.id}`,
-          {
-            workflowId: parseInt(params.id as string),
-            inputData,
-          },
-        );
-
-        const executionId = response.data?.id;
-        const finalStatus = response.data?.status || "COMPLETED";
-
-        // Replace placeholder with real execution
-        const current = JSON.parse(
-          localStorage.getItem("runningExecutions") || "[]",
-        );
-        const updated = current
-          .filter((e: any) => e.id !== -1)
-          .concat([
-            {
-              id: executionId,
-              workflowId: parseInt(params.id as string),
-              workflowName: workflow?.name || "Workflow",
-              startedAt: new Date().toISOString(),
-              status:
-                finalStatus === "COMPLETED" || finalStatus === "FAILED"
-                  ? finalStatus
-                  : "COMPLETED",
-            },
-          ]);
-        localStorage.setItem("runningExecutions", JSON.stringify(updated));
-        window.dispatchEvent(new Event("execution-updated"));
-      } catch (apiError: any) {
-        console.error("Execution API failed:", apiError);
-        const current = JSON.parse(
-          localStorage.getItem("runningExecutions") || "[]",
-        );
-        localStorage.setItem(
-          "runningExecutions",
-          JSON.stringify(current.filter((e: any) => e.id !== -1)),
-        );
-        window.dispatchEvent(new Event("execution-updated"));
+      if (executionId) {
+        // Navigate to execution detail page to watch real-time progress
+        router.push(`/executions/${executionId}`);
+      } else {
+        // Fallback to dashboard
+        router.push("/dashboard");
       }
     } catch (error: any) {
-      console.error("Execution setup failed:", error);
+      console.error("Execution trigger failed:", error);
       setSubmitting(false);
     }
   };
@@ -177,8 +132,8 @@ export default function ExecuteWorkflowPage() {
               <h1 className="text-2xl font-bold text-gray-900">Run Workflow</h1>
               <p className="text-gray-500 text-sm mt-1">
                 Describe what you want — the AI will process it through the
-                workflow nodes. You'll be taken to the dashboard right away and
-                notified when it's done.
+                workflow nodes. You'll be taken to the live execution tracker to
+                watch progress in real time.
               </p>
             </div>
 
