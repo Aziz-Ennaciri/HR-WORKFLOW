@@ -3,11 +3,16 @@ package ma.rh.ai.hr_workflow.execution.service.Impl;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import jakarta.annotation.PostConstruct;
-import jakarta.transaction.Transactional;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.rh.ai.hr_workflow.execution.DTOs.TriggerWorkflowInstanceDTO;
@@ -32,174 +37,169 @@ import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
 @RequiredArgsConstructor
 @Slf4j
 public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
-    
+
     private final IWorkflowInstanceService workflowInstanceService;
     private final INodeInstanceService nodeInstanceService;
     private final WorkflowInstancerepository workflowInstanceRepository;
     private final WorkflowRepository workflowRepository;
     private final NodeRepository nodeRepository;
     private final NodeInstanceRepository nodeInstanceRepository;
-    
-    // ✅ Spring injects ALL NodeHandler implementations
+
+    // Handles all REQUIRES_NEW transactions from a separate bean
+    private final ExecutionTransactionHelper txHelper;
+
+    // Spring injects ALL NodeHandler implementations
     private final List<NodeHandler> nodeHandlers;
-    
-    // ✅ Handler registry - built at startup
+
+    // Handler registry - built at startup
     private Map<NodeType, NodeHandler> handlerRegistry;
 
-    /**
-     * Build handler registry after Spring initialization
-     */
+    // Thread pool for background execution
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+
     @PostConstruct
     public void init() {
         handlerRegistry = new HashMap<>();
-        
         for (NodeHandler handler : nodeHandlers) {
             handlerRegistry.put(handler.getType(), handler);
             log.info("✅ Registered handler for node type: {}", handler.getType());
         }
-        
         log.info("🚀 NodeHandler registry initialized with {} handlers", handlerRegistry.size());
     }
+
+    @PreDestroy
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    // ─── Trigger ─────────────────────────────────────────────────────
 
     @Override
     @Transactional
     public WorkflowInstance triggerWorkflow(TriggerWorkflowInstanceDTO dto, User user) {
         log.info("🎯 Triggering workflow: {} by user: {}", dto.getWorkflowId(), user.getEmail());
-        
+
         Workflow workflow = validateWorkflow(dto.getWorkflowId());
         WorkflowInstance workflowInstance = workflowInstanceService.createInstance(dto, user);
-        continueExecution(workflowInstance.getId());
-        
+
+        // Pre-create all node instances as PENDING
+        List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId());
+        String inputData = workflowInstance.getInputData();
+        for (Node node : nodes) {
+            NodeInstance ni = new NodeInstance();
+            ni.setWorkflowInstance(workflowInstance);
+            ni.setNode(node);
+            ni.setExecutionOrder(node.getOrderIndex());
+            ni.setStatus(NodeInstanceStatus.PENDING);
+            ni.setInputData(node.getOrderIndex() == 0 ? inputData : null);
+            nodeInstanceRepository.save(ni);
+        }
+
+        // Run execution AFTER this transaction commits
+        final Long instanceId = workflowInstance.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                executor.submit(() -> {
+                    try {
+                        log.info("🚀 Post-commit: starting execution {}", instanceId);
+                        continueExecution(instanceId);
+                    } catch (Exception e) {
+                        log.error("💥 Background execution failed: {}", instanceId, e);
+                    }
+                });
+            }
+        });
+
         return workflowInstance;
     }
 
+    // ─── Execution loop (background thread) ──────────────────────────
+
     @Override
-    @Transactional
     public void continueExecution(Long workflowInstanceId) {
         log.info("▶️  Continuing execution: {}", workflowInstanceId);
-        
-        WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
 
         try {
-            if (instance.getStatus() == ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus.PENDING) {
-                instance = workflowInstanceService.startInstance(workflowInstanceId);
-            }
+            // All txHelper calls go through Spring proxy → proper REQUIRES_NEW
+            txHelper.startInstance(workflowInstanceId);
 
-            List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(
-                instance.getWorkflow().getId());
-
+            List<Node> nodes = txHelper.getWorkflowNodes(workflowInstanceId);
             if (nodes.isEmpty()) {
                 throw new RuntimeException("Workflow has no nodes");
             }
 
             log.info("📋 Executing {} nodes", nodes.size());
+            String previousOutput = txHelper.getInstanceInputData(workflowInstanceId);
 
-            String previousOutput = instance.getInputData();
-            
             for (Node node : nodes) {
-                log.info("🔄 Node {} of {}: {}", 
-                    node.getOrderIndex() + 1, nodes.size(), node.getType());
+                log.info("🔄 Node {} of {}: {}",
+                        node.getOrderIndex() + 1, nodes.size(), node.getType());
 
-                NodeInstance nodeInstance = executeNode(instance, node, previousOutput);
-                instance.setCurrentNode(node);
+                // Get the handler for this node type
+                NodeHandler handler = getHandlerForNode(node);
+
+                // Execute in its own transaction via the helper bean
+                NodeInstance nodeInstance = txHelper.executeNode(
+                        workflowInstanceId, node.getId(), previousOutput, handler);
+
+                txHelper.updateCurrentNode(workflowInstanceId, node.getId());
 
                 if (nodeInstance.getStatus() == NodeInstanceStatus.FAILED) {
-                    workflowInstanceService.failInstance(instance.getId(),
-                        "Failed at: " + node.getType(), 
-                        nodeInstance.getErrorMessage());
+                    txHelper.failInstance(workflowInstanceId,
+                            "Failed at: " + node.getType(),
+                            nodeInstance.getErrorMessage());
                     return;
                 }
 
                 if (nodeInstance.getStatus() == NodeInstanceStatus.REJECTED) {
-                    workflowInstanceService.failInstance(instance.getId(),
-                        "Rejected at: " + node.getType(), 
-                        nodeInstance.getComment());
+                    txHelper.failInstance(workflowInstanceId,
+                            "Rejected at: " + node.getType(),
+                            nodeInstance.getComment());
                     return;
                 }
 
                 previousOutput = nodeInstance.getOutputData();
             }
 
-            workflowInstanceService.completeInstance(instance.getId(), previousOutput);
+            txHelper.completeInstance(workflowInstanceId, previousOutput);
             log.info("🎉 Workflow completed successfully");
 
         } catch (Exception e) {
             log.error("💥 Execution error", e);
-            workflowInstanceService.failInstance(instance.getId(),
-                "Error: " + e.getMessage(), getStackTrace(e));
+            try {
+                txHelper.failInstance(workflowInstanceId,
+                        "Error: " + e.getMessage(), getStackTrace(e));
+            } catch (Exception e2) {
+                log.error("💥 Failed to mark instance as failed", e2);
+            }
         }
     }
 
-    private NodeInstance executeNode(WorkflowInstance instance, Node node, String inputData) {
-        NodeInstance nodeInstance = nodeInstanceRepository
-                .findByWorkflowInstanceIdAndNodeId(instance.getId(), node.getId())
-                .orElseGet(() -> createNodeInstance(instance, node, inputData));
+    // ─── Helpers ─────────────────────────────────────────────────────
 
-        if (nodeInstance.getStatus() == NodeInstanceStatus.COMPLETED ||
-            nodeInstance.getStatus() == NodeInstanceStatus.REJECTED) {
-            return nodeInstance;
-        }
-
-        try {
-            nodeInstance = nodeInstanceService.startNode(nodeInstance);
-
-            // ✅ Get handler from registry (NO switch-case!)
-            NodeHandler handler = getHandlerForNode(node);
-            String result = handler.execute(node, nodeInstance);
-
-            nodeInstance.markCompleted(result);
-            nodeInstanceRepository.save(nodeInstance);
-
-            return nodeInstance;
-
-        } catch (Exception e) {
-            log.error("❌ Node failed", e);
-            return nodeInstanceService.failNode(nodeInstance.getId(), e.getMessage());
-        }
-    }
-
-    private NodeInstance createNodeInstance(WorkflowInstance instance, Node node, String inputData) {
-        NodeInstance nodeInstance = new NodeInstance();
-        nodeInstance.setWorkflowInstance(instance);
-        nodeInstance.setNode(node);
-        nodeInstance.setExecutionOrder(node.getOrderIndex());
-        nodeInstance.setStatus(NodeInstanceStatus.PENDING);
-        nodeInstance.setInputData(inputData);
-        
-        return nodeInstanceRepository.save(nodeInstance);
-    }
-
-    /**
-     * ✅ Get handler from registry - NO SWITCH-CASE!
-     */
     private NodeHandler getHandlerForNode(Node node) {
         NodeHandler handler = handlerRegistry.get(node.getType());
-        
         if (handler == null) {
-            throw new UnsupportedOperationException(
-                "No handler for: " + node.getType());
+            throw new RuntimeException("No handler registered for node type: " + node.getType());
         }
-        
         return handler;
     }
 
     private Workflow validateWorkflow(Long workflowId) {
         Workflow workflow = workflowRepository.findById(workflowId)
-            .orElseThrow(() -> new RuntimeException("Workflow not found"));
-
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.ACTIVE) {
-            throw new RuntimeException("Only ACTIVE workflows can be executed");
+            throw new IllegalStateException("Workflow is not active");
         }
-
         return workflow;
     }
 
     private String getStackTrace(Exception e) {
         StringBuilder sb = new StringBuilder();
-        sb.append(e.getClass().getName()).append(": ").append(e.getMessage()).append("\n");
         for (StackTraceElement element : e.getStackTrace()) {
-            sb.append("\tat ").append(element.toString()).append("\n");
+            sb.append(element.toString()).append("\n");
+            if (sb.length() > 2000) break;
         }
         return sb.toString();
     }
