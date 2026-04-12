@@ -6,30 +6,21 @@ import Sidebar from "@/components/layouts/sidebar";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 
-// ─── Status config ─────────────────────────────────────────────────
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> =
   {
     COMPLETED: {
-      bg: "bg-emerald-500/15",
-      text: "text-emerald-400",
-      dot: "bg-emerald-400",
+      bg: "bg-emerald-50",
+      text: "text-emerald-600",
+      dot: "bg-emerald-500",
     },
-    FAILED: { bg: "bg-red-500/15", text: "text-red-400", dot: "bg-red-400" },
+    FAILED: { bg: "bg-red-50", text: "text-red-500", dot: "bg-red-500" },
     IN_PROGRESS: {
-      bg: "bg-cyan-500/15",
-      text: "text-cyan-400",
-      dot: "bg-cyan-400",
+      bg: "bg-blue-50",
+      text: "text-blue-600",
+      dot: "bg-blue-500",
     },
-    RUNNING: {
-      bg: "bg-cyan-500/15",
-      text: "text-cyan-400",
-      dot: "bg-cyan-400",
-    },
-    PENDING: {
-      bg: "bg-amber-500/15",
-      text: "text-amber-400",
-      dot: "bg-amber-400",
-    },
+    RUNNING: { bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-500" },
+    PENDING: { bg: "bg-amber-50", text: "text-amber-600", dot: "bg-amber-500" },
   };
 
 const NODE_ICONS: Record<string, string> = {
@@ -63,7 +54,6 @@ function formatDate(iso: string | null) {
   );
 }
 
-// ─── Execution Card ────────────────────────────────────────────────
 function ExecutionCard({
   execution,
   onView,
@@ -76,16 +66,15 @@ function ExecutionCard({
   const isRunning = status === "IN_PROGRESS" || status === "RUNNING";
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5 hover:border-gray-600/60 transition-all group">
+    <div className="bg-white border border-gray-100 rounded-xl p-5 hover:border-gray-200 hover:shadow-sm transition-all group">
       <div className="flex items-start justify-between">
-        {/* Left side */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-white font-semibold text-base truncate">
+            <h3 className="text-gray-900 font-semibold text-[15px] truncate">
               {execution.workflowName || `Workflow #${execution.workflowId}`}
             </h3>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${style.bg} ${style.text}`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${style.bg} ${style.text}`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${style.dot} ${isRunning ? "animate-pulse" : ""}`}
@@ -105,7 +94,7 @@ function ExecutionCard({
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.8}
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
@@ -122,39 +111,36 @@ function ExecutionCard({
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
+                    strokeWidth={1.8}
                     d="M13 10V3L4 14h7v7l9-11h-7z"
                   />
                 </svg>
                 {formatDuration(execution.durationMs)}
               </span>
             )}
-            <span className="text-gray-500">#{execution.id}</span>
+            <span className="text-gray-300 text-xs">#{execution.id}</span>
           </div>
 
-          {/* Current node indicator for running executions */}
           {isRunning && execution.currentNodeType && (
             <div className="mt-3 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-cyan-400 text-xs font-medium">
+              <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-blue-600 text-xs font-medium">
                 Running: {NODE_ICONS[execution.currentNodeType] || "⚙️"}{" "}
                 {execution.currentNodeType}
               </span>
             </div>
           )}
 
-          {/* Error preview */}
           {status === "FAILED" && execution.errorMessage && (
-            <p className="mt-2 text-red-400/70 text-xs truncate max-w-md">
+            <p className="mt-2 text-red-400 text-xs truncate max-w-md">
               {execution.errorMessage}
             </p>
           )}
         </div>
 
-        {/* View button */}
         <button
           onClick={onView}
-          className="flex-shrink-0 ml-4 px-4 py-2 bg-gray-700/50 hover:bg-gray-600/60 border border-gray-600/50 hover:border-gray-500/60 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 group-hover:border-cyan-500/30 group-hover:text-cyan-400"
+          className="flex-shrink-0 ml-4 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 text-gray-500 hover:text-gray-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
         >
           <svg
             className="w-4 h-4"
@@ -165,13 +151,13 @@ function ExecutionCard({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={2}
+              strokeWidth={1.8}
               d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
             />
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={2}
+              strokeWidth={1.8}
               d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
             />
           </svg>
@@ -182,7 +168,6 @@ function ExecutionCard({
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────
 export default function ExecutionsPage() {
   const router = useRouter();
   const [executions, setExecutions] = useState<any[]>([]);
@@ -198,15 +183,12 @@ export default function ExecutionsPage() {
       ]);
 
       let data = execRes.data || [];
-
-      // Sort: newest first
       data.sort((a: any, b: any) => {
         const da = new Date(a.startedAt || a.createdAt).getTime();
         const db = new Date(b.startedAt || b.createdAt).getTime();
         return db - da;
       });
 
-      // Apply filters
       if (filters.status !== "all") {
         data = data.filter((e: any) => e.status === filters.status);
       }
@@ -230,7 +212,6 @@ export default function ExecutionsPage() {
     fetchData();
   }, [filters]);
 
-  // Auto-refresh if any execution is running
   useEffect(() => {
     const hasRunning = executions.some(
       (e) =>
@@ -239,7 +220,6 @@ export default function ExecutionsPage() {
         e.status === "PENDING",
     );
     if (!hasRunning) return;
-
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
   }, [executions]);
@@ -254,7 +234,7 @@ export default function ExecutionsPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
@@ -264,10 +244,10 @@ export default function ExecutionsPage() {
         <div className="max-w-5xl mx-auto px-8 py-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-1">
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight mb-1">
               Execution History
             </h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-sm text-gray-400">
               Monitor and inspect your workflow runs
             </p>
           </div>
@@ -275,24 +255,26 @@ export default function ExecutionsPage() {
           {/* Stats */}
           <div className="grid grid-cols-4 gap-3 mb-6">
             {[
-              { label: "Total", value: stats.total, color: "text-white" },
+              { label: "Total", value: stats.total, color: "text-gray-900" },
               {
                 label: "Running",
                 value: stats.running,
-                color: "text-cyan-400",
+                color: "text-blue-600",
               },
               {
                 label: "Completed",
                 value: stats.completed,
-                color: "text-emerald-400",
+                color: "text-emerald-600",
               },
-              { label: "Failed", value: stats.failed, color: "text-red-400" },
+              { label: "Failed", value: stats.failed, color: "text-red-500" },
             ].map((s) => (
               <div
                 key={s.label}
-                className="bg-gray-800/40 border border-gray-700/40 rounded-lg px-4 py-3"
+                className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm"
               >
-                <p className="text-xs text-gray-500 mb-0.5">{s.label}</p>
+                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">
+                  {s.label}
+                </p>
                 <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
               </div>
             ))}
@@ -305,7 +287,7 @@ export default function ExecutionsPage() {
               onChange={(e) =>
                 setFilters({ ...filters, status: e.target.value })
               }
-              className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+              className="bg-white border border-gray-200 text-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 shadow-sm"
             >
               <option value="all">All Status</option>
               <option value="COMPLETED">Completed</option>
@@ -319,7 +301,7 @@ export default function ExecutionsPage() {
               onChange={(e) =>
                 setFilters({ ...filters, workflow: e.target.value })
               }
-              className="bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+              className="bg-white border border-gray-200 text-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 shadow-sm"
             >
               <option value="all">All Workflows</option>
               {workflows.map((w: any) => (
@@ -334,7 +316,7 @@ export default function ExecutionsPage() {
                 setLoading(true);
                 fetchData();
               }}
-              className="ml-auto px-3 py-2 bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 rounded-lg text-sm transition-all flex items-center gap-2"
+              className="ml-auto px-3 py-2 bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 rounded-lg text-sm transition-all flex items-center gap-2 shadow-sm"
             >
               <svg
                 className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
@@ -345,7 +327,7 @@ export default function ExecutionsPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.8}
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
@@ -354,18 +336,18 @@ export default function ExecutionsPage() {
           </div>
 
           {/* Execution List */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {loading && executions.length === 0 ? (
               <div className="text-center py-16">
-                <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">Loading executions...</p>
+                <div className="w-8 h-8 border-[2.5px] border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">Loading executions…</p>
               </div>
             ) : executions.length === 0 ? (
               <div className="text-center py-16">
-                <p className="text-gray-500 text-lg mb-2">
+                <p className="text-gray-400 text-base mb-1">
                   No executions found
                 </p>
-                <p className="text-gray-600 text-sm">
+                <p className="text-gray-300 text-sm">
                   Run a workflow to see it here
                 </p>
               </div>

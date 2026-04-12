@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import api from "@/lib/api";
-import Button from "@/components/ui/Button";
 
 interface CreateWorkflowModalProps {
   isOpen: boolean;
@@ -23,6 +22,9 @@ export default function CreateWorkflowModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const inputClass =
+    "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 focus:bg-white outline-none transition-all placeholder:text-gray-400";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -30,9 +32,7 @@ export default function CreateWorkflowModal({
 
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
-
-      // Send createdById as query parameter
-      const response = await api.post(`/workflows?creatorId=${user.id}`, {
+      await api.post(`/workflows?creatorId=${user.id}`, {
         name: formData.name,
         description: formData.description,
         workflowKey: formData.workflowKey,
@@ -60,26 +60,26 @@ export default function CreateWorkflowModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex items-center justify-center min-h-screen px-4">
         {/* Backdrop */}
         <div
-          className="fixed inset-0 transition-opacity bg-gray-900 bg-opacity-75"
+          className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"
           onClick={onClose}
         />
 
         {/* Modal */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <div className="bg-white px-6 pt-6 pb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-gray-900">
+        <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-200">
+          <div className="px-7 pt-7 pb-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-semibold text-gray-900 tracking-tight">
                 Create New Workflow
               </h3>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
               >
                 <svg
-                  className="w-6 h-6"
+                  className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -95,15 +95,15 @@ export default function CreateWorkflowModal({
             </div>
 
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              <div className="mb-5 bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm">
                 {error}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Workflow Name *
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Workflow Name
                 </label>
                 <input
                   type="text"
@@ -112,13 +112,13 @@ export default function CreateWorkflowModal({
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={inputClass}
                   placeholder="e.g., Employee Onboarding"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Description
                 </label>
                 <textarea
@@ -127,14 +127,14 @@ export default function CreateWorkflowModal({
                     setFormData({ ...formData, description: e.target.value })
                   }
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="Describe what this workflow does..."
+                  className={inputClass + " resize-none"}
+                  placeholder="Describe what this workflow does…"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Workflow Key *
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Workflow Key
                 </label>
                 <input
                   type="text"
@@ -148,31 +148,36 @@ export default function CreateWorkflowModal({
                         .replace(/\s/g, "_"),
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className={inputClass}
                   placeholder="EMPLOYEE_ONBOARDING"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-[11px] text-gray-400 mt-1.5">
                   Unique identifier (uppercase, underscores only)
                 </p>
               </div>
 
-              <div className="flex space-x-3 pt-4">
-                <Button
+              <div className="flex gap-3 pt-3">
+                <button
                   type="button"
                   onClick={onClose}
-                  variant="secondary"
-                  className="flex-1"
+                  className="flex-1 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-xl border border-gray-200 transition-all"
                 >
                   Cancel
-                </Button>
-                <Button
+                </button>
+                <button
                   type="submit"
-                  variant="primary"
-                  className="flex-1"
                   disabled={loading}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? "Creating..." : "Create Workflow"}
-                </Button>
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Creating…
+                    </>
+                  ) : (
+                    "Create Workflow"
+                  )}
+                </button>
               </div>
             </form>
           </div>

@@ -98,11 +98,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  /**
-   * Build the banner list by merging:
-   * 1. Recent executions from API (last 5, so they survive refresh)
-   * 2. Any pending placeholder from localStorage (id = -1, still in-flight)
-   */
   const buildBanners = useCallback(async () => {
     try {
       const [exRes, wfRes] = await Promise.all([
@@ -112,7 +107,6 @@ export default function DashboardPage() {
       const wfs: any[] = wfRes.data;
       const exs: any[] = exRes.data;
 
-      // Sort newest first, take last 5
       const recent = [...exs]
         .sort(
           (a, b) =>
@@ -131,28 +125,23 @@ export default function DashboardPage() {
           };
         });
 
-      // Also include any still-pending placeholder (id = -1) from localStorage
       const stored: TrackedExecution[] = JSON.parse(
         localStorage.getItem("runningExecutions") || "[]",
       );
       const pending = stored.filter((e) => !e.id || e.id === -1);
 
-      // Merge: pending first, then recent (deduplicated)
       const merged: TrackedExecution[] = [
         ...pending,
         ...recent.filter((r) => !pending.some((p) => p.id === r.id)),
       ];
 
       setTrackedExecutions(merged);
-
-      // Clean up localStorage — only keep real pending items
       localStorage.setItem("runningExecutions", JSON.stringify(pending));
     } catch (e) {
       console.warn("Could not build banners", e);
     }
   }, []);
 
-  // Listen for execution-updated event fired by execute page
   useEffect(() => {
     const handler = () => {
       buildBanners();
@@ -172,7 +161,6 @@ export default function DashboardPage() {
     buildBanners();
   }, [router, fetchStats, buildBanners]);
 
-  // Poll only if there are genuinely running executions
   useEffect(() => {
     const hasRunning = trackedExecutions.some(
       (e) => e.status === "RUNNING" && e.id && e.id !== -1,
@@ -192,11 +180,10 @@ export default function DashboardPage() {
     };
   }, [trackedExecutions, buildBanners, fetchStats]);
 
-  // Only show banners for executions from the last 30 minutes
   const recentBanners = trackedExecutions.filter((ex) => {
     if (!ex.startedAt) return true;
     const age = Date.now() - new Date(ex.startedAt).getTime();
-    return age < 30 * 60 * 1000; // 30 min
+    return age < 30 * 60 * 1000;
   });
 
   const dismissBanner = (idx: number) => {
@@ -205,33 +192,39 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-[2.5px] border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 font-medium">
+            Loading dashboard…
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => setShowCreateModal(true)}
       />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="mb-8 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-8 py-8">
+          {/* Header */}
+          <div className="mb-8 flex items-start justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900">
-                Welcome to HR Workflow
+              <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+                Dashboard
               </h1>
-              <p className="text-gray-600 mt-1">
-                Create and manage your automated workflows
+              <p className="text-sm text-gray-400 mt-1">
+                Overview of your workflows and recent activity
               </p>
             </div>
             <button
               onClick={() => router.push("/executions")}
-              className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 px-4 py-2 rounded-lg transition-all bg-white flex items-center gap-2"
+              className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-4 py-2 rounded-lg transition-all bg-white flex items-center gap-2 shadow-sm"
             >
               <svg
                 className="w-4 h-4"
@@ -242,7 +235,7 @@ export default function DashboardPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.8}
                   d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                 />
               </svg>
@@ -250,10 +243,10 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* ── Recent execution banners ── */}
+          {/* Recent Runs */}
           {recentBanners.length > 0 && (
             <div className="mb-6 space-y-2">
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
+              <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider mb-2">
                 Recent Runs
               </p>
               {recentBanners.map((ex, idx) => {
@@ -265,23 +258,27 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={`${ex.id}-${idx}`}
-                    className={`flex items-center justify-between rounded-xl px-5 py-3.5 border transition-all ${
+                    className={`flex items-center justify-between rounded-xl px-5 py-3 border transition-all bg-white ${
                       isRunning
-                        ? "bg-blue-50 border-blue-200"
+                        ? "border-blue-200"
                         : isDone
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "bg-red-50 border-red-200"
+                          ? "border-emerald-200"
+                          : "border-red-200"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       {isRunning ? (
-                        <div className="w-4 h-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
+                        <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin shrink-0" />
                       ) : (
                         <div
-                          className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${isDone ? "bg-emerald-500" : "bg-red-500"}`}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                            isDone
+                              ? "bg-emerald-100 text-emerald-600"
+                              : "bg-red-100 text-red-500"
+                          }`}
                         >
                           <svg
-                            className="w-2.5 h-2.5 text-white"
+                            className="w-3 h-3"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -304,22 +301,22 @@ export default function DashboardPage() {
                           </svg>
                         </div>
                       )}
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-800 text-sm">
                           {ex.workflowName}
                         </span>
                         <span
-                          className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                             isRunning
-                              ? "bg-blue-100 text-blue-600"
+                              ? "bg-blue-50 text-blue-600"
                               : isDone
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-red-100 text-red-700"
+                                ? "bg-emerald-50 text-emerald-600"
+                                : "bg-red-50 text-red-600"
                           }`}
                         >
                           {isPending ? "STARTING…" : ex.status}
                         </span>
-                        <span className="ml-2 text-xs text-gray-400">
+                        <span className="text-[11px] text-gray-400">
                           {ex.id && ex.id !== -1 ? `#${ex.id} · ` : ""}
                           {timeAgo(ex.startedAt)}
                         </span>
@@ -330,11 +327,7 @@ export default function DashboardPage() {
                       {!isRunning && ex.id && ex.id !== -1 && (
                         <button
                           onClick={() => router.push(`/executions/${ex.id}`)}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                            isDone
-                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                              : "bg-red-600 text-white hover:bg-red-700"
-                          }`}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors bg-gray-900 text-white hover:bg-gray-700"
                         >
                           View Results →
                         </button>
@@ -356,11 +349,11 @@ export default function DashboardPage() {
 
           {/* Stats / empty state */}
           {workflows.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border-2 border-dashed border-gray-300 p-12 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-dashed border-gray-300 p-12 text-center">
               <div className="max-w-md mx-auto">
-                <div className="mx-auto h-20 w-20 rounded-2xl bg-gray-100 flex items-center justify-center mb-6">
+                <div className="mx-auto h-16 w-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-5">
                   <svg
-                    className="h-10 w-10 text-gray-400"
+                    className="h-8 w-8 text-gray-300"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -373,80 +366,147 @@ export default function DashboardPage() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900">
                   No workflows yet
                 </h3>
-                <p className="mt-2 text-gray-500 text-sm">
+                <p className="mt-1.5 text-gray-400 text-sm">
                   Get started by creating your first automated workflow
                 </p>
-                <Button
+                <button
                   onClick={() => setShowCreateModal(true)}
-                  className="mt-6"
-                  variant="primary"
+                  className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
                 >
-                  + Create Your First Workflow
-                </Button>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Create Your First Workflow
+                </button>
               </div>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-                <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white">
-                  <p className="text-blue-200 text-sm font-medium">
-                    Total Workflows
-                  </p>
-                  <p className="text-4xl font-bold mt-1">
-                    {stats.totalWorkflows}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-6 text-white">
-                  <p className="text-emerald-100 text-sm font-medium">Active</p>
-                  <p className="text-4xl font-bold mt-1">
-                    {stats.activeWorkflows}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-6 text-white">
-                  <p className="text-amber-100 text-sm font-medium">
-                    Success Rate
-                  </p>
-                  <p className="text-4xl font-bold mt-1">
-                    {stats.successRate}%
-                  </p>
-                </div>
+              {/* Stat Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                {[
+                  {
+                    label: "Total Workflows",
+                    value: stats.totalWorkflows,
+                    icon: (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.8}
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                      />
+                    ),
+                    color: "text-blue-600",
+                    bg: "bg-blue-50",
+                  },
+                  {
+                    label: "Active Workflows",
+                    value: stats.activeWorkflows,
+                    icon: (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.8}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    ),
+                    color: "text-emerald-600",
+                    bg: "bg-emerald-50",
+                  },
+                  {
+                    label: "Success Rate",
+                    value: `${stats.successRate}%`,
+                    icon: (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.8}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    ),
+                    color: "text-amber-600",
+                    bg: "bg-amber-50",
+                  },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm text-gray-400 font-medium">
+                        {stat.label}
+                      </p>
+                      <div
+                        className={`w-9 h-9 ${stat.bg} rounded-lg flex items-center justify-center`}
+                      >
+                        <svg
+                          className={`w-[18px] h-[18px] ${stat.color}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          {stat.icon}
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              {/* Chart */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-sm font-semibold text-gray-900 mb-5">
                   Executions by Workflow
                 </h2>
                 <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={executionData} barSize={32}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <BarChart data={executionData} barSize={28}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#f1f5f9"
+                      vertical={false}
+                    />
                     <XAxis
                       dataKey="name"
-                      tick={{ fontSize: 12, fill: "#9ca3af" }}
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 12, fill: "#9ca3af" }}
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "#1f2937",
-                        border: "none",
+                        background: "#fff",
+                        border: "1px solid #e2e8f0",
                         borderRadius: 8,
-                        color: "#f9fafb",
-                        fontSize: 12,
+                        color: "#1e293b",
+                        fontSize: 13,
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.06)",
                       }}
-                      cursor={{ fill: "#f3f4f6" }}
+                      cursor={{ fill: "#f8fafc" }}
                     />
                     <Bar
                       dataKey="executions"
                       fill="#3b82f6"
-                      radius={[4, 4, 0, 0]}
+                      radius={[6, 6, 0, 0]}
                     />
                   </BarChart>
                 </ResponsiveContainer>

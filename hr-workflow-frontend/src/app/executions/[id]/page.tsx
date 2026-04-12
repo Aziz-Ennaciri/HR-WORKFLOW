@@ -18,8 +18,23 @@ export default function ExecutionDetailPage() {
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [nodeConfigMap, setNodeConfigMap] = useState<Record<number, any>>({});
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
-  // Fetch execution detail
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return;
+
+    try {
+      const parsed = JSON.parse(storedUser);
+      const name = parsed?.firstName || parsed?.name || parsed?.email;
+      if (name) {
+        setCurrentUserName(name);
+      }
+    } catch {
+      // ignore invalid localStorage data
+    }
+  }, []);
+
   const fetchDetail = useCallback(async () => {
     try {
       const res = await api.get(`/executions/${executionId}/detail`);
@@ -28,14 +43,12 @@ export default function ExecutionDetailPage() {
       setExecution(data.workflowInstance || data);
       setNodeInstances(data.nodeInstances || []);
 
-      // Build workflowNodes for tracker from nodeInstances
       const nodes = (data.nodeInstances || []).map((ni: any) => ({
         id: ni.nodeId,
         type: ni.nodeType,
         orderIndex: ni.executionOrder,
       }));
 
-      // Deduplicate by nodeId
       const unique = nodes.filter(
         (n: any, i: number, arr: any[]) =>
           arr.findIndex((x: any) => x.id === n.id) === i,
@@ -43,7 +56,6 @@ export default function ExecutionDetailPage() {
       unique.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
       setWorkflowNodes(unique);
 
-      // Load node configs for excel download
       const configs: Record<number, any> = {};
       for (const ni of data.nodeInstances || []) {
         if (ni.nodeType === "EXCEL" && !nodeConfigMap[ni.nodeId]) {
@@ -72,7 +84,6 @@ export default function ExecutionDetailPage() {
       .catch(() => {});
   }, [fetchDetail]);
 
-  // ─── Excel download ───────────────────────────────────────────────
   const downloadExcel = async (nodeInstance: any) => {
     try {
       if (nodeInstance.outputData) {
@@ -111,7 +122,7 @@ export default function ExecutionDetailPage() {
     status === "IN_PROGRESS" || status === "RUNNING" || status === "PENDING";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
@@ -123,7 +134,7 @@ export default function ExecutionDetailPage() {
           <div className="mb-6">
             <button
               onClick={() => router.push("/executions")}
-              className="text-gray-400 hover:text-cyan-400 mb-4 flex items-center gap-2 text-sm transition-colors"
+              className="text-gray-400 hover:text-blue-600 mb-4 flex items-center gap-2 text-sm transition-colors font-medium"
             >
               <svg
                 className="w-4 h-4"
@@ -143,15 +154,15 @@ export default function ExecutionDetailPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-white">
-                  {execution?.workflowName || "Execution"} #{executionId}
+                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+                  {execution?.workflowName || "Execution"} · {executionId}
                 </h1>
                 <p className="text-gray-400 text-sm mt-1">
                   {execution?.startedAt
                     ? `Started ${new Date(execution.startedAt).toLocaleString()}`
                     : "Loading..."}
-                  {execution?.triggeredByEmail &&
-                    ` • by ${execution.triggeredByEmail}`}
+                  {(execution?.triggeredByName || currentUserName || execution?.triggeredByEmail) &&
+                    ` · by ${execution?.triggeredByName || currentUserName || execution?.triggeredByEmail}`}
                 </p>
               </div>
             </div>
@@ -160,17 +171,17 @@ export default function ExecutionDetailPage() {
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">
-                <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">
-                  Loading execution details...
+                <div className="w-8 h-8 border-[2.5px] border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">
+                  Loading execution details…
                 </p>
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* ─── Horizontal Execution Tracker ─────────────────── */}
+            <div className="space-y-5">
+              {/* Execution Tracker */}
               {workflowNodes.length > 0 && (
-                <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-6">
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
                   <ExecutionTracker
                     executionId={executionId}
                     nodes={workflowNodes}
@@ -179,13 +190,13 @@ export default function ExecutionDetailPage() {
                 </div>
               )}
 
-              {/* ─── Detailed Node Results (shown after execution) ── */}
+              {/* Node Results */}
               {nodeInstances.length > 0 && !isRunning && (
-                <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-6">
-                  <h2 className="text-white font-semibold text-lg mb-4">
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <h2 className="text-gray-900 font-semibold text-base mb-4">
                     Node Results
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {nodeInstances
                       .sort(
                         (a: any, b: any) => a.executionOrder - b.executionOrder,
@@ -201,13 +212,13 @@ export default function ExecutionDetailPage() {
                 </div>
               )}
 
-              {/* ─── Execution Metadata ───────────────────────────── */}
+              {/* Execution Metadata */}
               {execution && !isRunning && (
-                <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-6">
-                  <h2 className="text-white font-semibold text-lg mb-4">
+                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                  <h2 className="text-gray-900 font-semibold text-base mb-4">
                     Execution Info
                   </h2>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <InfoCard label="Execution ID" value={`#${execution.id}`} />
                     <InfoCard label="Status" value={execution.status} />
                     <InfoCard
@@ -229,11 +240,11 @@ export default function ExecutionDetailPage() {
                   </div>
 
                   {execution.errorMessage && (
-                    <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                      <p className="text-red-400 text-sm font-medium mb-1">
+                    <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-4">
+                      <p className="text-red-600 text-sm font-medium mb-1">
                         Error
                       </p>
-                      <pre className="text-red-300/70 text-xs whitespace-pre-wrap overflow-x-auto">
+                      <pre className="text-red-500/80 text-xs whitespace-pre-wrap overflow-x-auto">
                         {execution.errorMessage}
                       </pre>
                     </div>
@@ -252,9 +263,11 @@ export default function ExecutionDetailPage() {
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-gray-700/30 rounded-lg px-4 py-3">
-      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-      <p className="text-white font-medium text-sm">{value}</p>
+    <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
+      <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">
+        {label}
+      </p>
+      <p className="text-gray-900 font-semibold text-sm">{value}</p>
     </div>
   );
 }
@@ -301,10 +314,10 @@ function NodeResultCard({
     <div
       className={`border rounded-xl transition-all ${
         isFailed
-          ? "border-red-500/30 bg-red-500/5"
+          ? "border-red-200 bg-red-50/30"
           : isCompleted
-            ? "border-gray-700/50 bg-gray-800/30"
-            : "border-gray-700/30 bg-gray-800/20"
+            ? "border-gray-100 bg-white"
+            : "border-gray-100 bg-gray-50/50"
       }`}
     >
       <div
@@ -314,25 +327,25 @@ function NodeResultCard({
         <span className="text-xl">{icon}</span>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-white font-medium text-sm">{type}</span>
+            <span className="text-gray-900 font-medium text-sm">{type}</span>
             <span
-              className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
                 isCompleted
-                  ? "bg-emerald-500/15 text-emerald-400"
+                  ? "bg-emerald-50 text-emerald-600"
                   : isFailed
-                    ? "bg-red-500/15 text-red-400"
-                    : "bg-gray-500/15 text-gray-400"
+                    ? "bg-red-50 text-red-500"
+                    : "bg-gray-100 text-gray-400"
               }`}
             >
               {status}
             </span>
             {parsedOutput?.model && (
-              <span className="text-[11px] text-gray-500">
+              <span className="text-[11px] text-gray-400">
                 {parsedOutput.model}
               </span>
             )}
           </div>
-          <div className="text-xs text-gray-500 mt-0.5 flex gap-3">
+          <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
             {nodeInstance.startedAt && (
               <span>
                 {new Date(nodeInstance.startedAt).toLocaleTimeString()}
@@ -346,14 +359,14 @@ function NodeResultCard({
               </span>
             )}
             {candidates.length > 0 && (
-              <span className="text-emerald-400">
+              <span className="text-emerald-600">
                 {candidates.length} candidates
               </span>
             )}
           </div>
         </div>
         <svg
-          className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-gray-300 transition-transform ${expanded ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -368,11 +381,11 @@ function NodeResultCard({
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-700/40 px-4 py-4 space-y-3">
+        <div className="border-t border-gray-100 px-4 py-4 space-y-3">
           {isFailed && nodeInstance.errorMessage && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-              <p className="text-red-400 text-xs font-semibold mb-1">Error</p>
-              <pre className="text-red-300/70 text-xs whitespace-pre-wrap overflow-x-auto">
+            <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+              <p className="text-red-600 text-xs font-semibold mb-1">Error</p>
+              <pre className="text-red-400 text-xs whitespace-pre-wrap overflow-x-auto">
                 {nodeInstance.errorMessage}
               </pre>
             </div>
@@ -380,68 +393,68 @@ function NodeResultCard({
 
           {candidates.length > 0 && (
             <div className="space-y-2">
-              <p className="text-gray-400 text-xs font-medium">
+              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">
                 Matched Candidates
               </p>
               {candidates.map((c: any, i: number) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between bg-gray-700/30 rounded-lg px-4 py-2.5"
+                  className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5"
                 >
                   <div>
-                    <span className="text-white text-sm font-medium">
+                    <span className="text-gray-900 text-sm font-medium">
                       {c.name}
                     </span>
                     {c.email && (
-                      <span className="text-gray-500 text-xs ml-2">
+                      <span className="text-gray-400 text-xs ml-2">
                         {c.email}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-4">
                     {c.skills && (
-                      <span className="text-gray-500 text-xs hidden md:inline">
+                      <span className="text-gray-400 text-xs hidden md:inline">
                         {c.skills}
                       </span>
                     )}
-                    <span className="text-gray-400 text-xs">
+                    <span className="text-gray-500 text-xs">
                       {c.experience} yrs
                     </span>
-                    <span className="text-emerald-400 text-sm font-bold">
+                    <span className="text-emerald-600 text-sm font-bold">
                       {c.score}/10
                     </span>
                   </div>
                 </div>
               ))}
               {parsedOutput?.tokensUsed && (
-                <p className="text-[11px] text-gray-600 mt-1">
-                  {parsedOutput.model} • {parsedOutput.tokensUsed} tokens
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {parsedOutput.model} · {parsedOutput.tokensUsed} tokens
                 </p>
               )}
             </div>
           )}
 
           {parsedOutput?.analysis && candidates.length === 0 && (
-            <div className="bg-gray-700/20 rounded-lg p-3">
-              <p className="text-gray-400 text-xs font-medium mb-2">
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+              <p className="text-gray-500 text-xs font-semibold mb-2">
                 AI Analysis
               </p>
-              <pre className="text-gray-300 text-xs whitespace-pre-wrap overflow-x-auto max-h-48">
+              <pre className="text-gray-600 text-xs whitespace-pre-wrap overflow-x-auto max-h-48">
                 {parsedOutput.analysis}
               </pre>
             </div>
           )}
 
           {type === "EXCEL" && parsedOutput && (
-            <div className="flex items-center justify-between bg-gray-700/30 rounded-lg px-4 py-3">
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📄</span>
                 <div>
-                  <p className="text-white text-sm font-medium">
+                  <p className="text-gray-900 text-sm font-medium">
                     {parsedOutput.fileName || "Report.xlsx"}
                   </p>
                   {parsedOutput.fileSize && (
-                    <p className="text-gray-500 text-xs">
+                    <p className="text-gray-400 text-xs">
                       {(parsedOutput.fileSize / 1024).toFixed(1)} KB
                     </p>
                   )}
@@ -452,7 +465,7 @@ function NodeResultCard({
                   e.stopPropagation();
                   onDownloadExcel();
                 }}
-                className="px-3 py-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium hover:bg-emerald-500/25 transition-all"
+                className="px-3 py-1.5 bg-blue-600 text-white border border-blue-600 rounded-lg text-xs font-medium hover:bg-blue-700 transition-all"
               >
                 Download
               </button>
@@ -460,19 +473,33 @@ function NodeResultCard({
           )}
 
           {type === "EMAIL" && parsedOutput && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
-              <span className="text-emerald-400">✓</span>
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-3 flex items-center gap-3">
+              <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-3 h-3 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
               <div>
-                <p className="text-emerald-400 text-sm font-medium">
+                <p className="text-emerald-700 text-sm font-medium">
                   Email sent
                 </p>
                 {parsedOutput.sentTo && (
-                  <p className="text-gray-500 text-xs">
+                  <p className="text-emerald-600/60 text-xs">
                     To: {parsedOutput.sentTo}
                   </p>
                 )}
                 {parsedOutput.subject && (
-                  <p className="text-gray-500 text-xs">
+                  <p className="text-emerald-600/60 text-xs">
                     Subject: {parsedOutput.subject}
                   </p>
                 )}
@@ -481,13 +508,13 @@ function NodeResultCard({
           )}
 
           {type === "DRIVE" && parsedOutput && (
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
-              <span className="text-blue-400 text-lg">📂</span>
-              <p className="text-blue-400 text-sm">
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 flex items-center gap-3">
+              <span className="text-blue-600 text-lg">📂</span>
+              <p className="text-blue-700 text-sm">
                 {parsedOutput.cvData?.totalCVs || parsedOutput.totalCVs || "?"}{" "}
                 CVs loaded
                 {parsedOutput.cvData?.folder && (
-                  <span className="text-gray-500 text-xs ml-2">
+                  <span className="text-blue-500/60 text-xs ml-2">
                     from {parsedOutput.cvData.folder}
                   </span>
                 )}
@@ -496,7 +523,7 @@ function NodeResultCard({
           )}
 
           {!parsedOutput && hasOutput && (
-            <pre className="text-gray-400 text-xs overflow-x-auto whitespace-pre-wrap max-h-40 bg-gray-700/20 rounded-lg p-3">
+            <pre className="text-gray-500 text-xs overflow-x-auto whitespace-pre-wrap max-h-40 bg-gray-50 border border-gray-100 rounded-lg p-3">
               {nodeInstance.outputData.substring(0, 1000)}
             </pre>
           )}

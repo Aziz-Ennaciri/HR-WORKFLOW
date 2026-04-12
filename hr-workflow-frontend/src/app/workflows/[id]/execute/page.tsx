@@ -41,7 +41,6 @@ export default function ExecuteWorkflowPage() {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const inputData = JSON.stringify({ prompt: prompt.trim() });
 
-      // API call - now returns immediately since backend runs async
       const response = await api.post(`/executions/trigger?userId=${user.id}`, {
         workflowId: parseInt(params.id as string),
         inputData,
@@ -50,10 +49,8 @@ export default function ExecuteWorkflowPage() {
       const executionId = response.data?.id;
 
       if (executionId) {
-        // Navigate to execution detail page to watch real-time progress
         router.push(`/executions/${executionId}`);
       } else {
-        // Fallback to dashboard
         router.push("/dashboard");
       }
     } catch (error: any) {
@@ -79,7 +76,7 @@ export default function ExecuteWorkflowPage() {
   const isActive = workflow?.status === "ACTIVE";
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#f8f9fb]">
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
@@ -87,11 +84,11 @@ export default function ExecuteWorkflowPage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-gray-200">
+        <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-gray-100">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push(`/workflows/${params.id}`)}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors font-medium"
             >
               <svg
                 className="w-4 h-4"
@@ -108,16 +105,16 @@ export default function ExecuteWorkflowPage() {
               </svg>
               Back to Designer
             </button>
-            <span className="text-gray-300">·</span>
+            <span className="text-gray-200">·</span>
             <span className="text-gray-700 font-medium text-sm">
               {workflow?.name || "..."}
             </span>
           </div>
           <span
-            className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
+            className={`text-[11px] px-2.5 py-1 rounded-full font-semibold border ${
               isActive
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-amber-50 text-amber-700 border-amber-200"
+                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                : "bg-amber-50 text-amber-600 border-amber-200"
             }`}
           >
             {isActive ? "● ACTIVE" : "○ INACTIVE"}
@@ -129,18 +126,19 @@ export default function ExecuteWorkflowPage() {
           <div className="max-w-2xl mx-auto px-6 py-12">
             {/* Title */}
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">Run Workflow</h1>
-              <p className="text-gray-500 text-sm mt-1">
+              <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+                Run Workflow
+              </h1>
+              <p className="text-gray-400 text-sm mt-1.5 leading-relaxed">
                 Describe what you want — the AI will process it through the
-                workflow nodes. You'll be taken to the live execution tracker to
-                watch progress in real time.
+                workflow nodes. You'll be taken to the live execution tracker.
               </p>
             </div>
 
             {/* Pipeline */}
             {workflowNodes.length > 0 && (
               <div className="mb-8">
-                <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-3">
+                <p className="text-[11px] text-gray-400 uppercase tracking-widest font-semibold mb-3">
                   Pipeline
                 </p>
                 <div className="flex items-center flex-wrap gap-0">
@@ -152,9 +150,9 @@ export default function ExecuteWorkflowPage() {
                     )
                     .map((node, idx) => (
                       <div key={node.id} className="flex items-center">
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm">
+                        <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm shadow-sm">
                           <span>{nodeIcons[node.type] || "○"}</span>
-                          <span className="font-medium text-gray-700">
+                          <span className="font-medium text-gray-700 text-[13px]">
                             {node.type}
                           </span>
                         </div>
@@ -183,8 +181,8 @@ export default function ExecuteWorkflowPage() {
 
             {/* Prompt input */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 pt-4 pb-1">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+              <div className="px-5 pt-5 pb-1">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
                   Your request
                 </p>
                 <textarea
@@ -204,7 +202,7 @@ export default function ExecuteWorkflowPage() {
               </div>
 
               {/* Bottom bar */}
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/60">
                 <span className="text-xs text-gray-400">
                   {prompt.length > 0 ? `${prompt.length} chars · ` : ""}⌘ Enter
                   to run
@@ -212,15 +210,15 @@ export default function ExecuteWorkflowPage() {
                 <button
                   onClick={executeWorkflow}
                   disabled={submitting || !prompt.trim() || !isActive}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     submitting || !prompt.trim() || !isActive
                       ? "bg-gray-100 text-gray-300 cursor-not-allowed"
-                      : "bg-gray-900 text-white hover:bg-gray-700 active:scale-95 cursor-pointer shadow-sm"
+                      : "bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.97] cursor-pointer shadow-sm"
                   }`}
                 >
                   {submitting ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-white rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-blue-300 border-t-white rounded-full animate-spin" />
                       Starting…
                     </>
                   ) : (
