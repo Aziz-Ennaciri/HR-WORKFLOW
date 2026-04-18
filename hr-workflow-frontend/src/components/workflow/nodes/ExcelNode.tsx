@@ -1,27 +1,48 @@
-import { Handle, Position } from 'reactflow'
+import { BaseNode } from "./BaseNode";
 
-export function ExcelNode({ data }: any) {
+export function ExcelNode({ data, selected }: any) {
+  const icon = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+      <rect
+        x="3"
+        y="3"
+        width="18"
+        height="18"
+        rx="3"
+        fill="#ea580c"
+        opacity="0.15"
+      />
+      <rect
+        x="3"
+        y="3"
+        width="18"
+        height="18"
+        rx="3"
+        stroke="#ea580c"
+        strokeWidth="1.5"
+        fill="none"
+      />
+      <line x1="3" y1="9" x2="21" y2="9" stroke="#ea580c" strokeWidth="1.2" />
+      <line x1="3" y1="15" x2="21" y2="15" stroke="#ea580c" strokeWidth="1.2" />
+      <line x1="9" y1="3" x2="9" y2="21" stroke="#ea580c" strokeWidth="1.2" />
+      <line x1="15" y1="3" x2="15" y2="21" stroke="#ea580c" strokeWidth="1.2" />
+    </svg>
+  );
+
+  const detail = data.config?.operation
+    ? `Operation: ${data.config.operation}`
+    : undefined;
+
   return (
-    <div className="bg-white border-2 border-orange-500 rounded-lg shadow-lg p-4 min-w-[200px]">
-      <Handle type="target" position={Position.Top} />
-      
-      <div className="flex items-center space-x-3">
-        <div className="bg-orange-100 p-2 rounded-lg">
-          <span className="text-2xl">📊</span>
-        </div>
-        <div>
-          <div className="font-semibold text-gray-900">Excel</div>
-          <div className="text-xs text-gray-500">Spreadsheet operation</div>
-        </div>
-      </div>
-
-      {data.config?.operation && (
-        <div className="mt-3 text-xs text-gray-600">
-          Operation: {data.config.operation}
-        </div>
-      )}
-      
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  )
+    <BaseNode
+      icon={icon}
+      label="Excel"
+      subtitle="Spreadsheet"
+      accentColor="#ea580c"
+      bgColor="#fff7ed"
+      borderColor="#fed7aa"
+      detail={detail}
+      selected={selected}
+    />
+  );
 }

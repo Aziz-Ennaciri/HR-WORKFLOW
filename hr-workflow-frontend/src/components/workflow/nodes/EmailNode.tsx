@@ -1,25 +1,39 @@
-import { Handle, Position } from "reactflow";
+import { BaseNode } from "./BaseNode";
 
-export function EmailNode({ data }: any) {
+export function EmailNode({ data, selected }: any) {
+  const icon = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+      <rect
+        x="2"
+        y="4"
+        width="20"
+        height="16"
+        rx="3"
+        stroke="#2563eb"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M2 7l8.9 5.17a2 2 0 002.2 0L22 7"
+        stroke="#2563eb"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+
+  const detail = data.config?.to ? `To: ${data.config.to}` : undefined;
+
   return (
-    <div className="bg-white border-2 border-primary rounded-lg shadow-lg p-4 min-w-[200px]">
-      <Handle type="target" position={Position.Top} />
-
-      <div className="flex items-center space-x-3">
-        <div className="bg-primary/20 p-2 rounded-lg">
-          <span className="text-2xl">📧</span>
-        </div>
-        <div>
-          <div className="font-semibold text-gray-900">Email</div>
-          <div className="text-xs text-gray-500">Send email notification</div>
-        </div>
-      </div>
-
-      {data.config?.to && (
-        <div className="mt-3 text-xs text-gray-600">To: {data.config.to}</div>
-      )}
-
-      <Handle type="source" position={Position.Bottom} />
-    </div>
+    <BaseNode
+      icon={icon}
+      label="Email"
+      subtitle="Send notification"
+      accentColor="#2563eb"
+      bgColor="#eff6ff"
+      borderColor="#bfdbfe"
+      detail={detail}
+      selected={selected}
+    />
   );
 }

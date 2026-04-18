@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NodeConfigPanel from "@/components/workflow/NodeConfigPanel";
 import { nodeTypes } from "@/components/workflow/nodes";
+import api from "@/lib/api";
 import ReactFlow, {
   Node,
   Edge,
@@ -15,8 +16,8 @@ import ReactFlow, {
   NodeChange,
   EdgeChange,
   Connection,
+  MarkerType,
 } from "reactflow";
-import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
 
@@ -448,8 +449,8 @@ export default function WorkflowDesignerPage() {
         </div>
 
         {/* React Flow Canvas */}
-        <div className="flex-1 flex">
-          <div className="flex-1">
+        <div className="flex-1 flex" style={{ minHeight: 0 }}>
+          <div className="flex-1 h-full">
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -458,10 +459,24 @@ export default function WorkflowDesignerPage() {
               onConnect={onConnect}
               onNodeClick={onNodeClick}
               nodeTypes={nodeTypes}
+              defaultEdgeOptions={{
+                type: "smoothstep",
+                animated: false,
+                style: { stroke: "#94a3b8", strokeWidth: 2 },
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  color: "#94a3b8",
+                },
+              }}
               fitView
               deleteKeyCode="Delete"
             >
-              <Background />
+              <Background
+                variant={"dots" as any}
+                gap={20}
+                size={1}
+                color="#d1d5db"
+              />
               <Controls />
             </ReactFlow>
           </div>
