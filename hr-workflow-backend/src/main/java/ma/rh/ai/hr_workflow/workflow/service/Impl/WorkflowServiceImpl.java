@@ -66,7 +66,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public List<WorkflowResponseDTO> getAllWorkflows() {
-        List<Workflow> workflows = workflowRepository.findAll();
+        List<Workflow> workflows = workflowRepository.findByDeletedFalse();
         return workflows.stream()
                 .map(workflowMapper::toResponseDTO)
                 .collect(Collectors.toList());
