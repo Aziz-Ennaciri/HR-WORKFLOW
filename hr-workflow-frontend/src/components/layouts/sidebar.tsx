@@ -3,16 +3,28 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import Button from "../ui/Button";
+import api from "@/lib/api";
+import toast from "react-hot-toast";
 
 interface SidebarProps {
   workflows: any[];
   onCreateWorkflow: () => void;
+  onWorkflowDeleted?: () => void;
 }
 
-export default function Sidebar({ workflows, onCreateWorkflow }: SidebarProps) {
+export default function Sidebar({
+  workflows,
+  onCreateWorkflow,
+  onWorkflowDeleted,
+}: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filteredWorkflows = workflows.filter((w) =>
     w.name.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -22,6 +34,31 @@ export default function Sidebar({ workflows, onCreateWorkflow }: SidebarProps) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.push("/login");
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/workflows/${deleteTarget.id}`);
+      toast.success("Workflow deleted");
+
+      // If we're currently viewing the deleted workflow, go to dashboard
+      const isViewingDeleted = pathname.includes(
+        `/workflows/${deleteTarget.id}`,
+      );
+      if (isViewingDeleted) {
+        router.push("/dashboard");
+      }
+
+      // Notify parent to refresh the list
+      onWorkflowDeleted?.();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete workflow");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const activeWorkflowId = (() => {
@@ -255,6 +292,33 @@ export default function Sidebar({ workflows, onCreateWorkflow }: SidebarProps) {
                           />
                         </svg>
                       </button>
+
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget({
+                            id: workflow.id,
+                            name: workflow.name,
+                          });
+                        }}
+                        title="Delete workflow"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -308,6 +372,90 @@ export default function Sidebar({ workflows, onCreateWorkflow }: SidebarProps) {
           Logout
         </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-white rounded-xl shadow-xl border border-gray-200 p-6 w-full max-w-sm mx-4">
+            {/* Warning icon */}
+            <div className="flex items-center justify-center w-11 h-11 rounded-full bg-red-50 mx-auto mb-4">
+              <svg
+                className="w-5 h-5 text-red-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+            </div>
+
+            <h3 className="text-[15px] font-semibold text-gray-900 text-center mb-1.5">
+              Delete Workflow
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Are you sure you want to delete{" "}
+              <span className="text-gray-900 font-medium">
+                &quot;{deleteTarget.name}&quot;
+              </span>
+              ? This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <svg
+                      className="animate-spin w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

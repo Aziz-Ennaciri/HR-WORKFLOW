@@ -208,6 +208,7 @@ export default function DashboardPage() {
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => setShowCreateModal(true)}
+        onWorkflowDeleted={fetchStats}
       />
 
       <div className="flex-1 overflow-y-auto">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
 import api from "@/lib/api";
@@ -36,6 +37,7 @@ const templates = [
 ];
 
 export default function TemplatesPage() {
+  const router = useRouter();
   const [workflows, setWorkflows] = useState<any[]>([]);
 
   const cloneTemplate = async (template: any) => {
@@ -54,7 +56,13 @@ export default function TemplatesPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar workflows={workflows} onCreateWorkflow={() => {}} />
+      <Sidebar
+        workflows={workflows}
+        onCreateWorkflow={() => router.push("/dashboard")}
+        onWorkflowDeleted={() =>
+          api.get("/workflows").then((r) => setWorkflows(r.data))
+        }
+      />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-8 py-8">
           <h1 className="text-3xl font-bold mb-6">Workflow Templates</h1>

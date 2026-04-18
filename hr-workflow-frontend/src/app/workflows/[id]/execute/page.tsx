@@ -80,6 +80,9 @@ export default function ExecuteWorkflowPage() {
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
+        onWorkflowDeleted={() =>
+          api.get("/workflows").then((r) => setWorkflows(r.data))
+        }
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

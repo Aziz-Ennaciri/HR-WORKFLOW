@@ -126,6 +126,9 @@ export default function ExecutionDetailPage() {
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
+        onWorkflowDeleted={() =>
+          api.get("/workflows").then((r) => setWorkflows(r.data))
+        }
       />
 
       <div className="flex-1 overflow-y-auto">
@@ -161,7 +164,9 @@ export default function ExecutionDetailPage() {
                   {execution?.startedAt
                     ? `Started ${new Date(execution.startedAt).toLocaleString()}`
                     : "Loading..."}
-                  {(execution?.triggeredByName || currentUserName || execution?.triggeredByEmail) &&
+                  {(execution?.triggeredByName ||
+                    currentUserName ||
+                    execution?.triggeredByEmail) &&
                     ` · by ${execution?.triggeredByName || currentUserName || execution?.triggeredByEmail}`}
                 </p>
               </div>

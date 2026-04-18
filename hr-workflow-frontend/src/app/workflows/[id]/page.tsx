@@ -16,7 +16,6 @@ import ReactFlow, {
   EdgeChange,
   Connection,
 } from "reactflow";
-import "reactflow/dist/style.css";
 import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
@@ -304,7 +303,13 @@ export default function WorkflowDesignerPage() {
   if (loading) {
     return (
       <div className="flex h-screen">
-        <Sidebar workflows={workflows} onCreateWorkflow={() => {}} />
+        <Sidebar
+          workflows={workflows}
+          onCreateWorkflow={() => router.push("/dashboard")}
+          onWorkflowDeleted={() =>
+            api.get("/workflows").then((r) => setWorkflows(r.data))
+          }
+        />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -320,6 +325,9 @@ export default function WorkflowDesignerPage() {
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
+        onWorkflowDeleted={() =>
+          api.get("/workflows").then((r) => setWorkflows(r.data))
+        }
       />
 
       <div className="flex-1 flex flex-col">
