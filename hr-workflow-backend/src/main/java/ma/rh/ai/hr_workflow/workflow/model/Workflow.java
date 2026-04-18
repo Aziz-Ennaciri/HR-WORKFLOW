@@ -53,7 +53,7 @@ public class Workflow {
     private List<WorkflowInstance> instances = new ArrayList<>();
 
     @Column(nullable = false)
-    private boolean isDeleted = false;
+    private boolean deleted = false;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

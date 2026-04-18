@@ -53,4 +53,12 @@ public class WorkflowController {
         WorkflowResponseDTO updated = workflowService.updateWorkflow(id, dto);
         return ResponseEntity.ok(updated);
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a workflow", description = "Soft-deletes a workflow by marking it as deleted")
+    public ResponseEntity<Void> deleteWorkflow(
+            @PathVariable @Parameter(description = "Workflow ID") Long id) {
+        workflowService.deleteWorkflow(id);
+        return ResponseEntity.noContent().build();
+    }
 }
