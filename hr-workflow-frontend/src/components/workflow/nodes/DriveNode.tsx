@@ -1,6 +1,6 @@
 import { BaseNode } from "./BaseNode";
 
-export function DriveNode({ data, selected }: any) {
+export function DriveNode({ id, data, selected }: any) {
   const icon = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
       <path
@@ -17,6 +17,7 @@ export function DriveNode({ data, selected }: any) {
 
   return (
     <BaseNode
+      id={id}
       icon={icon}
       label="Drive"
       subtitle="File storage"

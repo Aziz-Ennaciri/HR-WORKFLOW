@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 
 export default function ExecuteWorkflowPage() {
   const params = useParams();
   const router = useRouter();
-
+  const authReady = useAuthGuard();
   const [workflow, setWorkflow] = useState<any>(null);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [workflowNodes, setWorkflowNodes] = useState<any[]>([]);
@@ -26,9 +27,7 @@ export default function ExecuteWorkflowPage() {
         setWorkflow(wfRes.data);
         setWorkflows(allRes.data);
         setWorkflowNodes(nodesRes.data);
-      } catch (err) {
-        console.error("Failed to load workflow data", err);
-      }
+      } catch (err) {}
     };
     fetchAll();
   }, [params.id]);
@@ -54,7 +53,6 @@ export default function ExecuteWorkflowPage() {
         router.push("/dashboard");
       }
     } catch (error: any) {
-      console.error("Execution trigger failed:", error);
       setSubmitting(false);
     }
   };
@@ -72,7 +70,7 @@ export default function ExecuteWorkflowPage() {
     DRIVE: "💾",
     EXCEL: "📊",
   };
-
+  if (!authReady) return null;
   const isActive = workflow?.status === "ACTIVE";
 
   return (

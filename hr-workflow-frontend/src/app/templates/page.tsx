@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 
@@ -40,6 +41,7 @@ export default function TemplatesPage() {
   const router = useRouter();
   const [workflows, setWorkflows] = useState<any[]>([]);
 
+  const authReady = useAuthGuard();
   const cloneTemplate = async (template: any) => {
     try {
       const response = await api.post("/workflows", {
@@ -52,6 +54,8 @@ export default function TemplatesPage() {
       console.error("failed clone", e);
       toast.error("Unable to clone template");
     }
+
+    if (!authReady) return null;
   };
 
   return (

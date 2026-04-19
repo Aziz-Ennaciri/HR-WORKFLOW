@@ -1,6 +1,6 @@
 import { BaseNode } from "./BaseNode";
 
-export function EmailNode({ data, selected }: any) {
+export function EmailNode({ id, data, selected }: any) {
   const icon = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
       <rect
@@ -26,6 +26,7 @@ export function EmailNode({ data, selected }: any) {
 
   return (
     <BaseNode
+      id={id}
       icon={icon}
       label="Email"
       subtitle="Send notification"

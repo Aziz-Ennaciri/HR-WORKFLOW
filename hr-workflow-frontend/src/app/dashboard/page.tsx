@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 import CreateWorkflowModal from "@/components/workflow/CreateWorkflowModal";
+import { useAuthGuard } from "@/lib/auth";
 import Button from "@/components/ui/Button";
 import type { Workflow } from "@/types";
 import {
@@ -41,6 +42,7 @@ function timeAgo(iso?: string) {
 
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const authReady = useAuthGuard();
   const [stats, setStats] = useState({
     totalWorkflows: 0,
     activeWorkflows: 0,
@@ -55,7 +57,6 @@ export default function DashboardPage() {
   >([]);
   const router = useRouter();
   const pollRef = useRef<NodeJS.Timeout | null>(null);
-
   const fetchStats = useCallback(async () => {
     try {
       const [wfRes, exRes] = await Promise.all([
@@ -189,6 +190,8 @@ export default function DashboardPage() {
   const dismissBanner = (idx: number) => {
     setTrackedExecutions((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  if (!authReady) return null;
 
   if (loading) {
     return (

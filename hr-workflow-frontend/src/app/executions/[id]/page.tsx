@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
 import ExecutionTracker from "@/components/executions/ExecutionTracker";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 
@@ -11,6 +12,8 @@ export default function ExecutionDetailPage() {
   const params = useParams();
   const router = useRouter();
   const executionId = parseInt(params.id as string);
+
+  const authReady = useAuthGuard();
 
   const [execution, setExecution] = useState<any>(null);
   const [nodeInstances, setNodeInstances] = useState<any[]>([]);
@@ -30,10 +33,10 @@ export default function ExecutionDetailPage() {
       if (name) {
         setCurrentUserName(name);
       }
-    } catch {
-      // ignore invalid localStorage data
-    }
+    } catch {}
   }, []);
+
+  if (!authReady) return null;
 
   const fetchDetail = useCallback(async () => {
     try {

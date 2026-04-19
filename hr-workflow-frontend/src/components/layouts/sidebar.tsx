@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { clearAuth } from "@/lib/auth";
 import Button from "../ui/Button";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
@@ -31,8 +32,7 @@ export default function Sidebar({
   );
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearAuth();
     router.push("/login");
   };
 

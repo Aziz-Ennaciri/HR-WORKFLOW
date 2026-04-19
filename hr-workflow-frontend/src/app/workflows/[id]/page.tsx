@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NodeConfigPanel from "@/components/workflow/NodeConfigPanel";
 import { nodeTypes } from "@/components/workflow/nodes";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import ReactFlow, {
   Node,
@@ -24,6 +25,7 @@ import Button from "@/components/ui/Button";
 export default function WorkflowDesignerPage() {
   const params = useParams();
   const router = useRouter();
+  const authReady = useAuthGuard();
   const [workflow, setWorkflow] = useState<any>(null);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -69,16 +71,11 @@ export default function WorkflowDesignerPage() {
         createdById: workflow.createdById,
       };
 
-      console.log("📤 Sending:", requestData);
-
       const response = await api.put(`/workflows/${params.id}`, requestData);
 
-      console.log("✅ Response:", response.data);
       alert("Workflow activated successfully!");
       await fetchWorkflow();
     } catch (error: any) {
-      console.error("❌ Error:", error);
-      console.error("❌ Response:", error.response?.data);
       alert(error.response?.data?.message || error.message || "Failed");
     }
   };
@@ -105,11 +102,9 @@ export default function WorkflowDesignerPage() {
   const fetchWorkflow = async () => {
     try {
       const response = await api.get(`/workflows/${params.id}`);
-      console.log("📥 Fetched workflow:", response.data);
       setWorkflow(response.data);
 
       const nodesResponse = await api.get(`/nodes/workflow/${params.id}`);
-      console.log("📥 Loaded nodes:", nodesResponse.data);
 
       if (nodesResponse.data && nodesResponse.data.length > 0) {
         const flowNodes = nodesResponse.data.map((node: any, index: number) => {
@@ -138,16 +133,13 @@ export default function WorkflowDesignerPage() {
         setNodes(flowNodes);
       }
 
-      // ✅ Load edges from localStorage
       const edgesKey = `workflow-${params.id}-edges`;
       const savedEdges = localStorage.getItem(edgesKey);
       if (savedEdges) {
         const parsedEdges = JSON.parse(savedEdges);
-        console.log("📥 Loaded", parsedEdges.length, "edges from localStorage");
         setEdges(parsedEdges);
       }
     } catch (error) {
-      console.error("Failed to fetch workflow:", error);
     } finally {
       setLoading(false);
     }
@@ -196,11 +188,8 @@ export default function WorkflowDesignerPage() {
   const handleSave = async () => {
     try {
       const wasActive = workflow?.status === "ACTIVE";
-      console.log("💾 Saving workflow, current status:", workflow?.status);
 
-      // 1. Deactivate if active
       if (wasActive) {
-        console.log("🟡 Deactivating workflow...");
         await api.put(`/workflows/${params.id}`, {
           name: workflow.name,
           description: workflow.description,
@@ -212,7 +201,6 @@ export default function WorkflowDesignerPage() {
         setWorkflow({ ...workflow, status: "DRAFT" });
       }
 
-      // 2. Get existing nodes from backend
       const existingNodesResponse = await api.get(
         `/nodes/workflow/${params.id}`,
       );
@@ -223,7 +211,6 @@ export default function WorkflowDesignerPage() {
       const currentNodeIds = new Set(nodes.map((n) => n.id));
       console.log(currentNodeIds);
 
-      // 3. Delete nodes that were removed from canvas
       const nodesToDelete = existingNodes.filter(
         (n: any) => !currentNodeIds.has(n.id.toString()),
       );
@@ -237,43 +224,32 @@ export default function WorkflowDesignerPage() {
             node.id,
             "- might have executions",
           );
-          // If CASCADE is set, this shouldn't happen
-          // If it does, we need to delete executions first
         }
       }
 
-      // 4. Update or create nodes
       console.log("💾 Saving", nodes.length, "nodes...");
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
         const isExisting = existingNodeIds.has(node.id);
 
         if (isExisting) {
-          // Update existing node
           await api.put(`/nodes/${node.id}`, {
             type: node.data.label,
             order: i + 1,
             configJson: JSON.stringify(node.data.config || {}),
           });
         } else {
-          // Create new node
           const response = await api.post(`/nodes/workflow/${params.id}`, {
             type: node.data.label,
             order: i + 1,
             configJson: JSON.stringify(node.data.config || {}),
           });
-          // Update the node ID in the canvas
           node.id = response.data.id.toString();
         }
       }
-      console.log("✅ Nodes saved");
-
-      // 5. Save edges to localStorage
       const edgesKey = `workflow-${params.id}-edges`;
       localStorage.setItem(edgesKey, JSON.stringify(edges));
-      console.log("✅ Saved", edges.length, "edges");
 
-      // 6. Reactivate if was active
       if (wasActive) {
         console.log("🟢 Reactivating workflow...");
         await api.put(`/workflows/${params.id}`, {
@@ -290,8 +266,6 @@ export default function WorkflowDesignerPage() {
       alert("✅ Workflow saved successfully!");
       await fetchWorkflow();
     } catch (error: any) {
-      console.error("❌ Save failed:", error);
-      console.error("Error response:", error.response?.data);
       alert(
         error.response?.data?.message ||
           error.message ||
@@ -300,6 +274,7 @@ export default function WorkflowDesignerPage() {
       await fetchWorkflow();
     }
   };
+  if (!authReady) return null;
 
   if (loading) {
     return (
@@ -449,46 +424,48 @@ export default function WorkflowDesignerPage() {
         </div>
 
         {/* React Flow Canvas */}
-        <div className="flex-1 flex" style={{ minHeight: 0 }}>
-          <div className="flex-1 h-full">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={onNodeClick}
-              nodeTypes={nodeTypes}
-              defaultEdgeOptions={{
-                type: "smoothstep",
-                animated: false,
-                style: { stroke: "#94a3b8", strokeWidth: 2 },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  color: "#94a3b8",
-                },
-              }}
-              fitView
-              deleteKeyCode="Delete"
-            >
-              <Background
-                variant={"dots" as any}
-                gap={20}
-                size={1}
-                color="#d1d5db"
-              />
-              <Controls />
-            </ReactFlow>
-          </div>
+        <div className="relative flex-1">
+          <div className="absolute inset-0 flex">
+            <div className="flex-1">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={onNodeClick}
+                nodeTypes={nodeTypes}
+                defaultEdgeOptions={{
+                  type: "smoothstep",
+                  animated: false,
+                  style: { stroke: "#94a3b8", strokeWidth: 2 },
+                  markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    color: "#94a3b8",
+                  },
+                }}
+                fitView
+                deleteKeyCode="Delete"
+              >
+                <Background
+                  variant={"dots" as any}
+                  gap={20}
+                  size={1}
+                  color="#d1d5db"
+                />
+                <Controls />
+              </ReactFlow>
+            </div>
 
-          {/* Config Panel */}
-          {selectedNode && (
-            <NodeConfigPanel
-              node={selectedNode}
-              onUpdate={updateNodeConfig}
-              onClose={() => setSelectedNode(null)}
-            />
-          )}
+            {/* Config Panel */}
+            {selectedNode && (
+              <NodeConfigPanel
+                node={selectedNode}
+                onUpdate={updateNodeConfig}
+                onClose={() => setSelectedNode(null)}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>

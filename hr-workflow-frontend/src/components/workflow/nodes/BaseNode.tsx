@@ -1,7 +1,8 @@
-import { Handle, Position } from "reactflow";
-import { ReactNode } from "react";
+import { Handle, Position, useReactFlow } from "reactflow";
+import { ReactNode, useState } from "react";
 
 interface BaseNodeProps {
+  id: string;
   icon: ReactNode;
   label: string;
   subtitle: string;
@@ -13,6 +14,7 @@ interface BaseNodeProps {
 }
 
 export function BaseNode({
+  id,
   icon,
   label,
   subtitle,
@@ -22,6 +24,17 @@ export function BaseNode({
   detail,
   selected,
 }: BaseNodeProps) {
+  const { setNodes, setEdges } = useReactFlow();
+  const [hovered, setHovered] = useState(false);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNodes((nodes) => nodes.filter((n) => n.id !== id));
+    setEdges((edges) =>
+      edges.filter((e) => e.source !== id && e.target !== id),
+    );
+  };
+
   return (
     <div
       className={`
@@ -33,7 +46,32 @@ export function BaseNode({
         border: `1.5px solid ${selected ? accentColor : borderColor}`,
         boxShadow: selected ? `0 0 0 2px ${accentColor}33` : undefined,
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
+      {/* Delete button */}
+      {hovered && (
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-red-50 hover:border-red-300 hover:text-red-500 text-gray-400 transition-all z-10"
+          title="Delete node"
+        >
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      )}
+
       {/* Left accent stripe */}
       <div
         className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[13px]"
@@ -78,7 +116,7 @@ export function BaseNode({
         )}
       </div>
 
-      {/* Handles — Left (input) and Right (output) for horizontal flow */}
+      {/* Handles */}
       <Handle
         type="target"
         position={Position.Left}

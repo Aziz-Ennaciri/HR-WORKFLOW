@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 
@@ -174,7 +175,8 @@ export default function ExecutionsPage() {
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: "all", workflow: "all" });
-
+  const authReady = useAuthGuard();
+  if (!authReady) return null;
   const fetchData = async () => {
     try {
       const [execRes, wfRes] = await Promise.all([

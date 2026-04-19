@@ -1,6 +1,6 @@
 import { BaseNode } from "./BaseNode";
 
-export function ExcelNode({ data, selected }: any) {
+export function ExcelNode({ id, data, selected }: any) {
   const icon = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
       <rect
@@ -35,6 +35,7 @@ export function ExcelNode({ data, selected }: any) {
 
   return (
     <BaseNode
+      id={id}
       icon={icon}
       label="Excel"
       subtitle="Spreadsheet"

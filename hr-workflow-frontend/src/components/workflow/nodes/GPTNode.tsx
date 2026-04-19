@@ -1,6 +1,6 @@
 import { BaseNode } from "./BaseNode";
 
-export function GPTNode({ data, selected }: any) {
+export function GPTNode({ id, data, selected }: any) {
   const icon = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
       <path
@@ -26,9 +26,10 @@ export function GPTNode({ data, selected }: any) {
 
   return (
     <BaseNode
+      id={id}
       icon={icon}
-      label="AI / LLM"
-      subtitle="AI processing"
+      label="Agent"
+      subtitle="Agent processing"
       accentColor="#8b5cf6"
       bgColor="#f5f3ff"
       borderColor="#ddd6fe"
