@@ -21,8 +21,6 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
-import ma.rh.ai.hr_workflow.execution.service.INodeInstanceService;
 import ma.rh.ai.hr_workflow.execution.service.IWorkflowExecutionService;
 import ma.rh.ai.hr_workflow.execution.service.IWorkflowInstanceService;
 import ma.rh.ai.hr_workflow.user.model.User;
@@ -39,22 +37,16 @@ import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
 public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
 
     private final IWorkflowInstanceService workflowInstanceService;
-    private final INodeInstanceService nodeInstanceService;
-    private final WorkflowInstancerepository workflowInstanceRepository;
     private final WorkflowRepository workflowRepository;
     private final NodeRepository nodeRepository;
     private final NodeInstanceRepository nodeInstanceRepository;
 
-    // Handles all REQUIRES_NEW transactions from a separate bean
     private final ExecutionTransactionHelper txHelper;
 
-    // Spring injects ALL NodeHandler implementations
     private final List<NodeHandler> nodeHandlers;
 
-    // Handler registry - built at startup
     private Map<NodeType, NodeHandler> handlerRegistry;
 
-    // Thread pool for background execution
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     @PostConstruct
@@ -72,7 +64,6 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
         executor.shutdown();
     }
 
-    // ─── Trigger ─────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -82,7 +73,6 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
         Workflow workflow = validateWorkflow(dto.getWorkflowId());
         WorkflowInstance workflowInstance = workflowInstanceService.createInstance(dto, user);
 
-        // Pre-create all node instances as PENDING
         List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId());
         String inputData = workflowInstance.getInputData();
         for (Node node : nodes) {
@@ -95,7 +85,6 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
             nodeInstanceRepository.save(ni);
         }
 
-        // Run execution AFTER this transaction commits
         final Long instanceId = workflowInstance.getId();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -114,14 +103,11 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
         return workflowInstance;
     }
 
-    // ─── Execution loop (background thread) ──────────────────────────
-
     @Override
     public void continueExecution(Long workflowInstanceId) {
         log.info("▶️  Continuing execution: {}", workflowInstanceId);
 
         try {
-            // All txHelper calls go through Spring proxy → proper REQUIRES_NEW
             txHelper.startInstance(workflowInstanceId);
 
             List<Node> nodes = txHelper.getWorkflowNodes(workflowInstanceId);
@@ -136,14 +122,18 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
                 log.info("🔄 Node {} of {}: {}",
                         node.getOrderIndex() + 1, nodes.size(), node.getType());
 
-                // Get the handler for this node type
                 NodeHandler handler = getHandlerForNode(node);
 
-                // Execute in its own transaction via the helper bean
                 NodeInstance nodeInstance = txHelper.executeNode(
                         workflowInstanceId, node.getId(), previousOutput, handler);
 
                 txHelper.updateCurrentNode(workflowInstanceId, node.getId());
+
+                if (nodeInstance.getStatus() == NodeInstanceStatus.WAITING_APPROVAL) {
+                    log.info("⏸️  Workflow PAUSED at APPROVAL node — waiting for human decision");
+                    txHelper.pauseInstance(workflowInstanceId);
+                    return; // Stop the loop — will resume when approve/reject is called
+                }
 
                 if (nodeInstance.getStatus() == NodeInstanceStatus.FAILED) {
                     txHelper.failInstance(workflowInstanceId,
@@ -176,7 +166,17 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────
+    public void resumeAfterApproval(Long workflowInstanceId) {
+        log.info("▶️  Resuming workflow {} after approval", workflowInstanceId);
+        executor.submit(() -> {
+            try {
+                continueExecution(workflowInstanceId);
+            } catch (Exception e) {
+                log.error("💥 Resume failed: {}", workflowInstanceId, e);
+            }
+        });
+    }
+
 
     private NodeHandler getHandlerForNode(Node node) {
         NodeHandler handler = handlerRegistry.get(node.getType());

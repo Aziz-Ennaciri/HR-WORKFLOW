@@ -43,7 +43,6 @@ export default function Sidebar({
       await api.delete(`/workflows/${deleteTarget.id}`);
       toast.success("Workflow deleted");
 
-      // If we're currently viewing the deleted workflow, go to dashboard
       const isViewingDeleted = pathname.includes(
         `/workflows/${deleteTarget.id}`,
       );

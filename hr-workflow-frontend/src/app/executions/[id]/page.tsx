@@ -36,8 +36,6 @@ export default function ExecutionDetailPage() {
     } catch {}
   }, []);
 
-  if (!authReady) return null;
-
   const fetchDetail = useCallback(async () => {
     try {
       const res = await api.get(`/executions/${executionId}/detail`);
@@ -86,6 +84,7 @@ export default function ExecutionDetailPage() {
       .then((r) => setWorkflows(r.data || []))
       .catch(() => {});
   }, [fetchDetail]);
+  if (!authReady) return null;
 
   const downloadExcel = async (nodeInstance: any) => {
     try {

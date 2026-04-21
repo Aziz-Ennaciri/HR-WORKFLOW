@@ -420,6 +420,14 @@ export default function WorkflowDesignerPage() {
               <span>📊</span>
               <span>Excel</span>
             </Button>
+            <Button
+              onClick={() => addNode("APPROVAL")}
+              variant="outline"
+              className="px-4 py-2 text-sm flex items-center space-x-2"
+            >
+              <span>✋</span>
+              <span>Approval</span>
+            </Button>
           </div>
         </div>
 

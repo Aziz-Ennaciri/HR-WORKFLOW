@@ -13,6 +13,7 @@ import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -56,6 +57,7 @@ public class WorkflowExecutionController {
     }
 
     @GetMapping("/{id}/detail")
+    @Transactional(readOnly = true)
     @Operation(summary = "Get instance with node results")
     public ResponseEntity<WorkflowInstanceDetailDTO> getDetail(
             @PathVariable Long id) {
@@ -71,6 +73,7 @@ public class WorkflowExecutionController {
     }
 
     @GetMapping("/workflow/{workflowId}")
+    @Transactional(readOnly = true)
     @Operation(summary = "Get all instances for workflow")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getByWorkflow(
             @PathVariable Long workflowId) {
@@ -82,6 +85,7 @@ public class WorkflowExecutionController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     @Operation(summary = "Get all workflow instances")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getAllExecutions() {
         List<WorkflowInstance> instances = instanceRepository.findAll();

@@ -266,102 +266,57 @@ public class RealGptServiceImpl implements GptService {
                 }
 
                 if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
-                    log.info("✅ Mode: Plain prompt (no CVs)");
-                    return "You are an HR assistant. The user says:\n\n\""
-                            + root.get("prompt").asText().trim()
-                            + "\"\n\nRespond clearly and helpfully.";
+
+                    return root.get("prompt").asText().trim()
+                                     + "\n\nRespond with valid JSON only, no extra text.";
                 }
-            } catch (Exception e) {
+
+                } catch (Exception e) {
                 log.warn("⚠️ JSON parse failed: {}", e.getMessage());
             }
         }
 
         if (inputData.contains("FILTERING_CRITERIA:")) {
-            log.info("✅ Mode: Legacy");
             return buildLegacyPrompt(inputData);
         }
 
         log.info("⚙️ Mode: Fallback");
-        return "You are an HR assistant. Here is a request:\n\n" + inputData
-                + "\n\nRespond helpfully and concisely.";
+        return inputData + "\n\nRespond with valid JSON only, no extra text.";
     }
 
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
         StringBuilder p = new StringBuilder();
 
         if (originalInput.has("prompt")) {
-            buildFreeTextPrompt(p, originalInput.get("prompt").asText().trim());
+            p.append(originalInput.get("prompt").asText().trim());
         } else {
-            buildStructuredPrompt(p, originalInput);
+            p.append(originalInput.toPrettyString());
+        }
+        p.append("\n\n");
+
+        // Data from previous node — formatted readably
+        p.append("Here is the data:\n\n");
+        JsonNode items = cvData.get("cvs");
+        if (items != null && items.isArray()) {
+            for (int i = 0; i < items.size(); i++) {
+                JsonNode item = items.get(i);
+                p.append("--- ");
+                p.append(item.has("fileName") ? item.get("fileName").asText() : "Item " + (i + 1));
+                p.append(" ---\n");
+                if (item.has("content")) {
+                    p.append(item.get("content").asText().trim());
+                }
+                p.append("\n\n");
+            }
+        } else {
+            p.append(cvData.toString()).append("\n\n");
         }
 
-        p.append("=== CANDIDATE CVs ===\n");
-        p.append(cvData.toString()).append("\n\n");
-        p.append("=== YOUR RESPONSE (JSON array only, nothing else) ===\n");
+        p.append("Respond with valid JSON only, no extra text.\n");
 
         return p.toString();
     }
 
-    private void buildFreeTextPrompt(StringBuilder p, String userPrompt) {
-        log.info("💬 Free-text prompt: {}", userPrompt);
-
-        p.append("You are a strict HR recruitment assistant.\n\n");
-
-        p.append("=== USER REQUEST ===\n");
-        p.append(userPrompt).append("\n\n");
-
-        p.append("=== WHAT YOU MUST DO ===\n");
-        p.append("Step 1: Read the user's request above carefully.\n");
-        p.append("Step 2: Extract the criteria — what role, how many years of experience, what skills, etc.\n");
-        p.append("Step 3: Read each CV below.\n");
-        p.append("Step 4: For each candidate, check if they match ALL the criteria.\n");
-        p.append("Step 5: REMOVE any candidate who does NOT match. Examples:\n");
-        p.append("  - User says '7+ years' → remove anyone with less than 7 years\n");
-        p.append("  - User says 'Java developer' → remove anyone who is not a Java developer\n");
-        p.append("  - User says 'knows Kubernetes' → remove anyone without Kubernetes\n");
-        p.append("Step 6: Score the remaining candidates 0-10 (10 = perfect match).\n");
-        p.append("Step 7: Sort by score, highest first.\n\n");
-
-        p.append("=== OUTPUT FORMAT ===\n");
-        p.append("Return ONLY a JSON array. No text before, no text after, no markdown.\n");
-        p.append("If nobody matches, return: []\n");
-        p.append("Format: [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
-
-        p.append("WARNING: Do NOT include candidates who fail the criteria. ONLY return matching candidates.\n\n");
-    }
-
-    private void buildStructuredPrompt(StringBuilder p, JsonNode criteria) {
-        String profile    = txt(criteria, "Profile");
-        String experience = txt(criteria, "Experience");
-        String skills     = txt(criteria, "Skills");
-        String topN       = criteria.has("TopN") ? criteria.get("TopN").asText() : "5";
-
-        log.info("📋 Structured — Profile:{} Exp:{} Skills:{} TopN:{}", profile, experience, skills, topN);
-
-        p.append("You are a strict HR recruitment assistant.\n\n");
-
-        p.append("=== JOB REQUIREMENTS ===\n");
-        if (!profile.isEmpty())    p.append("- Role       : ").append(profile).append("\n");
-        if (!experience.isEmpty()) p.append("- Min Years  : ").append(experience).append("\n");
-        if (!skills.isEmpty())     p.append("- Skills     : ").append(skills).append("\n");
-        p.append("- Return top : ").append(topN).append(" candidates\n\n");
-
-        p.append("=== WHAT YOU MUST DO ===\n");
-        if (!experience.isEmpty())
-            p.append("1. REMOVE candidates with less than ").append(experience).append(" years experience.\n");
-        if (!skills.isEmpty())
-            p.append("2. REMOVE candidates who have NONE of: ").append(skills).append(".\n");
-        p.append("3. Score remaining candidates 0-10.\n");
-        p.append("4. Sort by score, highest first.\n");
-        p.append("5. Return ONLY the top ").append(topN).append(".\n");
-        p.append("6. If nobody matches, return: []\n\n");
-
-        p.append("=== OUTPUT FORMAT ===\n");
-        p.append("Return ONLY a JSON array. No text, no markdown.\n");
-        p.append("Format: [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
-
-        p.append("WARNING: Do NOT include candidates who fail the criteria.\n\n");
-    }
 
     private String buildLegacyPrompt(String inputData) {
         try {
@@ -406,13 +361,6 @@ public class RealGptServiceImpl implements GptService {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  UTILS
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    private String txt(JsonNode node, String field) {
-        return node.has(field) ? node.get(field).asText() : "";
-    }
 
     private String extractSection(String data, String prefix) {
         if (data == null) return null;
