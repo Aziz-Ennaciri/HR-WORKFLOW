@@ -92,7 +92,7 @@ public class NodeInstance {
 
     public void markCompleted(String output) {
         this.status = NodeInstanceStatus.COMPLETED;
-        this.outputData = output;
+        this.outputData = (output != null && !output.isBlank()) ? output : this.inputData;
         complete();
     }
 

@@ -4,5 +4,6 @@ public enum NodeType {
     GPT,
     DRIVE,
     EMAIL,
-    EXCEL
+    EXCEL,
+    APPROVAL
 }

@@ -283,6 +283,46 @@ export default function NodeConfigPanel({
           </>
         );
 
+      case "APPROVAL":
+        return (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Approver Email
+              </label>
+              <input
+                type="email"
+                value={config.approverEmail || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, approverEmail: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="manager@company.com"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Who should review and approve (for reference)
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Instructions
+              </label>
+              <textarea
+                value={config.instructions || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, instructions: e.target.value })
+                }
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="Review the AI analysis results and approve if the candidates meet the requirements..."
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Instructions shown to the approver
+              </p>
+            </div>
+          </>
+        );
+
       default:
         return null;
     }
@@ -345,6 +385,8 @@ export default function NodeConfigPanel({
             "Interact with Google Drive files and folders"}
           {node.data.label === "EXCEL" &&
             "Read, write, or update Excel spreadsheets"}
+          {node.data.label === "APPROVAL" &&
+            "Pause the workflow and wait for a human to review and approve or reject before continuing"}
         </p>
       </div>
     </div>

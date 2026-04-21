@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.rh.ai.hr_workflow.execution.handler.ApprovalNodeHandler;
 import ma.rh.ai.hr_workflow.execution.handler.NodeHandler;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
@@ -18,11 +19,7 @@ import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 
-/**
- * All methods here use REQUIRES_NEW so each gets its own transaction,
- * committed immediately. Because they're called from a DIFFERENT bean
- * (WorkflowExecutionServiceImpl), Spring's proxy properly intercepts them.
- */
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -66,10 +63,6 @@ public class ExecutionTransactionHelper {
         workflowInstanceRepository.save(instance);
     }
 
-    /**
-     * Execute a single node in its own transaction.
-     * Each status change is committed immediately and visible to polling frontend.
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public NodeInstance executeNode(Long workflowInstanceId, Long nodeId, String inputData,
                                     NodeHandler handler) {
@@ -78,11 +71,9 @@ public class ExecutionTransactionHelper {
         Node node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new RuntimeException("Node not found"));
 
-        // Force-initialize lazy proxies so handlers can access them freely
         instance.getWorkflow().getName();
         instance.getWorkflow().getWorkflowKey();
 
-        // Find pre-created node instance or create new one
         NodeInstance nodeInstance = nodeInstanceRepository
                 .findByWorkflowInstanceIdAndNodeId(instance.getId(), node.getId())
                 .orElseGet(() -> {
@@ -95,7 +86,6 @@ public class ExecutionTransactionHelper {
                     return nodeInstanceRepository.save(ni);
                 });
 
-        // Attach fully-initialized instance so handlers don't hit lazy errors
         nodeInstance.setWorkflowInstance(instance);
 
         if (nodeInstance.getInputData() == null) {
@@ -108,14 +98,18 @@ public class ExecutionTransactionHelper {
         }
 
         try {
-            // Mark IN_PROGRESS — flush so polling sees it immediately
             nodeInstance.start();
             nodeInstanceRepository.saveAndFlush(nodeInstance);
 
-            // Run the actual handler (DRIVE, GPT, EXCEL, EMAIL)
             String result = handler.execute(node, nodeInstance);
 
-            // Mark COMPLETED
+            if (ApprovalNodeHandler.APPROVAL_SIGNAL.equals(result)) {
+                log.info("⏸️  Node {} is APPROVAL — marking WAITING_APPROVAL", node.getType());
+                nodeInstance.setStatus(NodeInstanceStatus.WAITING_APPROVAL);
+                nodeInstanceRepository.save(nodeInstance);
+                return nodeInstance;
+            }
+
             nodeInstance.markCompleted(result);
             nodeInstanceRepository.save(nodeInstance);
             return nodeInstance;
@@ -126,6 +120,15 @@ public class ExecutionTransactionHelper {
             nodeInstanceRepository.save(nodeInstance);
             return nodeInstance;
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void pauseInstance(Long workflowInstanceId) {
+        WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
+                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+        instance.setStatus(WorkflowInstanceStatus.PAUSED);
+        workflowInstanceRepository.save(instance);
+        log.info("⏸️  Workflow instance {} PAUSED for approval", workflowInstanceId);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

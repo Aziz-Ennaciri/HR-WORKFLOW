@@ -23,14 +23,19 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
 
     @Override
     public NodeInstance approveNode(Long nodeInstanceId, ApproveNodeDTO dto) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new RuntimeException("Node Instance not found"));
-        if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING && nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS) {
-            throw new RuntimeException("can only approve pending and in progress nodes");
+        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId)
+                .orElseThrow(() -> new RuntimeException("Node Instance not found"));
+
+        if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING &&
+                nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS &&
+                nodeInstance.getStatus() != NodeInstanceStatus.WAITING_APPROVAL) {
+            throw new RuntimeException("can only approve pending, in progress, or waiting approval nodes");
         }
+
         nodeInstance.markCompleted(null);
         nodeInstance.setActor(dto.getActor());
         nodeInstance.setComment(dto.getComment());
-        return nodeInstance;
+        return nodeInstanceRepository.save(nodeInstance);
     }
 
     @Override
