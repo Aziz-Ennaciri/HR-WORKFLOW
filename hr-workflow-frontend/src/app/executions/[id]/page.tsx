@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
 import ExecutionTracker from "@/components/executions/ExecutionTracker";
-import { useAuthGuard } from "@/lib/auth";
+import { useAuthGuard, getUser } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
+import { getWorkflowsUrl } from "@/lib/workflows";
 
 export default function ExecutionDetailPage() {
   const params = useParams();
@@ -20,20 +21,17 @@ export default function ExecutionDetailPage() {
   const [workflowNodes, setWorkflowNodes] = useState<any[]>([]);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [nodeConfigMap, setNodeConfigMap] = useState<Record<number, any>>({});
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) return;
-
-    try {
-      const parsed = JSON.parse(storedUser);
-      const name = parsed?.firstName || parsed?.name || parsed?.email;
-      if (name) {
-        setCurrentUserName(name);
-      }
-    } catch {}
+    const user = getUser();
+    if (!user) return;
+    const name = user?.firstName || user?.name || user?.email;
+    if (name) {
+      setCurrentUserName(name);
+    }
   }, []);
 
   const fetchDetail = useCallback(async () => {
@@ -70,6 +68,10 @@ export default function ExecutionDetailPage() {
         setNodeConfigMap((prev) => ({ ...prev, ...configs }));
       }
     } catch (e: any) {
+      if (e?.response?.status === 404) {
+        setNotFound(true);
+        return;
+      }
       console.error("Failed to fetch execution detail", e);
       toast.error("Failed to load execution details");
     } finally {
@@ -80,11 +82,50 @@ export default function ExecutionDetailPage() {
   useEffect(() => {
     fetchDetail();
     api
-      .get("/workflows")
+      .get(getWorkflowsUrl())
       .then((r) => setWorkflows(r.data || []))
       .catch(() => {});
   }, [fetchDetail]);
+
+  useEffect(() => {
+    if (!authReady || notFound) return;
+    const isRunning =
+      execution?.status === "IN_PROGRESS" ||
+      execution?.status === "RUNNING" ||
+      execution?.status === "PENDING";
+    if (!isRunning) return;
+    const interval = setInterval(fetchDetail, 3000);
+    return () => clearInterval(interval);
+  }, [execution?.status, authReady, notFound, fetchDetail]);
+
   if (!authReady) return null;
+
+  if (notFound) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
+        <Sidebar
+          workflows={workflows}
+          onCreateWorkflow={() => router.push("/dashboard")}
+          onWorkflowDeleted={() =>
+            api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
+          }
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-500 text-base mb-2">
+              This execution is no longer available
+            </p>
+            <button
+              onClick={() => router.push("/executions")}
+              className="text-blue-600 hover:underline text-sm"
+            >
+              Back to executions
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const downloadExcel = async (nodeInstance: any) => {
     try {
@@ -129,7 +170,7 @@ export default function ExecutionDetailPage() {
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
         onWorkflowDeleted={() =>
-          api.get("/workflows").then((r) => setWorkflows(r.data))
+          api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
         }
       />
 

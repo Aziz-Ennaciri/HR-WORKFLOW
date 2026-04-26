@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import Button from "../ui/Button";
 import { useRouter } from "next/navigation";
+import { getToken, clearAuth } from "@/lib/auth";
 
 export default function Navbar() {
   const [loggedIn, setLoggedIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    setLoggedIn(!!localStorage.getItem("token"));
+    setLoggedIn(!!getToken());
   }, []);
 
   const toggleDarkMode = () => {
@@ -32,8 +33,7 @@ export default function Navbar() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearAuth();
     router.push("/login");
     setLoggedIn(false);
   };

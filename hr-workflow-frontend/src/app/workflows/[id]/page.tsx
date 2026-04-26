@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NodeConfigPanel from "@/components/workflow/NodeConfigPanel";
 import { nodeTypes } from "@/components/workflow/nodes";
-import { useAuthGuard } from "@/lib/auth";
+import { DeletableEdge } from "@/components/workflow/edges/DeletableEdge";
+
+const edgeTypes = { deletable: DeletableEdge };
+import { useAuthGuard, getUser } from "@/lib/auth";
 import api from "@/lib/api";
 import ReactFlow, {
   Node,
@@ -21,6 +24,7 @@ import ReactFlow, {
 } from "reactflow";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
+import { getWorkflowsUrl } from "@/lib/workflows";
 
 export default function WorkflowDesignerPage() {
   const params = useParams();
@@ -32,6 +36,8 @@ export default function WorkflowDesignerPage() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [executing, setExecuting] = useState(false);
+  const newNodeOffset = useRef(0);
 
   useEffect(() => {
     fetchWorkflow();
@@ -133,11 +139,15 @@ export default function WorkflowDesignerPage() {
         setNodes(flowNodes);
       }
 
-      const edgesKey = `workflow-${params.id}-edges`;
-      const savedEdges = localStorage.getItem(edgesKey);
-      if (savedEdges) {
-        const parsedEdges = JSON.parse(savedEdges);
-        setEdges(parsedEdges);
+      if (response.data.edgesJson) {
+        try {
+          setEdges(JSON.parse(response.data.edgesJson));
+        } catch (e) {
+          console.error("Failed to parse edgesJson", e);
+          setEdges([]);
+        }
+      } else {
+        setEdges([]);
       }
     } catch (error) {
     } finally {
@@ -147,7 +157,7 @@ export default function WorkflowDesignerPage() {
 
   const fetchWorkflows = async () => {
     try {
-      const response = await api.get("/workflows");
+      const response = await api.get(getWorkflowsUrl());
       setWorkflows(response.data);
     } catch (error) {
       console.error("Failed to fetch workflows:", error);
@@ -172,86 +182,124 @@ export default function WorkflowDesignerPage() {
   }, []);
 
   const addNode = (type: string) => {
+    const idx = newNodeOffset.current;
+    newNodeOffset.current += 1;
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
     const newNode: Node = {
       id: `${type}-${Date.now()}`,
       type: type.toLowerCase(),
-      position: { x: 250, y: 100 + nodes.length * 100 },
-      data: {
-        label: type,
-        config: {},
-        order: nodes.length + 1,
-      },
+      position: { x: 150 + col * 260, y: 120 + row * 180 },
+      data: { label: type, config: {} },
     };
     setNodes((nds) => [...nds, newNode]);
+  };
+
+  const deriveOrderFromEdges = (
+    allNodes: Node[],
+    allEdges: Edge[],
+  ): Map<string, number> => {
+    const outEdge = new Map<string, string>();
+    const incomingCount = new Map<string, number>();
+    allNodes.forEach((n) => incomingCount.set(n.id, 0));
+    allEdges.forEach((e) => {
+      outEdge.set(e.source, e.target);
+      incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1);
+    });
+
+    const orderMap = new Map<string, number>();
+    const visited = new Set<string>();
+    let order = 1;
+    let current: string | undefined = allNodes.find(
+      (n) => (incomingCount.get(n.id) ?? 0) === 0,
+    )?.id;
+    while (current && !visited.has(current)) {
+      orderMap.set(current, order++);
+      visited.add(current);
+      current = outEdge.get(current);
+    }
+
+    // Disconnected nodes fallback: order by canvas X position
+    allNodes
+      .filter((n) => !visited.has(n.id))
+      .sort((a, b) => a.position.x - b.position.x)
+      .forEach((n) => orderMap.set(n.id, order++));
+
+    return orderMap;
+  };
+
+  const handleExecute = async () => {
+    if (executing) return;
+    setExecuting(true);
+    try {
+      const user = getUser();
+      await api.post(`/executions/trigger?userId=${user.id}`, {
+        workflowId: parseInt(params.id as string),
+        inputData: "{}",
+      });
+      router.push("/dashboard");
+    } catch (error: any) {
+      alert(error.response?.data?.message || error.message || "Failed to trigger execution");
+      setExecuting(false);
+    }
   };
 
   const handleSave = async () => {
     try {
       const wasActive = workflow?.status === "ACTIVE";
+      const edgesJson = JSON.stringify(edges);
 
-      if (wasActive) {
-        await api.put(`/workflows/${params.id}`, {
-          name: workflow.name,
-          description: workflow.description,
-          workflowKey: workflow.workflowKey,
-          version: workflow.version,
-          status: "DRAFT",
-          createdById: workflow.createdById,
-        });
-        setWorkflow({ ...workflow, status: "DRAFT" });
-      }
+      // Persist workflow (deactivate first if active, always carry edgesJson)
+      await api.put(`/workflows/${params.id}`, {
+        name: workflow.name,
+        description: workflow.description,
+        workflowKey: workflow.workflowKey,
+        version: workflow.version,
+        status: wasActive ? "DRAFT" : workflow.status,
+        createdById: workflow.createdById,
+        edgesJson,
+      });
+      if (wasActive) setWorkflow({ ...workflow, status: "DRAFT" });
 
-      const existingNodesResponse = await api.get(
-        `/nodes/workflow/${params.id}`,
-      );
+      const existingNodesResponse = await api.get(`/nodes/workflow/${params.id}`);
       const existingNodes = existingNodesResponse.data;
-      const existingNodeIds = new Set(
-        existingNodes.map((n: any) => n.id.toString()),
-      );
+      const existingNodeIds = new Set(existingNodes.map((n: any) => n.id.toString()));
       const currentNodeIds = new Set(nodes.map((n) => n.id));
-      console.log(currentNodeIds);
 
       const nodesToDelete = existingNodes.filter(
         (n: any) => !currentNodeIds.has(n.id.toString()),
       );
-      console.log("🗑️ Deleting", nodesToDelete.length, "removed nodes...");
       for (const node of nodesToDelete) {
         try {
           await api.delete(`/nodes/${node.id}`);
-        } catch (error: any) {
-          console.warn(
-            "⚠️ Failed to delete node",
-            node.id,
-            "- might have executions",
-          );
+        } catch {
+          console.warn("⚠️ Failed to delete node", node.id, "- might have executions");
         }
       }
 
-      console.log("💾 Saving", nodes.length, "nodes...");
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
+      const orderMap = deriveOrderFromEdges(nodes, edges);
+
+      for (const node of nodes) {
+        const order = orderMap.get(node.id) ?? 1;
         const isExisting = existingNodeIds.has(node.id);
 
         if (isExisting) {
           await api.put(`/nodes/${node.id}`, {
             type: node.data.label,
-            order: i + 1,
+            order,
             configJson: JSON.stringify(node.data.config || {}),
           });
         } else {
           const response = await api.post(`/nodes/workflow/${params.id}`, {
             type: node.data.label,
-            order: i + 1,
+            order,
             configJson: JSON.stringify(node.data.config || {}),
           });
           node.id = response.data.id.toString();
         }
       }
-      const edgesKey = `workflow-${params.id}-edges`;
-      localStorage.setItem(edgesKey, JSON.stringify(edges));
 
       if (wasActive) {
-        console.log("🟢 Reactivating workflow...");
         await api.put(`/workflows/${params.id}`, {
           name: workflow.name,
           description: workflow.description,
@@ -259,6 +307,7 @@ export default function WorkflowDesignerPage() {
           version: workflow.version,
           status: "ACTIVE",
           createdById: workflow.createdById,
+          edgesJson,
         });
         setWorkflow({ ...workflow, status: "ACTIVE" });
       }
@@ -283,7 +332,7 @@ export default function WorkflowDesignerPage() {
           workflows={workflows}
           onCreateWorkflow={() => router.push("/dashboard")}
           onWorkflowDeleted={() =>
-            api.get("/workflows").then((r) => setWorkflows(r.data))
+            api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
           }
         />
         <div className="flex-1 flex items-center justify-center">
@@ -302,7 +351,7 @@ export default function WorkflowDesignerPage() {
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
         onWorkflowDeleted={() =>
-          api.get("/workflows").then((r) => setWorkflows(r.data))
+          api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
         }
       />
 
@@ -374,12 +423,12 @@ export default function WorkflowDesignerPage() {
             </Button>
 
             <Button
-              onClick={() => router.push(`/workflows/${params.id}/execute`)}
-              disabled={workflow?.status !== "ACTIVE"}
+              onClick={handleExecute}
+              disabled={workflow?.status !== "ACTIVE" || executing}
               variant="primary"
               className="px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Execute
+              {executing ? "Starting…" : "Execute"}
             </Button>
           </div>
         </div>
@@ -443,8 +492,9 @@ export default function WorkflowDesignerPage() {
                 onConnect={onConnect}
                 onNodeClick={onNodeClick}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 defaultEdgeOptions={{
-                  type: "smoothstep",
+                  type: "deletable",
                   animated: false,
                   style: { stroke: "#94a3b8", strokeWidth: 2 },
                   markerEnd: {

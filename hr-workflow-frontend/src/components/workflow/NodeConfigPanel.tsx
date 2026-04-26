@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
+import api from "@/lib/api";
 
 interface NodeConfigPanelProps {
   node: any;
@@ -15,10 +16,24 @@ export default function NodeConfigPanel({
   onClose,
 }: NodeConfigPanelProps) {
   const [config, setConfig] = useState(node?.data?.config || {});
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
 
   useEffect(() => {
     setConfig(node?.data?.config || {});
   }, [node]);
+
+  // Fetch admin users when APPROVAL node is selected
+  useEffect(() => {
+    if (node?.data?.label === "APPROVAL") {
+      setLoadingAdmins(true);
+      api
+        .get("/users/by-role?role=ROLE_ADMIN")
+        .then((res) => setAdminUsers(res.data || []))
+        .catch(() => setAdminUsers([]))
+        .finally(() => setLoadingAdmins(false));
+    }
+  }, [node?.data?.label]);
 
   if (!node) return null;
 
@@ -288,19 +303,47 @@ export default function NodeConfigPanel({
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Approver Email
+                Assign Approver *
               </label>
-              <input
-                type="email"
-                value={config.approverEmail || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, approverEmail: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="manager@company.com"
-              />
+              {loadingAdmins ? (
+                <div className="flex items-center gap-2 py-2 text-sm text-gray-400">
+                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  Loading admins...
+                </div>
+              ) : adminUsers.length > 0 ? (
+                <select
+                  value={config.approverEmail || ""}
+                  onChange={(e) =>
+                    setConfig({ ...config, approverEmail: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">-- Select an approver --</option>
+                  {adminUsers.map((user: any) => (
+                    <option key={user.id} value={user.email}>
+                      {user.firstName} {user.lastName} ({user.email})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div>
+                  <input
+                    type="email"
+                    value={config.approverEmail || ""}
+                    onChange={(e) =>
+                      setConfig({ ...config, approverEmail: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="manager@company.com"
+                  />
+                  <p className="text-xs text-amber-500 mt-1">
+                    No admin users found. Enter an email manually.
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-gray-400 mt-1">
-                Who should review and approve (for reference)
+                This person will receive the approval request and must approve
+                or reject before the workflow continues.
               </p>
             </div>
             <div>
@@ -386,7 +429,7 @@ export default function NodeConfigPanel({
           {node.data.label === "EXCEL" &&
             "Read, write, or update Excel spreadsheets"}
           {node.data.label === "APPROVAL" &&
-            "Pause the workflow and wait for a human to review and approve or reject before continuing"}
+            "Pause the workflow and wait for the assigned approver to review and approve or reject before continuing"}
         </p>
       </div>
     </div>

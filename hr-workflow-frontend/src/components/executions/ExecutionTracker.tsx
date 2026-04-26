@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import api from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 interface NodeInfo {
   id: number;
@@ -23,6 +24,8 @@ interface NodeInstanceInfo {
   inputData: string | null;
   actor: string | null;
   comment: string | null;
+  assignedToEmail: string | null;
+  assignedToName: string | null;
 }
 
 interface Props {
@@ -131,6 +134,8 @@ export default function ExecutionTracker({
           inputData: ni.inputData,
           actor: ni.actor,
           comment: ni.comment,
+          assignedToEmail: ni.assignedToEmail || null,
+          assignedToName: ni.assignedToName || null,
         }),
       );
 
@@ -194,7 +199,7 @@ export default function ExecutionTracker({
     if (!waitingApprovalNode) return;
     setSubmittingApproval(true);
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const user = getUser();
       await api.post(`/executions/nodes/${waitingApprovalNode.id}/approve`, {
         actor: user.email || user.firstName || "Unknown",
         comment: approvalComment || "Approved",
@@ -213,7 +218,7 @@ export default function ExecutionTracker({
     if (!waitingApprovalNode) return;
     setSubmittingApproval(true);
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const user = getUser();
       await api.post(`/executions/nodes/${waitingApprovalNode.id}/reject`, {
         actor: user.email || user.firstName || "Unknown",
         comment: approvalComment || "Rejected",
@@ -447,106 +452,127 @@ export default function ExecutionTracker({
       </div>
 
       {/* ─── Approval Panel ──────────────────────────────────── */}
-      {isPaused && waitingApprovalNode && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">✋</span>
-            <div>
-              <h3 className="text-orange-400 font-semibold text-base">
-                Approval Required
-              </h3>
-              <p className="text-gray-400 text-sm">
-                Review the data below and approve or reject to continue the
-                workflow.
-              </p>
-            </div>
-          </div>
+      {isPaused && waitingApprovalNode && (() => {
+        const currentUser = getUser();
+        const isAssignedApprover =
+          !waitingApprovalNode.assignedToEmail ||
+          waitingApprovalNode.assignedToEmail === currentUser?.email;
 
-          {/* Show data to review */}
-          {waitingApprovalNode.inputData && (
-            <div className="bg-gray-800/60 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <p className="text-xs text-gray-500 font-medium mb-2">
-                Data for Review
-              </p>
-              <pre className="text-gray-300 text-xs whitespace-pre-wrap">
-                {(() => {
-                  try {
-                    const parsed = JSON.parse(waitingApprovalNode.inputData);
-                    // If it's GPT output, show the analysis nicely
-                    if (parsed.analysis) {
-                      return typeof parsed.analysis === "string"
-                        ? parsed.analysis
-                        : JSON.stringify(parsed.analysis, null, 2);
+        return (
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✋</span>
+              <div>
+                <h3 className="text-orange-400 font-semibold text-base">
+                  Approval Required
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  {isAssignedApprover
+                    ? "Review the data below and approve or reject to continue the workflow."
+                    : `Waiting for ${waitingApprovalNode.assignedToName || waitingApprovalNode.assignedToEmail} to review this step.`}
+                </p>
+              </div>
+            </div>
+
+            {/* Show data to review */}
+            {waitingApprovalNode.inputData && (
+              <div className="bg-gray-800/60 rounded-lg p-4 max-h-64 overflow-y-auto">
+                <p className="text-xs text-gray-500 font-medium mb-2">
+                  Data for Review
+                </p>
+                <pre className="text-gray-300 text-xs whitespace-pre-wrap">
+                  {(() => {
+                    try {
+                      const parsed = JSON.parse(waitingApprovalNode.inputData);
+                      if (parsed.analysis) {
+                        return typeof parsed.analysis === "string"
+                          ? parsed.analysis
+                          : JSON.stringify(parsed.analysis, null, 2);
+                      }
+                      return JSON.stringify(parsed, null, 2);
+                    } catch {
+                      return waitingApprovalNode.inputData?.substring(0, 2000);
                     }
-                    return JSON.stringify(parsed, null, 2);
-                  } catch {
-                    return waitingApprovalNode.inputData?.substring(0, 2000);
-                  }
-                })()}
-              </pre>
-            </div>
-          )}
+                  })()}
+                </pre>
+              </div>
+            )}
 
-          {/* Comment input */}
-          <div>
-            <textarea
-              value={approvalComment}
-              onChange={(e) => setApprovalComment(e.target.value)}
-              placeholder="Add a comment (optional)..."
-              rows={2}
-              className="w-full bg-gray-800/60 border border-gray-700/50 rounded-lg px-4 py-2.5 text-sm text-gray-300 placeholder-gray-600 outline-none focus:border-orange-500/50 resize-none"
-            />
-          </div>
-
-          {/* Approve / Reject buttons */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleApprove}
-              disabled={submittingApproval}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-            >
-              {submittingApproval ? (
-                <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
+            {isAssignedApprover ? (
+              <>
+                {/* Comment input */}
+                <div>
+                  <textarea
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    placeholder="Add a comment (optional)..."
+                    rows={2}
+                    className="w-full bg-gray-800/60 border border-gray-700/50 rounded-lg px-4 py-2.5 text-sm text-gray-300 placeholder-gray-600 outline-none focus:border-orange-500/50 resize-none"
                   />
-                </svg>
-              )}
-              Approve & Continue
-            </button>
-            <button
-              onClick={handleReject}
-              disabled={submittingApproval}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-              Reject & Stop
-            </button>
+                </div>
+
+                {/* Approve / Reject buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleApprove}
+                    disabled={submittingApproval}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+                  >
+                    {submittingApproval ? (
+                      <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                    Approve & Continue
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={submittingApproval}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                    Reject & Stop
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-3 bg-gray-800/40 border border-gray-700/40 rounded-lg">
+                <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                <p className="text-gray-400 text-sm">
+                  Assigned to{" "}
+                  <span className="text-orange-300 font-medium">
+                    {waitingApprovalNode.assignedToName || waitingApprovalNode.assignedToEmail}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Completion / failure message */}
       {isDone && (

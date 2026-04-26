@@ -6,6 +6,7 @@ import Sidebar from "@/components/layouts/sidebar";
 import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
+import { getWorkflowsUrl } from "@/lib/workflows";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> =
   {
@@ -58,10 +59,31 @@ function formatDate(iso: string | null) {
 function ExecutionCard({
   execution,
   onView,
+  onDelete,
 }: {
   execution: any;
   onView: () => void;
+  onDelete: () => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.delete(`/executions/${execution.id}`);
+      onDelete();
+    } catch {
+      toast.error("Failed to delete execution");
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
   const status = execution.status || "PENDING";
   const style = STATUS_STYLE[status] || STATUS_STYLE.PENDING;
   const isRunning = status === "IN_PROGRESS" || status === "RUNNING";
@@ -139,31 +161,53 @@ function ExecutionCard({
           )}
         </div>
 
-        <button
-          onClick={onView}
-          className="flex-shrink-0 ml-4 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 text-gray-500 hover:text-gray-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex-shrink-0 ml-4 flex items-center gap-2">
+          <button
+            onClick={onView}
+            className="px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 text-gray-500 hover:text-gray-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-            />
-          </svg>
-          View
-        </button>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.8}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.8}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            View
+          </button>
+
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            onBlur={() => setConfirming(false)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 border ${
+              confirming
+                ? "bg-red-50 border-red-300 text-red-600 hover:bg-red-100"
+                : "bg-gray-50 border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50"
+            }`}
+          >
+            {deleting ? (
+              <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+            {confirming ? "Confirm?" : "Delete"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -176,12 +220,11 @@ export default function ExecutionsPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: "all", workflow: "all" });
   const authReady = useAuthGuard();
-  if (!authReady) return null;
   const fetchData = async () => {
     try {
       const [execRes, wfRes] = await Promise.all([
         api.get("/executions"),
-        api.get("/workflows"),
+        api.get(getWorkflowsUrl()),
       ]);
 
       let data = execRes.data || [];
@@ -211,10 +254,12 @@ export default function ExecutionsPage() {
   };
 
   useEffect(() => {
+    if (!authReady) return;
     fetchData();
-  }, [filters]);
+  }, [authReady]);
 
   useEffect(() => {
+    if (!authReady) return;
     const hasRunning = executions.some(
       (e) =>
         e.status === "IN_PROGRESS" ||
@@ -224,7 +269,9 @@ export default function ExecutionsPage() {
     if (!hasRunning) return;
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, [executions]);
+  }, [executions, authReady]);
+
+  if (!authReady) return null;
 
   const stats = {
     total: executions.length,
@@ -241,7 +288,7 @@ export default function ExecutionsPage() {
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
         onWorkflowDeleted={() =>
-          api.get("/workflows").then((r) => setWorkflows(r.data))
+          api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
         }
       />
 
@@ -362,6 +409,7 @@ export default function ExecutionsPage() {
                   key={execution.id}
                   execution={execution}
                   onView={() => router.push(`/executions/${execution.id}`)}
+                  onDelete={() => fetchData()}
                 />
               ))
             )}

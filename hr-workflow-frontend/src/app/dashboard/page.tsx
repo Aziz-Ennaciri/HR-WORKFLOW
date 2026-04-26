@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 import CreateWorkflowModal from "@/components/workflow/CreateWorkflowModal";
-import { useAuthGuard } from "@/lib/auth";
-import Button from "@/components/ui/Button";
+import { useAuthGuard, getToken } from "@/lib/auth";
+import { getWorkflowsUrl } from "@/lib/workflows";
 import type { Workflow } from "@/types";
 import {
   BarChart,
@@ -60,7 +60,7 @@ export default function DashboardPage() {
   const fetchStats = useCallback(async () => {
     try {
       const [wfRes, exRes] = await Promise.all([
-        api.get("/workflows"),
+        api.get(getWorkflowsUrl()),
         api.get("/executions"),
       ]);
       const wfs = wfRes.data;
@@ -103,7 +103,7 @@ export default function DashboardPage() {
     try {
       const [exRes, wfRes] = await Promise.all([
         api.get("/executions"),
-        api.get("/workflows"),
+        api.get(getWorkflowsUrl()),
       ]);
       const wfs: any[] = wfRes.data;
       const exs: any[] = exRes.data;
@@ -153,7 +153,7 @@ export default function DashboardPage() {
   }, [buildBanners, fetchStats]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) {
       router.push("/login");
       return;
@@ -328,12 +328,31 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {!isRunning && ex.id && ex.id !== -1 && (
+                      {ex.id && ex.id !== -1 && (
                         <button
                           onClick={() => router.push(`/executions/${ex.id}`)}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors bg-gray-900 text-white hover:bg-gray-700"
+                          className="flex items-center gap-1.5 px-3 py-1 text-sm border border-blue-500 text-blue-500 rounded hover:bg-blue-50 transition-colors"
                         >
-                          View Results →
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
+                          </svg>
+                          View
                         </button>
                       )}
                       {!isRunning && (

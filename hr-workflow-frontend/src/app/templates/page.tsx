@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
+import { getWorkflowsUrl } from "@/lib/workflows";
 
 const templates = [
   {
@@ -64,7 +65,7 @@ export default function TemplatesPage() {
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
         onWorkflowDeleted={() =>
-          api.get("/workflows").then((r) => setWorkflows(r.data))
+          api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
         }
       />
       <div className="flex-1 overflow-y-auto">

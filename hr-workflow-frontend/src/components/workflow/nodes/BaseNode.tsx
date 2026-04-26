@@ -29,6 +29,7 @@ export function BaseNode({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this node?")) return;
     setNodes((nodes) => nodes.filter((n) => n.id !== id));
     setEdges((edges) =>
       edges.filter((e) => e.source !== id && e.target !== id),
