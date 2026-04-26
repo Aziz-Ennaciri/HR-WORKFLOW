@@ -23,6 +23,8 @@ public interface IWorkflowService {
 
     List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId);
 
+    List<WorkflowResponseDTO> getWorkflowsByCreatorEmail(String email);
+
     WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto);
 
     WorkflowResponseDTO activateWorkflow(Long id);

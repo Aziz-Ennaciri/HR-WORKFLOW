@@ -11,11 +11,12 @@ import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowWithNodesMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
+import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
+import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 
 import org.springframework.data.domain.Page;
-
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -34,17 +35,16 @@ public class WorkflowServiceImpl implements IWorkflowService {
     private final UserRepository userRepository;
     private final WorkflowMapper workflowMapper;
     private final WorkflowWithNodesMapper workflowWithNodesMapper;
+    private final WorkflowInstancerepository workflowInstanceRepository;
 
     @Transactional
     @Override
     public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
         User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         Workflow workflow = workflowMapper.toEntity(dto, creator);
-
         Workflow savedWorkflow = workflowRepository.save(workflow);
-
         return workflowMapper.toResponseDTO(savedWorkflow);
     }
 
@@ -59,9 +59,9 @@ public class WorkflowServiceImpl implements IWorkflowService {
     public WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id) {
         Workflow workflow = workflowRepository.findWorkflowWithNodes(id);
         if (workflow == null) {
-        throw new RuntimeException("Workflow not found with id: " + id);
-    }
-        return workflowWithNodesMapper.toDTO(workflow,workflow.getNodes());
+            throw new RuntimeException("Workflow not found with id: " + id);
+        }
+        return workflowWithNodesMapper.toDTO(workflow, workflow.getNodes());
     }
 
     @Override
@@ -80,14 +80,23 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId) {
-        List<Workflow> workflowCreatedByUser = workflowRepository.findCreateById(creatorId);
-        return workflowMapper.toResponseDTO(workflowCreatedByUser);
+        List<Workflow> workflows = workflowRepository.findByCreatedByIdAndDeletedFalse(creatorId);
+        return workflows.stream()
+                .map(workflowMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<WorkflowResponseDTO> getWorkflowsByCreatorEmail(String email) {
+        List<Workflow> workflows = workflowRepository.findByCreatedByEmailAndDeletedFalse(email);
+        return workflows.stream()
+                .map(workflowMapper::toResponseDTO)
+                .collect(Collectors.toList());
     }
 
     @Transactional
     @Override
     public WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto) {
-
         Workflow workflow = workflowRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
@@ -103,30 +112,41 @@ public class WorkflowServiceImpl implements IWorkflowService {
             workflow.setStatus(dto.getStatus());
         }
 
+        if (dto.getEdgesJson() != null) {
+            workflow.setEdgesJson(dto.getEdgesJson());
+        }
+
         Workflow updated = workflowRepository.save(workflow);
         return workflowMapper.toResponseDTO(updated);
     }
 
-
     @Transactional
     @Override
     public WorkflowResponseDTO activateWorkflow(Long id) {
-        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
-        if(workflow.getStatus() != WorkflowStatus.DRAFT){
+        Workflow workflow = workflowRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+        if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be activated");
         }
-        if(workflow.getNodes().isEmpty()){
+        if (workflow.getNodes().isEmpty()) {
             throw new IllegalStateException("Workflow must have at least one node");
         }
-
         workflow.setStatus(WorkflowStatus.ACTIVE);
         return workflowMapper.toResponseDTO(workflow);
     }
 
+    @Transactional
     @Override
     public void deleteWorkflow(Long id) {
         Workflow workflow = workflowRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        workflowInstanceRepository
+                .findByWorkflowIdAndStatusIn(id, List.of(WorkflowInstanceStatus.RUNNING, WorkflowInstanceStatus.PENDING))
+                .forEach(instance -> {
+                    instance.setStatus(WorkflowInstanceStatus.CANCELLED);
+                    workflowInstanceRepository.save(instance);
+                });
 
         workflow.setDeleted(true);
         workflowRepository.save(workflow);
@@ -135,10 +155,11 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO archiveWorkflow(Long id) {
-        Workflow workflow = workflowRepository.findById(id).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
         if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
-            throw new IllegalStateException("the workflow still activated , you should deactivate if you wanna archive it");
+            throw new IllegalStateException("the workflow still activated, you should deactivate if you wanna archive it");
         }
 
         workflow.setStatus(WorkflowStatus.ARCHIVED);

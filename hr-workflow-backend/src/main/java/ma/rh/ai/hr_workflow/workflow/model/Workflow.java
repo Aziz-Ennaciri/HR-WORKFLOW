@@ -52,6 +52,9 @@ public class Workflow {
     @OneToMany(mappedBy = "workflow",fetch = FetchType.LAZY)
     private List<WorkflowInstance> instances = new ArrayList<>();
 
+    @Column(columnDefinition = "TEXT")
+    private String edgesJson;
+
     @Column(nullable = false)
     private boolean deleted = false;
 

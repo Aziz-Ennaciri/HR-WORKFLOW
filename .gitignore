@@ -3,6 +3,9 @@ hr-workflow-backend/src/main/resources/google-credentials.json
 
 .env
 
+.idea/
+*.xml
+
 mvnw
 
 node_modules/

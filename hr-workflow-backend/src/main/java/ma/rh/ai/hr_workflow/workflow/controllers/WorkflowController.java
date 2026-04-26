@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -23,7 +25,7 @@ public class WorkflowController {
     private final IWorkflowService workflowService;
 
     @PostMapping
-    @Operation(summary = "Create a new workflow", description = "Creates a new workflow in DRAFT status")
+    @Operation(summary = "Create a new workflow")
     public ResponseEntity<WorkflowResponseDTO> createWorkflow(
             @Valid @RequestBody CreateWorkflowDTO dto,
             @RequestParam @Parameter(description = "ID of the user creating the workflow") Long creatorId) {
@@ -32,21 +34,35 @@ public class WorkflowController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get workflow by ID", description = "Retrieves a workflow by its ID")
-    public ResponseEntity<WorkflowResponseDTO> getWorkflowId(@PathVariable @Parameter(description = "workflowId") Long id){
+    @Operation(summary = "Get workflow by ID")
+    public ResponseEntity<WorkflowResponseDTO> getWorkflowId(
+            @PathVariable @Parameter(description = "workflowId") Long id) {
         WorkflowResponseDTO responseDTO = workflowService.getWorkflowById(id);
         return ResponseEntity.ok(responseDTO);
     }
 
     @GetMapping
-    @Operation(summary = "Get all workflows", description = "Returns all workflows")
-    public ResponseEntity<List<WorkflowResponseDTO>> getAllWorkflows() {
-        List<WorkflowResponseDTO> workflows = workflowService.getAllWorkflows();
+    @Operation(summary = "Get workflows — ADMIN sees all, other users see only their own.")
+    public ResponseEntity<List<WorkflowResponseDTO>> getWorkflows() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        List<WorkflowResponseDTO> workflows;
+        if (isAdmin(auth)) {
+            workflows = workflowService.getAllWorkflows();
+        } else {
+            String email = auth.getName();
+            workflows = workflowService.getWorkflowsByCreatorEmail(email);
+        }
         return ResponseEntity.ok(workflows);
     }
 
+    private boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
     @PutMapping("/{id}")
-    @Operation(summary = "Update workflow", description = "Updates an existing workflow")
+    @Operation(summary = "Update workflow")
     public ResponseEntity<WorkflowResponseDTO> updateWorkflow(
             @PathVariable Long id,
             @RequestBody UpdateWorkflowDTO dto) {
@@ -55,7 +71,7 @@ public class WorkflowController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete a workflow", description = "Soft-deletes a workflow by marking it as deleted")
+    @Operation(summary = "Delete a workflow")
     public ResponseEntity<Void> deleteWorkflow(
             @PathVariable @Parameter(description = "Workflow ID") Long id) {
         workflowService.deleteWorkflow(id);

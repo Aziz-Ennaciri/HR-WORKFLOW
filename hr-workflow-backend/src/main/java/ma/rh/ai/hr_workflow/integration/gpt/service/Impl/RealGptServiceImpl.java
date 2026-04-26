@@ -84,13 +84,8 @@ public class RealGptServiceImpl implements GptService {
             log.info("✅ {} done — {} tokens", provider, tokensUsed);
             log.info("📤 Raw output: {}", analysis);
 
-            String cleanedAnalysis = extractJsonFromText(analysis);
-            if (cleanedAnalysis == null || cleanedAnalysis.isBlank()) {
-                cleanedAnalysis = analysis.trim();
-            }
-
             GptResponseDTO response = new GptResponseDTO();
-            response.setAnalysis(cleanedAnalysis);
+            response.setAnalysis(analysis.trim());
             response.setModel(model);
             response.setTokensUsed(tokensUsed);
             response.setAnalyzedAt(LocalDateTime.now());
@@ -161,7 +156,7 @@ public class RealGptServiceImpl implements GptService {
 
             ObjectNode systemMsg = objectMapper.createObjectNode();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "You are a strict HR recruitment assistant. Always respond with valid JSON only.");
+            systemMsg.put("content", "You are a helpful HR assistant. Respond in clear, readable text like a natural language report. Be structured with sections and bullet points where appropriate.");
             messages.add(systemMsg);
 
             ObjectNode userMsg = objectMapper.createObjectNode();
@@ -218,7 +213,7 @@ public class RealGptServiceImpl implements GptService {
             messages.add(userMsg);
             request.set("messages", messages);
 
-            request.put("system", "You are a strict HR recruitment assistant. Always respond with valid JSON only.");
+            request.put("system", "You are a helpful HR assistant. Respond in clear, readable text like a natural language report. Be structured with sections and bullet points where appropriate.");
             request.put("temperature", temperature);
 
             HttpHeaders headers = new HttpHeaders();
@@ -267,8 +262,7 @@ public class RealGptServiceImpl implements GptService {
 
                 if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
 
-                    return root.get("prompt").asText().trim()
-                                     + "\n\nRespond with valid JSON only, no extra text.";
+                    return root.get("prompt").asText().trim();
                 }
 
                 } catch (Exception e) {
@@ -281,7 +275,7 @@ public class RealGptServiceImpl implements GptService {
         }
 
         log.info("⚙️ Mode: Fallback");
-        return inputData + "\n\nRespond with valid JSON only, no extra text.";
+        return inputData;
     }
 
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
@@ -311,8 +305,6 @@ public class RealGptServiceImpl implements GptService {
         } else {
             p.append(cvData.toString()).append("\n\n");
         }
-
-        p.append("Respond with valid JSON only, no extra text.\n");
 
         return p.toString();
     }
@@ -372,20 +364,4 @@ public class RealGptServiceImpl implements GptService {
         return data.substring(start, end).trim();
     }
 
-    private String extractJsonFromText(String text) {
-        if (text == null) return null;
-        text = text.replaceAll("(?s)```json\\s*", "").replaceAll("(?s)```\\s*", "").trim();
-
-        int start = text.indexOf('[');
-        if (start == -1) return null;
-
-        int depth = 0;
-        for (int i = start; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '[') depth++;
-            else if (c == ']') depth--;
-            if (depth == 0) return text.substring(start, i + 1);
-        }
-        return null;
-    }
 }

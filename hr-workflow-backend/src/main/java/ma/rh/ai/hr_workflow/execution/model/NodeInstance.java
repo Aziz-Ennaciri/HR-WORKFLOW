@@ -18,6 +18,7 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
@@ -41,6 +42,10 @@ public class NodeInstance {
     @JoinColumn(name = "node_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Node node;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_to_id")
+    private User assignedTo;
 
     private Integer executionOrder;
 
@@ -109,4 +114,3 @@ public class NodeInstance {
         complete();
     }
 }
-

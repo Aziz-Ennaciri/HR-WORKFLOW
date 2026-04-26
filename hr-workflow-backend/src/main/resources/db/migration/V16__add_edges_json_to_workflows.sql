@@ -1,0 +1,1 @@
+ALTER TABLE workflows ADD COLUMN IF NOT EXISTS edges_json TEXT;

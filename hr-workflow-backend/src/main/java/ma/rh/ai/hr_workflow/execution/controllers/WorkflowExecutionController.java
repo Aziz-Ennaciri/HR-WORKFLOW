@@ -13,6 +13,8 @@ import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -59,17 +61,15 @@ public class WorkflowExecutionController {
     @GetMapping("/{id}/detail")
     @Transactional(readOnly = true)
     @Operation(summary = "Get instance with node results")
-    public ResponseEntity<WorkflowInstanceDetailDTO> getDetail(
-            @PathVariable Long id) {
-        
-        WorkflowInstance instance = instanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Not found"));
-        
-        WorkflowInstanceDetailDTO detail = new WorkflowInstanceDetailDTO();
-        detail.setWorkflowInstance(instanceMapper.toResponseDTO(instance));
-        detail.setNodeInstances(nodeMapper.toResponseDTO(instance.getNodeInstances()));
-        
-        return ResponseEntity.ok(detail);
+    public ResponseEntity<?> getDetail(@PathVariable Long id) {
+        return instanceRepository.findById(id)
+                .map(instance -> {
+                    WorkflowInstanceDetailDTO detail = new WorkflowInstanceDetailDTO();
+                    detail.setWorkflowInstance(instanceMapper.toResponseDTO(instance));
+                    detail.setNodeInstances(nodeMapper.toResponseDTO(instance.getNodeInstances()));
+                    return ResponseEntity.ok((Object) detail);
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/workflow/{workflowId}")
@@ -86,10 +86,23 @@ public class WorkflowExecutionController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    @Operation(summary = "Get all workflow instances")
+    @Operation(summary = "Get workflow instances — ADMIN sees all, others see only their own workflows' executions.")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getAllExecutions() {
-        List<WorkflowInstance> instances = instanceRepository.findAll();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        List<WorkflowInstance> instances;
+        if (isAdmin(auth)) {
+            instances = instanceRepository.findAll();
+        } else {
+            String email = auth.getName();
+            instances = instanceRepository.findByWorkflow_CreatedBy_Email(email);
+        }
         return ResponseEntity.ok(instanceMapper.toResponseDTO(instances));
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     @PostMapping("/{id}/continue")
@@ -97,5 +110,15 @@ public class WorkflowExecutionController {
     public ResponseEntity<Void> continueExecution(@PathVariable Long id) {
         executionService.continueExecution(id);
         return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}")
+    @Transactional
+    @Operation(summary = "Delete a workflow execution")
+    public ResponseEntity<Void> deleteExecution(@PathVariable Long id) {
+        WorkflowInstance instance = instanceRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Execution not found"));
+        instanceRepository.delete(instance);
+        return ResponseEntity.noContent().build();
     }
 }

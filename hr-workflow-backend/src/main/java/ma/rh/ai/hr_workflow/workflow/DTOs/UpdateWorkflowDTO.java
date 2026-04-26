@@ -23,4 +23,6 @@ public class UpdateWorkflowDTO {
     private WorkflowStatus status;
 
     private Long createdById;
+
+    private String edgesJson;
 }

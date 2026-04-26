@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.execution.service.Impl;
 
 import java.util.List;
 
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,12 +56,24 @@ public class ExecutionTransactionHelper {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateCurrentNode(Long workflowInstanceId, Long nodeId) {
-        WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
-        Node node = nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new RuntimeException("Node not found"));
-        instance.setCurrentNode(node);
-        workflowInstanceRepository.save(instance);
+        try {
+            WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
+                    .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+            Node node = nodeRepository.findById(nodeId)
+                    .orElseThrow(() -> new RuntimeException("Node not found"));
+            instance.setCurrentNode(node);
+            workflowInstanceRepository.save(instance);
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            WorkflowInstance fresh = workflowInstanceRepository.findById(workflowInstanceId).orElse(null);
+            if (fresh == null
+                    || fresh.getStatus() == WorkflowInstanceStatus.CANCELLED
+                    || fresh.getStatus() == WorkflowInstanceStatus.FAILED) {
+                log.warn("⚠️  updateCurrentNode: instance {} is {} — ignoring locking conflict",
+                        workflowInstanceId, fresh == null ? "gone" : fresh.getStatus());
+                return;
+            }
+            throw ex;
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -143,8 +156,11 @@ public class ExecutionTransactionHelper {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void failInstance(Long workflowInstanceId, String errorMessage, String stackTrace) {
-        WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+        WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId).orElse(null);
+        if (instance == null) {
+            log.warn("⚠️  failInstance: workflow instance {} not found, skipping", workflowInstanceId);
+            return;
+        }
         instance.setStatus(WorkflowInstanceStatus.FAILED);
         instance.setErrorMessage(errorMessage);
         instance.setErrorStackTrace(stackTrace);

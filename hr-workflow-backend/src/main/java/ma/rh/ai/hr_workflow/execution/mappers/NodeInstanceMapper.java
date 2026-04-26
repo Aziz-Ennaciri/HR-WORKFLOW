@@ -15,7 +15,11 @@ public interface NodeInstanceMapper {
     @Mapping(target = "nodeId", source = "node.id")
     @Mapping(target = "nodeType", expression = "java(nodeInstance.getNode().getType().name())")
     @Mapping(target = "status", expression = "java(nodeInstance.getStatus().name())")
+    @Mapping(target = "assignedToId", source = "assignedTo.id")
+    @Mapping(target = "assignedToEmail", source = "assignedTo.email")
+    @Mapping(target = "assignedToName", expression = "java(nodeInstance.getAssignedTo() != null ? nodeInstance.getAssignedTo().getFirstName() + \" \" + nodeInstance.getAssignedTo().getLastName() : null)")
     NodeInstanceResponseDTO toResponseDTO(NodeInstance nodeInstance);
 
     List<NodeInstanceResponseDTO> toResponseDTO(List<NodeInstance> nodeInstances);
+
 }

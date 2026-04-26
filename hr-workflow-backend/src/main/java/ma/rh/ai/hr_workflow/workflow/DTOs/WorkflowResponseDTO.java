@@ -16,5 +16,8 @@ public class WorkflowResponseDTO {
     private String workflowKey;
     private Integer version;
     private String status;
+    private Long createdById;
+    private String createdByEmail;
     private LocalDateTime createdAt;
+    private String edgesJson;
 }

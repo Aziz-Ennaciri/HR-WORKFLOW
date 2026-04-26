@@ -27,4 +27,9 @@ public class NodeInstanceResponseDTO {
     private String errorMessage;
     private Integer retryCount;
     private LocalDateTime createdAt;
+
+    private Long assignedToId;
+    private String assignedToEmail;
+    private String assignedToName;
+
 }
