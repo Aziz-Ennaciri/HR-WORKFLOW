@@ -12,12 +12,15 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface WorkflowRepository extends JpaRepository<Workflow,Long> {
+public interface WorkflowRepository extends JpaRepository<Workflow, Long> {
     List<Workflow> findByDeletedFalse();
+
     Page<Workflow> findByDeletedFalse(Pageable pageable);
-    
-    List<Workflow> findCreateById(Long creatorId);
-    
+
+    List<Workflow> findByCreatedByIdAndDeletedFalse(Long creatorId);
+
+    List<Workflow> findByCreatedByEmailAndDeletedFalse(String email);
+
     @Query("SELECT w FROM Workflow w LEFT JOIN FETCH w.nodes WHERE w.id = :id")
     Workflow findWorkflowWithNodes(@Param("id") Long id);
 }

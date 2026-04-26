@@ -27,6 +27,7 @@ public interface WorkflowMapper {
     @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "nodes", ignore = true)
+    @Mapping(target = "edgesJson", ignore = true)
     Workflow toEntity(CreateWorkflowDTO dto, User creator);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -41,8 +42,9 @@ public interface WorkflowMapper {
     void updateEntity(UpdateWorkflowDTO dto, @MappingTarget Workflow workflow);
 
     @Mapping(target = "status", expression = "java(workflow.getStatus().name())")
+    @Mapping(target = "createdById", source = "createdBy.id")
+    @Mapping(target = "createdByEmail", source = "createdBy.email")
     WorkflowResponseDTO toResponseDTO(Workflow workflow);
 
     List<WorkflowResponseDTO> toResponseDTO(List<Workflow> workflows);
 }
-
