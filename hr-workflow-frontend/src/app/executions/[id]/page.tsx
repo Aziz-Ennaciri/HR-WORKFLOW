@@ -227,6 +227,15 @@ export default function ExecutionDetailPage() {
             </div>
           ) : (
             <div className="space-y-5">
+              {/* Failure Banner */}
+              {execution?.status === "FAILED" && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                  <span className="font-semibold">Execution failed</span>
+                  {execution.errorMessage && (
+                    <span>: {execution.errorMessage}</span>
+                  )}
+                </div>
+              )}
               {/* Execution Tracker */}
               {workflowNodes.length > 0 && (
                 <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
@@ -253,6 +262,8 @@ export default function ExecutionDetailPage() {
                         <NodeResultCard
                           key={ni.id}
                           nodeInstance={ni}
+                          executionId={executionId}
+                          onRetry={fetchDetail}
                           onDownloadExcel={() => downloadExcel(ni)}
                         />
                       ))}
@@ -329,12 +340,17 @@ const NODE_ICONS: Record<string, string> = {
 
 function NodeResultCard({
   nodeInstance,
+  executionId,
+  onRetry,
   onDownloadExcel,
 }: {
   nodeInstance: any;
+  executionId: number;
+  onRetry: () => void;
   onDownloadExcel: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const type = nodeInstance.nodeType || "UNKNOWN";
   const status = nodeInstance.status || "PENDING";
   const icon = NODE_ICONS[type] || "⚙️";
@@ -342,6 +358,21 @@ function NodeResultCard({
   const isCompleted = status === "COMPLETED";
   const isFailed = status === "FAILED";
   const hasOutput = nodeInstance.outputData;
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRetrying(true);
+    try {
+      await api.post(
+        `/executions/${executionId}/retry-from/${nodeInstance.nodeId}`,
+      );
+      onRetry();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Retry failed");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   let parsedOutput: any = null;
   let candidates: any[] = [];
@@ -377,7 +408,12 @@ function NodeResultCard({
           <div className="flex items-center gap-2">
             <span className="text-gray-900 font-medium text-sm">{type}</span>
             <span
-              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+              title={
+                isFailed && nodeInstance.errorMessage
+                  ? nodeInstance.errorMessage
+                  : undefined
+              }
+              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold cursor-default ${
                 isCompleted
                   ? "bg-emerald-50 text-emerald-600"
                   : isFailed
@@ -392,7 +428,25 @@ function NodeResultCard({
                 {parsedOutput.model}
               </span>
             )}
+            {isFailed && (
+              <button
+                onClick={handleRetry}
+                disabled={retrying}
+                className="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1"
+              >
+                {retrying ? (
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                ) : (
+                  "Retry from here"
+                )}
+              </button>
+            )}
           </div>
+          {isFailed && nodeInstance.errorMessage && (
+            <p className="text-xs text-red-500 mt-1">
+              {nodeInstance.errorMessage}
+            </p>
+          )}
           <div className="text-xs text-gray-400 mt-0.5 flex gap-3">
             {nodeInstance.startedAt && (
               <span>

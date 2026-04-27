@@ -155,6 +155,35 @@ public class ExecutionTransactionHelper {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void resetForRetry(Long executionId, Long nodeId) {
+        WorkflowInstance instance = workflowInstanceRepository.findById(executionId)
+                .orElseThrow(() -> new RuntimeException("Execution not found"));
+
+        NodeInstance nodeInstance = nodeInstanceRepository
+                .findByWorkflowInstanceIdAndNodeId(executionId, nodeId)
+                .orElseThrow(() -> new RuntimeException("Node instance not found"));
+
+        if (nodeInstance.getStatus() != NodeInstanceStatus.FAILED) {
+            throw new IllegalStateException("Node is not in FAILED state");
+        }
+
+        nodeInstance.setStatus(NodeInstanceStatus.PENDING);
+        nodeInstance.setErrorMessage(null);
+        nodeInstance.setStartedAt(null);
+        nodeInstance.setFinishedAt(null);
+        nodeInstance.setDurationMs(null);
+        nodeInstanceRepository.save(nodeInstance);
+
+        instance.setStatus(WorkflowInstanceStatus.PENDING);
+        instance.setErrorMessage(null);
+        instance.setErrorStackTrace(null);
+        instance.setFinishedAt(null);
+        instance.setDurationMs(null);
+        workflowInstanceRepository.save(instance);
+        log.info("🔄 Reset execution {} node {} for retry", executionId, nodeId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void failInstance(Long workflowInstanceId, String errorMessage, String stackTrace) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId).orElse(null);
         if (instance == null) {

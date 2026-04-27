@@ -10,8 +10,9 @@ import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowMapper;
 import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowWithNodesMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
+import ma.rh.ai.hr_workflow.workflow.model.Node;
+import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
-import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 public class WorkflowServiceImpl implements IWorkflowService {
 
     private final WorkflowRepository workflowRepository;
+    private final NodeRepository nodeRepository;
     private final UserRepository userRepository;
     private final WorkflowMapper workflowMapper;
     private final WorkflowWithNodesMapper workflowWithNodesMapper;
@@ -150,6 +152,39 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
         workflow.setDeleted(true);
         workflowRepository.save(workflow);
+    }
+
+    @Transactional
+    @Override
+    public WorkflowResponseDTO duplicateWorkflow(Long workflowId, String currentUserEmail) {
+        Workflow original = workflowRepository.findById(workflowId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        User user = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Workflow copy = new Workflow();
+        copy.setName("Copy of " + original.getName());
+        copy.setDescription(original.getDescription());
+        copy.setWorkflowKey(original.getWorkflowKey() + "_copy_" + System.currentTimeMillis());
+        copy.setVersion(1);
+        copy.setStatus(WorkflowStatus.DRAFT);
+        copy.setCreatedBy(user);
+        copy.setEdgesJson(original.getEdgesJson());
+
+        Workflow savedCopy = workflowRepository.save(copy);
+
+        List<Node> originalNodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId);
+        for (Node originalNode : originalNodes) {
+            Node newNode = new Node();
+            newNode.setWorkflow(savedCopy);
+            newNode.setType(originalNode.getType());
+            newNode.setOrderIndex(originalNode.getOrderIndex());
+            newNode.setConfigJson(originalNode.getConfigJson());
+            nodeRepository.save(newNode);
+        }
+
+        return workflowMapper.toResponseDTO(savedCopy);
     }
 
     @Transactional

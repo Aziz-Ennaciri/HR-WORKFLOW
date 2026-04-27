@@ -166,6 +166,26 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
         }
     }
 
+    @Override
+    @Transactional
+    public void retryFromNode(Long executionId, Long nodeId) {
+        log.info("🔄 Retrying execution {} from node {}", executionId, nodeId);
+        txHelper.resetForRetry(executionId, nodeId);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                executor.submit(() -> {
+                    try {
+                        continueExecution(executionId);
+                    } catch (Exception e) {
+                        log.error("💥 Retry execution failed: {}", executionId, e);
+                    }
+                });
+            }
+        });
+    }
+
     public void resumeAfterApproval(Long workflowInstanceId) {
         log.info("▶️  Resuming workflow {} after approval", workflowInstanceId);
         executor.submit(() -> {

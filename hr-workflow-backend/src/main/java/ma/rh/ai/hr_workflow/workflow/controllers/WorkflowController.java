@@ -77,4 +77,13 @@ public class WorkflowController {
         workflowService.deleteWorkflow(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/duplicate")
+    @Operation(summary = "Duplicate a workflow with all its nodes")
+    public ResponseEntity<WorkflowResponseDTO> duplicateWorkflow(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        WorkflowResponseDTO copy = workflowService.duplicateWorkflow(id, email);
+        return new ResponseEntity<>(copy, HttpStatus.CREATED);
+    }
 }

@@ -32,4 +32,6 @@ public interface IWorkflowService {
     void deleteWorkflow(Long id);
 
     WorkflowResponseDTO archiveWorkflow(Long id);
+
+    WorkflowResponseDTO duplicateWorkflow(Long workflowId, String currentUserEmail);
 }

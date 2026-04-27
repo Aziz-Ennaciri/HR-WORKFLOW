@@ -26,6 +26,7 @@ export default function Sidebar({
     name: string;
   } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
   const [approvalCount, setApprovalCount] = useState(0);
 
   const filteredWorkflows = workflows.filter((w) =>
@@ -55,6 +56,21 @@ export default function Sidebar({
   const handleLogout = () => {
     clearAuth();
     router.push("/login");
+  };
+
+  const handleDuplicate = async (workflowId: number) => {
+    setDuplicatingId(workflowId);
+    try {
+      await api.post(`/workflows/${workflowId}/duplicate`);
+      toast.success("Workflow duplicated successfully!");
+      onWorkflowDeleted?.();
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Failed to duplicate workflow",
+      );
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -285,6 +301,35 @@ export default function Sidebar({
                             d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                           />
                         </svg>
+                      </button>
+
+                      {/* Duplicate button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(workflow.id);
+                        }}
+                        disabled={duplicatingId === workflow.id}
+                        title="Duplicate workflow"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                      >
+                        {duplicatingId === workflow.id ? (
+                          <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin inline-block" />
+                        ) : (
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                        )}
                       </button>
 
                       {/* Delete button */}

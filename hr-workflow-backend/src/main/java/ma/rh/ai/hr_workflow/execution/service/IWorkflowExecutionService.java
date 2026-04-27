@@ -8,4 +8,6 @@ public interface IWorkflowExecutionService {
     WorkflowInstance triggerWorkflow(TriggerWorkflowInstanceDTO dto, User user);
 
     void continueExecution(Long workflowInstanceId);
+
+    void retryFromNode(Long executionId, Long nodeId);
 }

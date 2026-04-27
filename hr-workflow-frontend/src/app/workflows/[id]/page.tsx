@@ -37,7 +37,18 @@ export default function WorkflowDesignerPage() {
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [executing, setExecuting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [invalidNodeIds, setInvalidNodeIds] = useState<Set<string>>(new Set());
   const newNodeOffset = useRef(0);
+  const edgesRef = useRef(edges);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(() => {
     fetchWorkflow();
@@ -176,9 +187,8 @@ export default function WorkflowDesignerPage() {
     [],
   );
 
-  const onConnect = useCallback((connection: Connection) => {
-    console.log("🔗 Node connected:", connection);
-    setEdges((eds) => addEdge(connection, eds));
+  const onConnect = useCallback((params: Connection) => {
+    setEdges((eds) => addEdge(params, eds));
   }, []);
 
   const addNode = (type: string) => {
@@ -228,6 +238,83 @@ export default function WorkflowDesignerPage() {
     return orderMap;
   };
 
+  useEffect(() => {
+    if (validationErrors.length === 0) return;
+    const timer = setTimeout(() => {
+      setValidationErrors([]);
+      setInvalidNodeIds(new Set());
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [validationErrors]);
+
+  const validateNodes = (): { errors: string[]; invalidIds: Set<string> } => {
+    const errors: string[] = [];
+    const invalidIds = new Set<string>();
+
+    for (const node of nodes) {
+      const type = (node.data.label as string).toUpperCase();
+      const config = node.data.config || {};
+      let isInvalid = false;
+
+      if (type === "GPT") {
+        if (!config.prompt?.trim()) {
+          errors.push(`GPT Node '${node.data.label}' is missing a prompt.`);
+          isInvalid = true;
+        }
+      } else if (type === "EMAIL") {
+        if (!config.to?.trim()) {
+          errors.push("Email Node is missing a recipient.");
+          isInvalid = true;
+        }
+        if (!config.subject?.trim()) {
+          errors.push("Email Node is missing a subject.");
+          isInvalid = true;
+        }
+      } else if (type === "DRIVE") {
+        if (!config.action?.trim()) {
+          errors.push("Drive Node is missing an action.");
+          isInvalid = true;
+        }
+        if (!config.folderId?.trim() && !config.fileId?.trim()) {
+          errors.push("Drive Node is missing a folder ID.");
+          isInvalid = true;
+        }
+      } else if (type === "EXCEL") {
+        if (!config.fileName?.trim()) {
+          errors.push("Excel Node is missing a file name.");
+          isInvalid = true;
+        }
+      } else if (type === "APPROVAL") {
+        if (!config.approverEmail?.trim()) {
+          errors.push("Approval Node is missing an approver email.");
+          isInvalid = true;
+        }
+      }
+
+      if (isInvalid) invalidIds.add(node.id);
+    }
+
+    return { errors, invalidIds };
+  };
+
+  const handleDuplicate = async () => {
+    if (duplicating) return;
+    setDuplicating(true);
+    try {
+      const res = await api.post(`/workflows/${params.id}/duplicate`);
+      const newId = res.data.id;
+      router.push(`/workflows/${newId}`);
+    } catch (error: any) {
+      alert(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to duplicate workflow",
+      );
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   const handleExecute = async () => {
     if (executing) return;
     setExecuting(true);
@@ -245,9 +332,20 @@ export default function WorkflowDesignerPage() {
   };
 
   const handleSave = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const { errors, invalidIds } = validateNodes();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setInvalidNodeIds(invalidIds);
+      return;
+    }
+    setValidationErrors([]);
+    setInvalidNodeIds(new Set());
+
     try {
       const wasActive = workflow?.status === "ACTIVE";
-      const edgesJson = JSON.stringify(edges);
+      const edgesJson = JSON.stringify(edgesRef.current);
 
       // Persist workflow (deactivate first if active, always carry edgesJson)
       await api.put(`/workflows/${params.id}`, {
@@ -264,7 +362,7 @@ export default function WorkflowDesignerPage() {
       const existingNodesResponse = await api.get(`/nodes/workflow/${params.id}`);
       const existingNodes = existingNodesResponse.data;
       const existingNodeIds = new Set(existingNodes.map((n: any) => n.id.toString()));
-      const currentNodeIds = new Set(nodes.map((n) => n.id));
+      const currentNodeIds = new Set(nodesRef.current.map((n) => n.id));
 
       const nodesToDelete = existingNodes.filter(
         (n: any) => !currentNodeIds.has(n.id.toString()),
@@ -277,9 +375,9 @@ export default function WorkflowDesignerPage() {
         }
       }
 
-      const orderMap = deriveOrderFromEdges(nodes, edges);
+      const orderMap = deriveOrderFromEdges(nodesRef.current, edgesRef.current);
 
-      for (const node of nodes) {
+      for (const node of nodesRef.current) {
         const order = orderMap.get(node.id) ?? 1;
         const isExisting = existingNodeIds.has(node.id);
 
@@ -422,6 +520,32 @@ export default function WorkflowDesignerPage() {
               Save
             </Button>
 
+            <button
+              onClick={handleDuplicate}
+              disabled={duplicating}
+              title="Duplicate workflow"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 border border-gray-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {duplicating ? (
+                <span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+              )}
+              {duplicating ? "Duplicating…" : "Duplicate"}
+            </button>
+
             <Button
               onClick={handleExecute}
               disabled={workflow?.status !== "ACTIVE" || executing}
@@ -432,6 +556,43 @@ export default function WorkflowDesignerPage() {
             </Button>
           </div>
         </div>
+
+        {/* Validation Error Banner */}
+        {validationErrors.length > 0 && (
+          <div className="mx-6 mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-start justify-between">
+            <div>
+              <p className="text-red-700 text-sm font-semibold mb-1">
+                Cannot save — fix the following issues:
+              </p>
+              <ul className="text-red-600 text-sm list-disc list-inside space-y-0.5">
+                {validationErrors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
+            <button
+              onClick={() => {
+                setValidationErrors([]);
+                setInvalidNodeIds(new Set());
+              }}
+              className="text-red-400 hover:text-red-600 ml-4 flex-shrink-0"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Node Palette */}
         <div className="bg-gray-50 border-b px-6 py-3">
@@ -485,7 +646,15 @@ export default function WorkflowDesignerPage() {
           <div className="absolute inset-0 flex">
             <div className="flex-1">
               <ReactFlow
-                nodes={nodes}
+                nodes={nodes.map((n) => ({
+                  ...n,
+                  style: {
+                    ...n.style,
+                    ...(invalidNodeIds.has(n.id)
+                      ? { outline: "2px solid #ef4444", borderRadius: "8px" }
+                      : {}),
+                  },
+                }))}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}

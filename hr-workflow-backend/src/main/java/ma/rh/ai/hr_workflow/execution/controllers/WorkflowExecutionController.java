@@ -112,6 +112,15 @@ public class WorkflowExecutionController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{executionId}/retry-from/{nodeId}")
+    @Operation(summary = "Retry execution starting from a failed node")
+    public ResponseEntity<Void> retryFromNode(
+            @PathVariable Long executionId,
+            @PathVariable Long nodeId) {
+        executionService.retryFromNode(executionId, nodeId);
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/{id}")
     @Transactional
     @Operation(summary = "Delete a workflow execution")

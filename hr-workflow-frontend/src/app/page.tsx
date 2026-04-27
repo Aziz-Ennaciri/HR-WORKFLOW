@@ -28,7 +28,7 @@ export default function Home() {
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/login">
                   <button className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md active:scale-[0.97]">
-                    Try the app
+                    Log in
                   </button>
                 </Link>
                 <Link href="/register">
@@ -267,7 +267,7 @@ export default function Home() {
           <div className="flex justify-center gap-3 flex-wrap">
             <Link href="/login">
               <button className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
-                Try the app
+                Log In
               </button>
             </Link>
             <Link href="/register">
