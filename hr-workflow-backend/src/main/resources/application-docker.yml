@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/hr_workflow_db
+    username: admin
+    password: Livefree1128*
+
+drive:
+  storage:
+    path: /app/hr-workflow-files
+
+ollama:
+  url: http://host.docker.internal:11434/api/generate
+  default:
+    model: llama3.2:3b
