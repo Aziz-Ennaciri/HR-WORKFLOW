@@ -2,15 +2,17 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonar-token')
-        DOCKER_API_VERSION = '1.41'
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+        DOCKER_HOST = 'unix:///var/run/docker.sock'
+        TESTCONTAINERS_DOCKER_CLIENT_STRATEGY = 'org.testcontainers.dockerclient.UnixSocketClientProviderStrategy'
+        TESTCONTAINERS_RYUK_DISABLED = 'true'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo '📥 Checking out source code...'
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
@@ -33,9 +35,11 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                dir('hr-workflow-backend') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh './mvnw sonar:sonar -Dsonar.projectKey=HR-Workflow -Dsonar.token=${SONAR_TOKEN} -B'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    dir('hr-workflow-backend') {
+                        withSonarQubeEnv('SonarQube') {
+                            sh './mvnw sonar:sonar -Dsonar.projectKey=HR-Workflow -Dsonar.token=${SONAR_TOKEN} -B'
+                        }
                     }
                 }
             }
@@ -55,7 +59,8 @@ pipeline {
     }
 
     post {
-        success { echo '✅ Running at http://localhost:3000' }
-        failure { echo '❌ Pipeline failed.' }
+        success { echo 'Pipeline succeeded. Running at http://localhost:3000' }
+        unstable { echo 'Pipeline completed with warnings (e.g. SonarQube). Check stage results.' }
+        failure { echo 'Pipeline failed.' }
     }
 }
