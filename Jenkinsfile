@@ -18,7 +18,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('hr-workflow-backend') {
-                    sh 'mvn clean compile -B'
+                    sh './mvnw clean compile -B'
                 }
             }
         }
@@ -26,12 +26,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('hr-workflow-backend') {
-                    sh 'mvn verify -Dmaven.test.failure.ignore=true -B'
-                }
-            }
-            post {
-                always {
-                    junit 'hr-workflow-backend/target/surefire-reports/*.xml'
+                    sh './mvnw verify -Dmaven.test.failure.ignore=true -B'
                 }
             }
         }
@@ -40,12 +35,7 @@ pipeline {
             steps {
                 dir('hr-workflow-backend') {
                     withSonarQubeEnv('SonarQube') {
-                        sh """
-                            mvn sonar:sonar \
-                              -Dsonar.projectKey=HR-Workflow \
-                              -Dsonar.token=${SONAR_TOKEN} \
-                              -B
-                        """
+                        sh './mvnw sonar:sonar -Dsonar.projectKey=HR-Workflow -Dsonar.token=${SONAR_TOKEN} -B'
                     }
                 }
             }
