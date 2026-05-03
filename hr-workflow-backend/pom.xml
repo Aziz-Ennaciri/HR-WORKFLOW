@@ -287,9 +287,11 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>3.1.2</version>
 				<configuration>
-					<systemPropertyVariables>
-						<docker.apiVersion>1.41</docker.apiVersion>
-					</systemPropertyVariables>
+					<environmentVariables>
+						<DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+						<TESTCONTAINERS_DOCKER_CLIENT_STRATEGY>org.testcontainers.dockerclient.UnixSocketClientProviderStrategy</TESTCONTAINERS_DOCKER_CLIENT_STRATEGY>
+						<TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
+					</environmentVariables>
 				</configuration>
 			</plugin>
 		</plugins>
