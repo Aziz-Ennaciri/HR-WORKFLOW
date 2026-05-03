@@ -18,7 +18,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('hr-workflow-backend') {
-                    sh './mvnw clean compile -B'
+                    sh 'mvn clean compile -B'
                 }
             }
         }
@@ -26,7 +26,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('hr-workflow-backend') {
-                    sh './mvnw verify -Dmaven.test.failure.ignore=true -B'
+                    sh 'mvn verify -Dmaven.test.failure.ignore=true -B'
                 }
             }
             post {
@@ -41,9 +41,9 @@ pipeline {
                 dir('hr-workflow-backend') {
                     withSonarQubeEnv('SonarQube') {
                         sh """
-                            ./mvnw sonar:sonar \\
-                              -Dsonar.projectKey=HR-Workflow \\
-                              -Dsonar.token=${SONAR_TOKEN} \\
+                            mvn sonar:sonar \
+                              -Dsonar.projectKey=HR-Workflow \
+                              -Dsonar.token=${SONAR_TOKEN} \
                               -B
                         """
                     }
