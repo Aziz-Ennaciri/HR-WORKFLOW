@@ -35,8 +35,11 @@ public class DummyEmailServiceImpl implements EmailService{
 
             return objectMapper.writeValueAsString(response);
 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         } catch (Exception e) {
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
     }
 }

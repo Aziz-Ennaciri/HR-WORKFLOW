@@ -75,9 +75,9 @@ public class NodeController {
     @PatchMapping("/workflow/{workflowId}/reorder")
     @Operation(summary = "Reorder nodes", description = "Changes the execution order of nodes in a workflow")
     public ResponseEntity<List<NodeResponseDTO>> reorderNodes(
-        @PathVariable @Parameter(description = "Workflow ID")Long workflowID,
+        @PathVariable @Parameter(description = "Workflow ID") Long workflowId,
         @Valid @RequestBody List<NodeOrderDTO> nodeOrderDTOs){
-        List<NodeResponseDTO> dtos = nodeService.reorderNodes(workflowID, nodeOrderDTOs);
+        List<NodeResponseDTO> dtos = nodeService.reorderNodes(workflowId, nodeOrderDTOs);
         return ResponseEntity.ok(dtos);
     }
 

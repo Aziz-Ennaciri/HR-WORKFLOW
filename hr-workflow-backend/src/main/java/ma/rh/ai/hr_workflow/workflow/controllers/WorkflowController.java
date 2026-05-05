@@ -45,6 +45,9 @@ public class WorkflowController {
     @Operation(summary = "Get workflows — ADMIN sees all, other users see only their own.")
     public ResponseEntity<List<WorkflowResponseDTO>> getWorkflows() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
         List<WorkflowResponseDTO> workflows;
         if (isAdmin(auth)) {
@@ -82,6 +85,9 @@ public class WorkflowController {
     @Operation(summary = "Duplicate a workflow with all its nodes")
     public ResponseEntity<WorkflowResponseDTO> duplicateWorkflow(@PathVariable Long id) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         String email = auth.getName();
         WorkflowResponseDTO copy = workflowService.duplicateWorkflow(id, email);
         return new ResponseEntity<>(copy, HttpStatus.CREATED);

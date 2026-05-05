@@ -40,6 +40,9 @@ public class DummyDriveServiceImpl implements DriveService{
 
             return objectMapper.writeValueAsString(response);
 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IntegrationException("DriveService");
         } catch (Exception e) {
             throw new IntegrationException("DriveService");
         }

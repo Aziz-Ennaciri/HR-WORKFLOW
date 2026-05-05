@@ -147,6 +147,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("soft delete hides workflow from findByDeletedFalse")
         void softDelete_hidesWorkflow_fromDeletedFalseQuery() {
             // Arrange
+            workflowRepository.save(buildWorkflow("Visible", "visible_key", userA));
             Workflow workflow = workflowRepository.save(buildWorkflow("ToDelete", "to_delete", userA));
 
             // Act
@@ -155,6 +156,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
             List<Workflow> visible = workflowRepository.findByDeletedFalse();
 
             // Assert
+            assertThat(visible).isNotEmpty();
             assertThat(visible).extracting(Workflow::getName).doesNotContain("ToDelete");
         }
     }

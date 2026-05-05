@@ -89,6 +89,9 @@ public class WorkflowExecutionController {
     @Operation(summary = "Get workflow instances — ADMIN sees all, others see only their own workflows' executions.")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getAllExecutions() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
         List<WorkflowInstance> instances;
         if (isAdmin(auth)) {

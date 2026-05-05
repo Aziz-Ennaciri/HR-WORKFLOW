@@ -73,7 +73,9 @@ public class RealDriveServiceImpl implements DriveService {
             String fileId = uploadedFile.getId();
 
             // Clean up temp file
-            tempFile.delete();
+            if (!tempFile.delete()) {
+                log.warn("Failed to delete temporary file: {}", tempFile.getAbsolutePath());
+            }
 
             log.info("✅ File uploaded to Drive: {}", fileId);
 

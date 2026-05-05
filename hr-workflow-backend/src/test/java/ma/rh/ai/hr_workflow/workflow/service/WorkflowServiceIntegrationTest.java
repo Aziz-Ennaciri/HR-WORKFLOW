@@ -177,6 +177,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("deleted workflow does not appear in findByDeletedFalse")
         void deleted_workflow_invisible_to_deleted_false_query() {
             // Arrange
+            buildActiveWorkflow("StillVisible", "still_visible_key", userA);
             Workflow wf = buildActiveWorkflow("Hidden", "hidden_key", userA);
 
             // Act
@@ -184,6 +185,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
 
             // Assert
             List<WorkflowResponseDTO> visible = workflowService.getAllWorkflows();
+            assertThat(visible).isNotEmpty();
             assertThat(visible).extracting(WorkflowResponseDTO::getName).doesNotContain("Hidden");
         }
     }

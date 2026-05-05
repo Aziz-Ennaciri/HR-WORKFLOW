@@ -52,6 +52,9 @@ public class DummyExcelServiceImpl implements ExcelService {
 
             return objectMapper.writeValueAsString(response);
 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Dummy Excel service interrupted", e);
         } catch (Exception e) {
             throw new RuntimeException("Dummy Excel service failed: " + e.getMessage(), e);
         }
