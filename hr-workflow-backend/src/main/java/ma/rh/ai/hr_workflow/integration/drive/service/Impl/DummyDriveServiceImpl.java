@@ -1,16 +1,15 @@
 package ma.rh.ai.hr_workflow.integration.drive.service.Impl;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.hibernate.boot.beanvalidation.IntegrationException;
-import org.springframework.context.annotation.Primary;
+import ma.rh.ai.hr_workflow.exceptions.service.DriveServiceException;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
-import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveConfigDTO;
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveRequestDTO;
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveResponseDTO;
 import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
@@ -21,10 +20,8 @@ public class DummyDriveServiceImpl implements DriveService{
     private final ObjectMapper objectMapper;
 
     @Override
-    public String saveFile(String configJson, String inputData) throws Exception {
+    public String saveFile(String configJson, String inputData){
         try {
-            DriveConfigDTO config = objectMapper.readValue(configJson, DriveConfigDTO.class);
-            
             DriveRequestDTO request = objectMapper.readValue(inputData, DriveRequestDTO.class);
 
             Thread.sleep(200);
@@ -40,11 +37,11 @@ public class DummyDriveServiceImpl implements DriveService{
 
             return objectMapper.writeValueAsString(response);
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IntegrationException("DriveService");
+        } catch (IOException e) {
+            throw new DriveServiceException("Error while uploading file to Drive",e);
+
         } catch (Exception e) {
-            throw new IntegrationException("DriveService");
+            throw new DriveServiceException("Unexpected Drive service error",e);
         }
     }
 }

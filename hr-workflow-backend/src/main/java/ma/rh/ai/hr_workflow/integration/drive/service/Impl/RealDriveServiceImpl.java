@@ -1,12 +1,12 @@
 package ma.rh.ai.hr_workflow.integration.drive.service.Impl;
 
-import java.io.FileInputStream;
 import java.io.FileWriter;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Collections;
 
+import ma.rh.ai.hr_workflow.exceptions.service.DriveServiceException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +37,7 @@ public class RealDriveServiceImpl implements DriveService {
     private String credentialsPath;
 
     @Override
-    public String saveFile(String configJson, String inputData) throws Exception {
+    public String saveFile(String configJson, String inputData) {
         try {
             log.info("Uploading file to Google Drive...");
 
@@ -96,22 +96,47 @@ public class RealDriveServiceImpl implements DriveService {
         }
     }
 
-    private Drive getDriveService() throws Exception {
+    protected Drive getDriveService() throws Exception {
+
         if (credentialsPath == null || credentialsPath.isEmpty()) {
-            throw new RuntimeException("Google credentials path not configured. Set google.credentials.path in application.properties");
+
+            throw new DriveServiceException(
+                    "Google credentials path not configured"
+            );
         }
 
-        // Load credentials
         GoogleCredentials credentials;
 
         if (credentialsPath.startsWith("classpath:")) {
+
             String path = credentialsPath.replace("classpath:", "");
-            credentials = GoogleCredentials.fromStream(
-                    getClass().getClassLoader().getResourceAsStream(path)
-            ).createScoped(Collections.singletonList("https://www.googleapis.com/auth/drive.file"));
+
+            InputStream credentialsStream =
+                    getClass().getClassLoader().getResourceAsStream(path);
+
+            if (credentialsStream == null) {
+
+                throw new DriveServiceException(
+                        "Google credentials file not found in classpath: " + path
+                );
+            }
+
+            credentials = GoogleCredentials.fromStream(credentialsStream)
+                    .createScoped(
+                            Collections.singletonList(
+                                    "https://www.googleapis.com/auth/drive.file"
+                            )
+                    );
+
         } else {
-            credentials = GoogleCredentials.fromStream(new FileInputStream(credentialsPath))
-                    .createScoped(Collections.singletonList("https://www.googleapis.com/auth/drive.file"));
+
+            credentials = GoogleCredentials
+                    .fromStream(new java.io.FileInputStream(credentialsPath))
+                    .createScoped(
+                            Collections.singletonList(
+                                    "https://www.googleapis.com/auth/drive.file"
+                            )
+                    );
         }
 
         return new Drive.Builder(

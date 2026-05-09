@@ -3,12 +3,12 @@ package ma.rh.ai.hr_workflow.integration.email.service.Impl;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import ma.rh.ai.hr_workflow.exceptions.service.EmailServiceException;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
-import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailConfigDTO;
 import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailRequestDTO;
 import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailResponseDTO;
 import ma.rh.ai.hr_workflow.integration.email.service.EmailService;
@@ -19,9 +19,8 @@ public class DummyEmailServiceImpl implements EmailService{
     private final ObjectMapper objectMapper;
 
     @Override
-    public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey) throws Exception {
+    public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey){
         try {
-            EmailConfigDTO config = objectMapper.readValue(configJson, EmailConfigDTO.class);
             
             EmailRequestDTO request = objectMapper.readValue(inputData, EmailRequestDTO.class);
 
@@ -37,9 +36,9 @@ public class DummyEmailServiceImpl implements EmailService{
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new EmailServiceException("Email operation was interrupted",e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new EmailServiceException("Error while processing email request",e);
         }
     }
 }

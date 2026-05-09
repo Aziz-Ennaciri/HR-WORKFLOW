@@ -1,7 +1,9 @@
 package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 
+import ma.rh.ai.hr_workflow.exceptions.service.GptServiceException;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +19,7 @@ public class GptServiceImpl implements GptService{
     private final ObjectMapper objectMapper;
 
     @Override
-    public String analyze(String configJson, String inputData) throws Exception {
+    public String analyze(String configJson, String inputData){
         try {
             GptConfigDTO config = objectMapper.readValue(configJson, GptConfigDTO.class);
             
@@ -37,9 +39,11 @@ public class GptServiceImpl implements GptService{
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new GptServiceException("GPT request was interrupted",e);
+        } catch (IOException e) {
+            throw new GptServiceException("Error communicating with GPT service",e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new GptServiceException("Unexpected GPT service error",e);
         }
     }
     
