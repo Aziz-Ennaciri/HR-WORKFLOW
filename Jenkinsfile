@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('SONAR_TOKEN')
+        SONAR_TOKEN = credentials('SonarToken_Local')
         DOCKER_HOST = 'unix:///var/run/docker.sock'
         TESTCONTAINERS_DOCKER_CLIENT_STRATEGY = 'org.testcontainers.dockerclient.UnixSocketClientProviderStrategy'
         TESTCONTAINERS_RYUK_DISABLED = 'true'
