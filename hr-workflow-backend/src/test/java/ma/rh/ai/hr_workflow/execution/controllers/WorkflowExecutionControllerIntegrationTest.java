@@ -38,11 +38,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Execution controller tests run WITHOUT a wrapping test transaction because the
- * underlying service uses REQUIRES_NEW sub-transactions that need committed data.
- * Each test cleans up the DB itself in @BeforeEach / @AfterEach.
- */
 @DisplayName("WorkflowExecutionController Integration Tests")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest {
@@ -157,7 +152,7 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
 
         @Test
         @DisplayName("throws for unknown ID (unhandled RuntimeException in Spring 6 MockMvc)")
-        void getById_unknown_throws() throws Exception {
+        void getById_unknown_throws(){
             assertThatThrownBy(() ->
                 mockMvc.perform(get("/api/v1/executions/99999")
                         .header("Authorization", userToken)))
