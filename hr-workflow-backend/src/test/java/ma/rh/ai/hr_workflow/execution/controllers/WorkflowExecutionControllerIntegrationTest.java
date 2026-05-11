@@ -19,22 +19,22 @@ import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -60,11 +60,23 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
     private Node emailNode;
     private String userToken;
 
+    private void truncateWithRetry() {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                jdbcTemplate.execute(
+                    "TRUNCATE TABLE node_instances, workflow_instances, nodes, user_roles, workflows, users RESTART IDENTITY CASCADE"
+                );
+                return;
+            } catch (DataAccessException e) {
+                if (attempt == 2) throw e;
+                try { Thread.sleep(300); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+        }
+    }
+
     @BeforeEach
     void cleanAndSetUp() throws Exception {
-        jdbcTemplate.execute(
-            "TRUNCATE TABLE node_instances, workflow_instances, nodes, user_roles, workflows, users RESTART IDENTITY CASCADE"
-        );
+        truncateWithRetry();
 
         Role role = roleRepository.findByName(RoleName.ROLE_RH).orElseThrow();
 
@@ -90,13 +102,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         emailNode = nodeRepository.save(emailNode);
 
         userToken = getAuthToken("exec-ctrl@test.com", "pass");
-    }
-
-    @AfterEach
-    void cleanUp() {
-        jdbcTemplate.execute(
-            "TRUNCATE TABLE node_instances, workflow_instances, nodes, user_roles, workflows, users RESTART IDENTITY CASCADE"
-        );
     }
 
     private String triggerBody(Long workflowId) throws Exception {
@@ -152,12 +157,12 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         }
 
         @Test
-        @DisplayName("returns 500 for unknown ID (no global exception handler maps to 404)")
-        void getById_unknown_returns_500() throws Exception {
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/executions/99999")
-                            .header("Authorization", userToken))
-                    .andExpect(status().is5xxServerError());
+        @DisplayName("throws for unknown ID (unhandled RuntimeException in Spring 6 MockMvc)")
+        void getById_unknown_throws() throws Exception {
+            assertThatThrownBy(() ->
+                mockMvc.perform(get("/api/v1/executions/99999")
+                        .header("Authorization", userToken)))
+                    .hasCauseInstanceOf(RuntimeException.class);
         }
     }
 

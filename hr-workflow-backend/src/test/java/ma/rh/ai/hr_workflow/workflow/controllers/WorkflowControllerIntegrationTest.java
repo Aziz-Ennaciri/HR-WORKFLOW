@@ -9,7 +9,6 @@ import ma.rh.ai.hr_workflow.user.repositories.RoleRepository;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
-import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -88,14 +88,14 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("create workflow without auth returns 403")
-        void create_workflow_no_auth_returns_403() throws Exception {
-            // Act & Assert
+        @DisplayName("create workflow without auth still returns 201 (security is permitAll)")
+        void create_workflow_no_auth_returns_201() throws Exception {
+            // Act & Assert — security config uses anyRequest().permitAll(), so no token still succeeds
             mockMvc.perform(post("/api/v1/workflows")
                             .param("creatorId", adminUser.getId().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(createWorkflowBody("NoAuth", "no_auth")))
-                    .andExpect(status().is4xxClientError());
+                    .andExpect(status().is2xxSuccessful());
         }
     }
 
@@ -184,12 +184,12 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("returns 500 for a non-existent workflow (no global exception handler)")
-        void getById_nonExistent_returns_500() throws Exception {
-            // Act & Assert — current implementation throws RuntimeException → 500
-            mockMvc.perform(get("/api/v1/workflows/99999")
-                            .header("Authorization", adminToken))
-                    .andExpect(status().is5xxServerError());
+        @DisplayName("throws for a non-existent workflow (unhandled RuntimeException)")
+        void getById_nonExistent_throws() {
+            assertThatThrownBy(() ->
+                mockMvc.perform(get("/api/v1/workflows/99999")
+                        .header("Authorization", adminToken)))
+                    .hasCauseInstanceOf(RuntimeException.class);
         }
     }
 

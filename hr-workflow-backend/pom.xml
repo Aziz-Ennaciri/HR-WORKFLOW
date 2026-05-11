@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.5</version>
+		<version>3.3.10</version>
 		<relativePath/>
 	</parent>
 	<groupId>ma.rh.ai</groupId>
@@ -49,7 +49,7 @@
 			<dependency>
 				<groupId>org.testcontainers</groupId>
 				<artifactId>testcontainers-bom</artifactId>
-				<version>1.20.4</version>
+				<version>1.21.3</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -289,9 +289,13 @@
 				<configuration>
 					<environmentVariables>
 						<DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+						<DOCKER_API_VERSION>1.44</DOCKER_API_VERSION>
 						<TESTCONTAINERS_DOCKER_CLIENT_STRATEGY>org.testcontainers.dockerclient.UnixSocketClientProviderStrategy</TESTCONTAINERS_DOCKER_CLIENT_STRATEGY>
 						<TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
 					</environmentVariables>
+					<systemPropertyVariables>
+						<api.version>1.44</api.version>
+					</systemPropertyVariables>
 				</configuration>
 			</plugin>
 		</plugins>
