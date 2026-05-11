@@ -65,7 +65,6 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
                 return;
             } catch (DataAccessException e) {
                 if (attempt == 2) throw e;
-                try { Thread.sleep(300); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
             }
         }
     }
@@ -194,6 +193,9 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
             // In test env the email node fails fast (no mail server), so by assertion time
             // the status is already FAILED again. Just verify the call itself succeeds.
             executionService.retryFromNode(instance.getId(), nodeInstance.getNode().getId());
+            WorkflowInstance updated = instanceRepository.findById(instance.getId()).orElseThrow();
+            assertThat(updated).isNotNull();
+            assertThat(updated.getId()).isEqualTo(instance.getId());
         }
     }
 }

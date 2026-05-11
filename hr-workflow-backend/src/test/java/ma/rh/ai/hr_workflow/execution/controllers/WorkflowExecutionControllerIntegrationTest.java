@@ -69,7 +69,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
                 return;
             } catch (DataAccessException e) {
                 if (attempt == 2) throw e;
-                try { Thread.sleep(300); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
             }
         }
     }
@@ -104,7 +103,7 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         userToken = getAuthToken("exec-ctrl@test.com", "pass");
     }
 
-    private String triggerBody(Long workflowId) throws Exception {
+    private String triggerBody(Long workflowId){
         return "{\"workflowId\":" + workflowId + "}";
     }
 
