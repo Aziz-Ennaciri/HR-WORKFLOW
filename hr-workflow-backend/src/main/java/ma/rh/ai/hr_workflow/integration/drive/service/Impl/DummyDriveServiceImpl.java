@@ -16,15 +16,14 @@ import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
 
 @Service
 @RequiredArgsConstructor
-public class DummyDriveServiceImpl implements DriveService{
+public class DummyDriveServiceImpl implements DriveService {
+
     private final ObjectMapper objectMapper;
 
     @Override
-    public String saveFile(String configJson, String inputData){
+    public String saveFile(String configJson, String inputData) {
         try {
             DriveRequestDTO request = objectMapper.readValue(inputData, DriveRequestDTO.class);
-
-            Thread.sleep(200);
 
             String fileId = UUID.randomUUID().toString().substring(0, 20);
             DriveResponseDTO response = new DriveResponseDTO();
@@ -38,10 +37,7 @@ public class DummyDriveServiceImpl implements DriveService{
             return objectMapper.writeValueAsString(response);
 
         } catch (IOException e) {
-            throw new DriveServiceException("Error while uploading file to Drive",e);
-
-        } catch (Exception e) {
-            throw new DriveServiceException("Unexpected Drive service error",e);
+            throw new DriveServiceException("Error while uploading file to Drive", e);
         }
     }
 }
