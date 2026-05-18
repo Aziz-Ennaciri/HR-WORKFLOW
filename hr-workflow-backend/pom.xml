@@ -30,7 +30,6 @@
 		<java.version>17</java.version>
 		<sonar.projectKey>hr-workflow</sonar.projectKey>
 		<sonar.projectName>HR Workflow System</sonar.projectName>
-		<sonar.host.url>http://localhost:9000</sonar.host.url>
 		<sonar.coverage.jacoco.xmlReportPaths>
 			${project.build.directory}/site/jacoco/jacoco.xml
 		</sonar.coverage.jacoco.xmlReportPaths>
