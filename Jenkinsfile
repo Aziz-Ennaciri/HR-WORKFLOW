@@ -23,6 +23,12 @@ pipeline {
                     sh './mvnw verify -Dmaven.test.failure.ignore=true -B'
                 }
             }
+            post {
+                always {
+                    sh 'docker ps -a | grep "postgres:15" | grep -v hr-workflow | awk \'{print $1}\' | xargs -r docker stop || true'
+                    sh 'docker ps -a | grep "postgres:15" | grep -v hr-workflow | awk \'{print $1}\' | xargs -r docker rm || true'
+                }
+            }
         }
 
         stage('SonarQube Analysis') {
