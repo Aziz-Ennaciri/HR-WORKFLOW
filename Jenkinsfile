@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('SonarToken_Local')
         DOCKER_HOST = 'unix:///var/run/docker.sock'
         TESTCONTAINERS_DOCKER_CLIENT_STRATEGY = 'org.testcontainers.dockerclient.UnixSocketClientProviderStrategy'
         TESTCONTAINERS_RYUK_DISABLED = 'true'
@@ -31,7 +30,7 @@ pipeline {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     dir('hr-workflow-backend') {
                         withSonarQubeEnv('SonarQube') {
-                            sh './mvnw sonar:sonar -Dsonar.projectKey=HR-Workflow -Dsonar.token=${SONAR_TOKEN} -B'
+                            sh './mvnw sonar:sonar -Dsonar.projectKey=HR-Workflow -B'
                         }
                     }
                 }
@@ -46,8 +45,8 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh 'docker-compose down --remove-orphans || true'
-                sh 'docker-compose up -d --remove-orphans'
+                sh 'docker-compose down || true'
+                sh 'docker-compose up -d'
             }
         }
     }
