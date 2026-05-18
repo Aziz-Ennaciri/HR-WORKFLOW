@@ -10,13 +10,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                echo 'Checking out source code...'
-                checkout scm
-            }
-        }
-
         stage('Build Backend') {
             steps {
                 dir('hr-workflow-backend') {
