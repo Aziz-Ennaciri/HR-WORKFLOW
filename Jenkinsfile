@@ -46,8 +46,8 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh 'docker-compose down || true'
-                sh 'docker-compose up -d'
+                sh 'docker-compose down --remove-orphans || true'
+                sh 'docker-compose up -d --remove-orphans'
             }
         }
     }
