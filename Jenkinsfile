@@ -25,8 +25,9 @@ pipeline {
             }
             post {
                 always {
-                    sh 'docker ps -a | grep "postgres:15" | grep -v hr-workflow | awk \'{print $1}\' | xargs -r docker stop || true'
-                    sh 'docker ps -a | grep "postgres:15" | grep -v hr-workflow | awk \'{print $1}\' | xargs -r docker rm || true'
+                    sh '''
+                        docker ps -a | grep "postgres:15" | grep -v "hr-workflow" | grep -v "hr-infra" | awk '{print $1}' | xargs -r docker rm -f || true
+                    '''
                 }
             }
         }

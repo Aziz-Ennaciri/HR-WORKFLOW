@@ -1,8 +1,7 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:15-alpine
+    restart: always
     environment:
       POSTGRES_DB: hr_workflow_db
       POSTGRES_USER: admin
@@ -22,6 +21,7 @@ services:
   backend:
     build:
       context: ./hr-workflow-backend
+    restart: always
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hr_workflow_db
@@ -38,6 +38,7 @@ services:
   frontend:
     build:
       context: ./hr-workflow-frontend
+    restart: always
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
     ports:
