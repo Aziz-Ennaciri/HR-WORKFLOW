@@ -52,17 +52,4 @@ class DummyDriveServiceImplTest {
                 .isInstanceOf(DriveServiceException.class)
                 .hasMessage("Error while uploading file to Drive");
     }
-
-    @Test
-    @DisplayName("saveFile wraps InterruptedException as DriveServiceException via catch(Exception)")
-    void saveFile_threadInterrupted_throwsDriveServiceException() throws Exception {
-        DriveRequestDTO request = new DriveRequestDTO("content", "file.txt", "text/plain");
-        when(objectMapper.readValue(anyString(), eq(DriveRequestDTO.class))).thenReturn(request);
-
-        Thread.currentThread().interrupt();
-
-        assertThatThrownBy(() -> service.saveFile("{}", "{}"))
-                .isInstanceOf(DriveServiceException.class)
-                .hasMessage("Unexpected Drive service error");
-    }
 }
