@@ -58,16 +58,16 @@ public class LocalDriveServiceImpl implements DriveService {
     }
 
     /**
-     * Read all files from folder and combine with the original inputData.
+     * Read all files from a folder and combine with the original inputData.
      *
-     * The output is a combined JSON object:
+     * Output structure (generic — works for any document type):
      * {
-     *   "originalInput": { ...whatever the user typed / sent... },
-     *   "cvData": { "totalCVs": N, "folder": "...", "cvs": [...] }
+     *   "originalInput": { ...whatever the upstream node / user sent... },
+     *   "fileData": { "totalFiles": N, "folder": "...", "files": [...] }
      * }
      *
-     * This ensures the user's prompt/criteria is NEVER lost when data
-     * flows from DRIVE → GPT node.
+     * The GPT node's prompt is responsible for interpreting the files correctly
+     * (CVs, contracts, invoices, etc.). This node just reads and forwards them.
      */
     private String readFilesFromFolder(DriveConfigDTO config, String inputData) throws Exception {
         log.info("📖 Local Drive: Reading files from folder...");
@@ -76,30 +76,35 @@ public class LocalDriveServiceImpl implements DriveService {
         Path folderPath = Paths.get(storagePath, folderId);
 
         if (!Files.exists(folderPath)) {
-            throw new RuntimeException("Folder not found: " + folderPath);
+            log.warn("⚠️ Folder not found: {} — creating it and returning empty result", folderPath);
+            Files.createDirectories(folderPath);
+            return buildCombinedOutput(inputData, folderId, new ArrayList<>());
         }
 
-        // Read all files
-        List<Map<String, String>> cvs = new ArrayList<>();
+        // Read all files (any type — PDF and plain text supported)
+        List<Map<String, String>> files = new ArrayList<>();
         Files.list(folderPath)
                 .filter(Files::isRegularFile)
-                .sorted() // consistent ordering
+                .sorted()
                 .forEach(filePath -> {
                     try {
                         String content = extractTextFromFile(filePath);
-                        Map<String, String> cv = new HashMap<>();
-                        cv.put("fileName", filePath.getFileName().toString());
-                        cv.put("content", content);
-                        cvs.add(cv);
+                        Map<String, String> file = new HashMap<>();
+                        file.put("fileName", filePath.getFileName().toString());
+                        file.put("content", content);
+                        files.add(file);
                         log.info("✅ Read file: {} ({} characters)", filePath.getFileName(), content.length());
                     } catch (IOException e) {
                         log.error("Failed to read file: " + filePath, e);
                     }
                 });
 
-        log.info("✅ Local Drive: Read {} files", cvs.size());
+        log.info("✅ Local Drive: Read {} files", files.size());
+        return buildCombinedOutput(inputData, folderId, files);
+    }
 
-        // Parse the original inputData so we can carry it forward
+    private String buildCombinedOutput(String inputData, String folderId,
+                                       List<Map<String, String>> files) throws Exception {
         JsonNode originalInput = null;
         if (inputData != null && inputData.trim().startsWith("{")) {
             try {
@@ -110,20 +115,18 @@ public class LocalDriveServiceImpl implements DriveService {
             }
         }
 
-        // Build CV data section
-        Map<String, Object> cvData = new HashMap<>();
-        cvData.put("totalCVs", cvs.size());
-        cvData.put("folder", folderId);
-        cvData.put("cvs", cvs);
+        Map<String, Object> fileData = new HashMap<>();
+        fileData.put("totalFiles", files.size());
+        fileData.put("folder", folderId);
+        fileData.put("files", files);
 
-        // Combine: original user input + CV data
         Map<String, Object> combined = new HashMap<>();
         if (originalInput != null) {
             combined.put("originalInput", originalInput);
         } else if (inputData != null) {
-            combined.put("originalInput", inputData); // keep as raw string fallback
+            combined.put("originalInput", inputData);
         }
-        combined.put("cvData", cvData);
+        combined.put("fileData", fileData);
 
         String output = objectMapper.writeValueAsString(combined);
         log.info("📤 DRIVE output (combined) length: {} characters", output.length());

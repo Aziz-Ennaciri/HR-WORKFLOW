@@ -38,6 +38,12 @@ export default function NodeConfigPanel({
   if (!node) return null;
 
   const handleSave = () => {
+    if (node?.data?.label === "DRIVE") {
+      if (!config.folderId?.trim()) {
+        alert("Folder ID is required. Enter the subfolder name where files are stored.");
+        return;
+      }
+    }
     onUpdate(config);
     onClose();
   };
@@ -142,7 +148,8 @@ export default function NodeConfigPanel({
           </>
         );
 
-      case "DRIVE":
+      case "DRIVE": {
+        const isReadAction = (config.action || "write") === "read";
         return (
           <>
             <div>
@@ -165,7 +172,7 @@ export default function NodeConfigPanel({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Folder ID
+                Folder ID *
               </label>
               <input
                 type="text"
@@ -174,25 +181,33 @@ export default function NodeConfigPanel({
                   setConfig({ ...config, folderId: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="Google Drive folder ID"
+                placeholder="e.g. cvs"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Subfolder name inside the storage directory (e.g.{" "}
+                <span className="font-mono">cvs</span> →{" "}
+                <span className="font-mono">/storage/cvs/</span>)
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                File Name
-              </label>
-              <input
-                type="text"
-                value={config.fileName || ""}
-                onChange={(e) =>
-                  setConfig({ ...config, fileName: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="example.pdf"
-              />
-            </div>
+            {!isReadAction && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  File Name
+                </label>
+                <input
+                  type="text"
+                  value={config.fileName || ""}
+                  onChange={(e) =>
+                    setConfig({ ...config, fileName: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="example.pdf"
+                />
+              </div>
+            )}
           </>
         );
+      }
 
       case "EXCEL":
         return (
