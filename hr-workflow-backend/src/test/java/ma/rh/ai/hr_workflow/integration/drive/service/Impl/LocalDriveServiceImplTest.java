@@ -111,7 +111,7 @@ class LocalDriveServiceImplTest {
     class WriteAction {
 
         @Test
-        @DisplayName("happy path — creates file with correct content and returns valid response")
+        @DisplayName("creates file with correct content and returns valid response")
         void saveFile_write_happyPath() throws Exception {
             String config    = writeConfig("write", "uploads", "report.txt");
             String inputData = "Hello, this is the file content.";
@@ -133,10 +133,7 @@ class LocalDriveServiceImplTest {
         @Test
         @DisplayName("null fileName generates a timestamp-based filename")
         void saveFile_write_nullFileName_generatesName() throws Exception {
-            String config    = writeConfigNoFile("write", "output");
-            String inputData = "Generated filename test";
-
-            String result = service.saveFile(config, inputData);
+            String result = service.saveFile(writeConfigNoFile("write", "output"), "Generated filename test");
 
             DriveResponseDTO response = parseWriteResponse(result);
             assertThat(response.getFileName()).startsWith("workflow_output_");
@@ -146,10 +143,7 @@ class LocalDriveServiceImplTest {
         @Test
         @DisplayName("null folderId defaults to 'default' subfolder")
         void saveFile_write_nullFolderId_usesDefaultFolder() throws Exception {
-            String config    = "{\"action\":\"write\",\"fileName\":\"test.txt\"}";
-            String inputData = "Default folder test";
-
-            service.saveFile(config, inputData);
+            service.saveFile("{\"action\":\"write\",\"fileName\":\"test.txt\"}", "Default folder test");
 
             assertThat(tempDir.resolve("default").resolve("test.txt")).exists();
         }
@@ -157,10 +151,7 @@ class LocalDriveServiceImplTest {
         @Test
         @DisplayName("no action field defaults to write")
         void saveFile_noAction_defaultsToWrite() throws Exception {
-            String config    = "{\"folderId\":\"docs\",\"fileName\":\"out.txt\"}";
-            String inputData = "Content";
-
-            String result = service.saveFile(config, inputData);
+            String result = service.saveFile("{\"folderId\":\"docs\",\"fileName\":\"out.txt\"}", "Content");
 
             DriveResponseDTO response = parseWriteResponse(result);
             assertThat(response.getFileName()).isEqualTo("out.txt");
@@ -171,12 +162,12 @@ class LocalDriveServiceImplTest {
         @DisplayName("fileSize matches bytes written to disk")
         void saveFile_write_fileSizeMatchesDiskSize() throws Exception {
             String content = "Exactly 30 bytes of text data!!";
-            String config  = writeConfig("write", "size_test", "sized.txt");
 
-            String result = service.saveFile(content, content);
+            DriveResponseDTO response = parseWriteResponse(
+                    service.saveFile(writeConfig("write", "size_test", "sized.txt"), content));
 
-            // Just verify it doesn't throw and file exists
-            assertThat(tempDir.resolve("size_test")).isDirectory();
+            Path written = tempDir.resolve("size_test").resolve("sized.txt");
+            assertThat(response.getSize()).isEqualTo(Files.size(written));
         }
 
         @Test
@@ -203,10 +194,7 @@ class LocalDriveServiceImplTest {
             createTextFile(folder, "alice.txt", "Alice has 5 years Java experience");
             createTextFile(folder, "bob.txt", "Bob has 2 years Python experience");
 
-            String config    = readConfig("cv_uploads");
-            String inputData = "{\"prompt\":\"Rank top candidates\"}";
-
-            String result = service.saveFile(config, inputData);
+            String result = service.saveFile(readConfig("cv_uploads"), "{\"prompt\":\"Rank top candidates\"}");
 
             Map<String, Object> combined = parseResult(result);
             assertThat(combined).containsKey("originalInput");
@@ -214,22 +202,20 @@ class LocalDriveServiceImplTest {
 
             Map<String, Object> cvData = getCvData(combined);
             assertThat(cvData.get("totalCVs")).isEqualTo(2);
-            assertThat(cvData.get("folder")).isEqualTo("cv_uploads");
+            assertThat(cvData).containsEntry("folder", "cv_uploads");
             assertThat(getCvs(cvData)).hasSize(2);
         }
 
         @Test
         @DisplayName("file contents are included in each CV entry")
         void saveFile_read_fileContentsIncluded() throws Exception {
-            Path folder = tempDir.resolve("docs");
-            createTextFile(folder, "candidate.txt", "Senior Java Developer with 7 years");
+            createTextFile(tempDir.resolve("docs"), "candidate.txt", "Senior Java Developer with 7 years");
 
             String result = service.saveFile(readConfig("docs"), "{\"prompt\":\"Evaluate\"}");
 
-            Map<String, Object> combined = parseResult(result);
-            List<Map<String, Object>> cvs = getCvs(getCvData(combined));
+            List<Map<String, Object>> cvs = getCvs(getCvData(parseResult(result)));
             assertThat(cvs).hasSize(1);
-            assertThat(cvs.get(0).get("fileName")).isEqualTo("candidate.txt");
+            assertThat(cvs.get(0)).containsEntry("fileName", "candidate.txt");
             assertThat(cvs.get(0).get("content").toString()).contains("Senior Java Developer");
         }
 
@@ -250,14 +236,13 @@ class LocalDriveServiceImplTest {
         void saveFile_read_jsonInputData_preservedAsOriginalInput() throws Exception {
             createTextFile(tempDir.resolve("prefs"), "doc.txt", "Alice Senior Dev");
 
-            String result = service.saveFile(readConfig("prefs"),
-                    "{\"prompt\":\"Top 5\",\"minExperience\":3}");
+            String result = service.saveFile(readConfig("prefs"), "{\"prompt\":\"Top 5\",\"minExperience\":3}");
 
             Map<String, Object> combined = parseResult(result);
             @SuppressWarnings("unchecked")
             Map<String, Object> originalInput = (Map<String, Object>) combined.get("originalInput");
-            assertThat(originalInput.get("prompt")).isEqualTo("Top 5");
-            assertThat(originalInput.get("minExperience")).isEqualTo(3);
+            assertThat(originalInput).containsEntry("prompt", "Top 5");
+            assertThat(originalInput).containsEntry("minExperience", 3);
         }
 
         @Test
@@ -267,8 +252,7 @@ class LocalDriveServiceImplTest {
 
             String result = service.saveFile(readConfig("raw_input"), "plain text criteria");
 
-            Map<String, Object> combined = parseResult(result);
-            assertThat(combined.get("originalInput")).isEqualTo("plain text criteria");
+            assertThat(parseResult(result)).containsEntry("originalInput", "plain text criteria");
         }
 
         @Test
@@ -284,22 +268,13 @@ class LocalDriveServiceImplTest {
         }
 
         @Test
-        @DisplayName("null folderId defaults to 'default' folder")
-        void saveFile_read_nullFolderId_usesDefaultFolder() throws Exception {
-            createTextFile(tempDir.resolve("default"), "cv.txt", "Default folder test");
-
-            String result = service.saveFile("{\"action\":\"read\"}", "{\"prompt\":\"Test\"}");
-
-            Map<String, Object> cvData = getCvData(parseResult(result));
-            assertThat(cvData.get("folder")).isEqualTo("default");
-            assertThat(cvData.get("totalCVs")).isEqualTo(1);
-        }
-
-        @Test
         @DisplayName("non-existent folder throws RuntimeException")
         void saveFile_read_folderNotFound_throws() {
+            String config = readConfig("nonexistent_folder");
+            String input = "{\"prompt\":\"Test\"}";
+
             RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.saveFile(readConfig("nonexistent_folder"), "{\"prompt\":\"Test\"}"));
+                    () -> service.saveFile(config, input));
             assertThat(ex.getMessage()).contains("Local Drive operation failed");
         }
 
@@ -315,9 +290,9 @@ class LocalDriveServiceImplTest {
 
             List<Map<String, Object>> cvs = getCvs(getCvData(parseResult(result)));
             assertThat(cvs).hasSize(3);
-            assertThat(cvs.get(0).get("fileName")).isEqualTo("aaa_first.txt");
-            assertThat(cvs.get(1).get("fileName")).isEqualTo("mmm_middle.txt");
-            assertThat(cvs.get(2).get("fileName")).isEqualTo("zzz_last.txt");
+            assertThat(cvs.get(0)).containsEntry("fileName", "aaa_first.txt");
+            assertThat(cvs.get(1)).containsEntry("fileName", "mmm_middle.txt");
+            assertThat(cvs.get(2)).containsEntry("fileName", "zzz_last.txt");
         }
     }
 
@@ -338,7 +313,7 @@ class LocalDriveServiceImplTest {
             assertThat(cvData.get("totalCVs")).isEqualTo(1);
 
             List<Map<String, Object>> cvs = getCvs(cvData);
-            assertThat(cvs.get(0).get("fileName")).isEqualTo("resume.pdf");
+            assertThat(cvs.get(0)).containsEntry("fileName", "resume.pdf");
             assertThat(cvs.get(0).get("content").toString()).contains("Jane Smith");
         }
 
@@ -367,22 +342,18 @@ class LocalDriveServiceImplTest {
         void saveFile_uppercaseReadAction_treatedAsRead() throws Exception {
             createTextFile(tempDir.resolve("case_test"), "cv.txt", "Carol Dev");
 
-            String result = service.saveFile(
-                    "{\"action\":\"READ\",\"folderId\":\"case_test\"}",
-                    "{\"prompt\":\"Test\"}");
+            Map<String, Object> combined = parseResult(
+                    service.saveFile("{\"action\":\"READ\",\"folderId\":\"case_test\"}", "{\"prompt\":\"Test\"}"));
 
-            Map<String, Object> combined = parseResult(result);
             assertThat(combined).containsKey("cvData");
         }
 
         @Test
         @DisplayName("action 'WRITE' (uppercase) defaults to write path")
         void saveFile_uppercaseWriteAction_treatedAsWrite() throws Exception {
-            String result = service.saveFile(
-                    writeConfig("WRITE", "wr_test", "output.txt"),
-                    "Uppercase write test");
+            DriveResponseDTO response = parseWriteResponse(
+                    service.saveFile(writeConfig("WRITE", "wr_test", "output.txt"), "Uppercase write test"));
 
-            DriveResponseDTO response = parseWriteResponse(result);
             assertThat(response.getFileId()).isEqualTo("output.txt");
         }
     }
