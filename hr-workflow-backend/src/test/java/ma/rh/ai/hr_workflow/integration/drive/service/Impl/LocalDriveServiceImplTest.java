@@ -241,8 +241,9 @@ class LocalDriveServiceImplTest {
             Map<String, Object> combined = parseResult(result);
             @SuppressWarnings("unchecked")
             Map<String, Object> originalInput = (Map<String, Object>) combined.get("originalInput");
-            assertThat(originalInput).containsEntry("prompt", "Top 5");
-            assertThat(originalInput).containsEntry("minExperience", 3);
+            assertThat(originalInput)
+                    .containsEntry("prompt", "Top 5")
+                    .containsEntry("minExperience", 3);
         }
 
         @Test
