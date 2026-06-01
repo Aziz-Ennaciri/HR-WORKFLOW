@@ -8,7 +8,8 @@ drive:
   storage:
     path: /app/hr-workflow-files
 
-ollama:
-  url: http://host.docker.internal:11434/api/generate
-  default:
-    model: llama3.2:3b
+google:
+  ollama:
+    url: http://host.docker.internal:11434/api/generate
+    default:
+      model: llama3.2:3b
