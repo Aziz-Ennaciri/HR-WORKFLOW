@@ -40,7 +40,6 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for WorkflowExecutionServiceImpl.
- *
  * Design notes:
  *  - triggerWorkflow() registers a TransactionSynchronization callback. We cannot trigger
  *    afterCommit() without a real transaction manager, so we verify the synchronous
@@ -119,7 +118,6 @@ class WorkflowExecutionServiceImplTest {
         wf.setId(id);
         wf.setStatus(WorkflowStatus.ACTIVE);
         wf.setName("Test WF");
-        wf.setWorkflowKey("test-wf");
         return wf;
     }
 

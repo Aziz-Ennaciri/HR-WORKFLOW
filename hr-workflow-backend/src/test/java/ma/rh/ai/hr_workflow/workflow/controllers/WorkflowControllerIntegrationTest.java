@@ -58,10 +58,9 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         rhToken = getAuthToken("wf-rh@test.com", "pass");
     }
 
-    private String createWorkflowBody(String name, String key) throws Exception {
+    private String createWorkflowBody(String name) throws Exception {
         CreateWorkflowDTO dto = new CreateWorkflowDTO();
         dto.setName(name);
-        dto.setWorkflowKey(key);
         dto.setDescription("desc");
         return objectMapper.writeValueAsString(dto);
     }
@@ -74,7 +73,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("create workflow returns 201 with workflow body")
         void create_workflow_returns_201() throws Exception {
             // Arrange
-            String body = createWorkflowBody("Recruitment WF", "recruit_wf");
+            String body = createWorkflowBody("Recruitment WF");
 
             // Act & Assert
             mockMvc.perform(post("/api/v1/workflows")
@@ -94,7 +93,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
             mockMvc.perform(post("/api/v1/workflows")
                             .param("creatorId", adminUser.getId().toString())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(createWorkflowBody("NoAuth", "no_auth")))
+                            .content(createWorkflowBody("NoAuth")))
                     .andExpect(status().is2xxSuccessful());
         }
     }
@@ -111,7 +110,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("RH-WF", "rh_wf")))
+                    .content(createWorkflowBody("RH-WF")))
                     .andExpect(status().isCreated());
 
             // Act — admin GETs all
@@ -134,14 +133,14 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("MY-WF", "my_wf")))
+                    .content(createWorkflowBody("MY-WF")))
                     .andExpect(status().isCreated());
 
             mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("ADMIN-WF", "admin_wf")))
+                    .content(createWorkflowBody("ADMIN-WF")))
                     .andExpect(status().isCreated());
 
             // Act
@@ -171,7 +170,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("FindMe", "find_me")))
+                    .content(createWorkflowBody("FindMe")))
                     .andExpect(status().isCreated())
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
@@ -205,14 +204,13 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("OldName", "old_key")))
+                    .content(createWorkflowBody("OldName")))
                     .andExpect(status().isCreated())
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
 
             UpdateWorkflowDTO update = new UpdateWorkflowDTO();
             update.setName("NewName");
-            update.setWorkflowKey("new_key");
 
             // Act & Assert
             mockMvc.perform(put("/api/v1/workflows/" + id)
@@ -236,7 +234,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("ToDelete", "to_del")))
+                    .content(createWorkflowBody("ToDelete")))
                     .andExpect(status().isCreated())
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
@@ -260,7 +258,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(createWorkflowBody("OriginalDup", "orig_dup")))
+                    .content(createWorkflowBody("OriginalDup")))
                     .andExpect(status().isCreated())
                     .andReturn();
             Long originalId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();

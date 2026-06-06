@@ -13,7 +13,4 @@ public class CreateWorkflowDTO {
     private String name;
 
     private String description;
-
-    @NotBlank
-    private String workflowKey;
 }

@@ -47,7 +47,6 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
 
         workflow = new Workflow();
         workflow.setName("ExecWorkflow");
-        workflow.setWorkflowKey("exec_wf");
         workflow.setStatus(WorkflowStatus.ACTIVE);
         workflow.setVersion(1);
         workflow.setCreatedBy(user);

@@ -49,7 +49,7 @@ class WorkflowControllerTest {
     @Test
     @DisplayName("createWorkflow delegates to service and returns 201 CREATED")
     void createWorkflow_returns201() {
-        CreateWorkflowDTO dto = new CreateWorkflowDTO("WF", "desc", "wf-key");
+        CreateWorkflowDTO dto = new CreateWorkflowDTO("WF", "desc");
         WorkflowResponseDTO response = new WorkflowResponseDTO();
         when(workflowService.createWorkflow(dto, 1L)).thenReturn(response);
 
@@ -115,7 +115,7 @@ class WorkflowControllerTest {
     @Test
     @DisplayName("updateWorkflow delegates to service and returns 200 OK")
     void updateWorkflow_returns200() {
-        UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "desc", "new-key", null, null, null, null);
+        UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "desc", null, null, null, null);
         WorkflowResponseDTO response = new WorkflowResponseDTO();
         when(workflowService.updateWorkflow(1L, dto)).thenReturn(response);
 

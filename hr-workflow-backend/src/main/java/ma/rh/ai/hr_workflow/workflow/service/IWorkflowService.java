@@ -1,6 +1,7 @@
 package ma.rh.ai.hr_workflow.workflow.service;
 
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
+import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
@@ -26,6 +27,8 @@ public interface IWorkflowService {
     List<WorkflowResponseDTO> getWorkflowsByCreatorEmail(String email);
 
     WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto);
+
+    WorkflowResponseDTO patchWorkflow(Long id, PatchWorkflowDTO dto);
 
     WorkflowResponseDTO activateWorkflow(Long id);
 

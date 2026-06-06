@@ -56,7 +56,6 @@ class ExecutionTransactionHelperTest {
         Workflow wf = new Workflow();
         wf.setId(10L);
         wf.setName("Test WF");
-        wf.setWorkflowKey("test-wf");
         wi.setWorkflow(wf);
         wi.setInputData("{\"key\":\"value\"}");
         return wi;

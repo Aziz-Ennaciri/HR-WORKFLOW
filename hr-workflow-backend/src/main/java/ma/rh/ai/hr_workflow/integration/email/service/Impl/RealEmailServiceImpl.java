@@ -27,7 +27,7 @@ public class RealEmailServiceImpl implements EmailService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey) throws Exception {
+    public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey) {
         try {
             log.info("Sending real email...");
 
@@ -88,12 +88,9 @@ public class RealEmailServiceImpl implements EmailService {
      * Check if this is a CV/recruitment workflow
      */
     private boolean isCvRecruitmentWorkflow(String workflowName, String workflowKey) {
-        if (workflowName == null || workflowKey == null) return false;
-
+        if (workflowName == null) return false;
         String name = workflowName.toLowerCase();
-        String key = workflowKey.toLowerCase();
-
-        // Check for CV/recruitment keywords
+        String key = workflowKey != null ? workflowKey.toLowerCase() : "";
         return name.contains("cv") || name.contains("recruitment") || name.contains("candidate") ||
                name.contains("hiring") || name.contains("job") || name.contains("rectrutemnt") ||
                key.contains("cv") || key.contains("recruitment") || key.contains("candidate") ||

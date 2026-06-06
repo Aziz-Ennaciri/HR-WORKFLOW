@@ -68,7 +68,6 @@ class WorkflowServiceImplTest {
         Workflow w = new Workflow();
         w.setId(id);
         w.setName(name);
-        w.setWorkflowKey("key_" + id);
         w.setStatus(status);
         w.setCreatedBy(buildUser(1L, "creator@test.com"));
         w.setDeleted(false);
@@ -93,7 +92,7 @@ class WorkflowServiceImplTest {
         @DisplayName("happy path — persists workflow and returns mapped DTO")
         void createWorkflow_happyPath() {
             // Arrange
-            CreateWorkflowDTO dto = new CreateWorkflowDTO("My Workflow", "desc", "my_key");
+            CreateWorkflowDTO dto = new CreateWorkflowDTO("My Workflow", "desc");
             User creator = buildUser(1L, "hr@test.com");
             Workflow entity = buildWorkflow(null, "My Workflow", WorkflowStatus.DRAFT);
             Workflow saved  = buildWorkflow(10L,  "My Workflow", WorkflowStatus.DRAFT);
@@ -116,7 +115,7 @@ class WorkflowServiceImplTest {
         @DisplayName("exception — creator not found throws RuntimeException")
         void createWorkflow_userNotFound_throws() {
             // Arrange
-            CreateWorkflowDTO dto = new CreateWorkflowDTO("W", "d", "k");
+            CreateWorkflowDTO dto = new CreateWorkflowDTO("W", "d");
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
             // Act & Assert
@@ -373,7 +372,7 @@ class WorkflowServiceImplTest {
             // Arrange
             Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
             existing.setVersion(1);
-            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "new desc", "new_key",
+            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "new desc",
                     null, null, null, null);
             Workflow saved = buildWorkflow(1L, "New Name", WorkflowStatus.DRAFT);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "New Name");
@@ -389,7 +388,6 @@ class WorkflowServiceImplTest {
             assertThat(result).isEqualTo(expected);
             assertThat(existing.getName()).isEqualTo("New Name");
             assertThat(existing.getDescription()).isEqualTo("new desc");
-            assertThat(existing.getWorkflowKey()).isEqualTo("new_key");
             assertThat(existing.getVersion()).isEqualTo(1); // unchanged
         }
 
@@ -398,7 +396,7 @@ class WorkflowServiceImplTest {
         void updateWorkflow_happyPath_allOptionalFields() {
             // Arrange
             Workflow existing = buildWorkflow(1L, "Old", WorkflowStatus.DRAFT);
-            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New", "desc", "key",
+            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New", "desc",
                     3, WorkflowStatus.ACTIVE, null, "{\"edges\":[]}");
             Workflow saved = buildWorkflow(1L, "New", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "New");
@@ -421,7 +419,7 @@ class WorkflowServiceImplTest {
         void updateWorkflow_notFound_throws() {
             // Arrange
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
-            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("N", "d", "k", null, null, null, null);
+            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("N", "d", null, null, null, null);
 
             // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
@@ -604,7 +602,6 @@ class WorkflowServiceImplTest {
             assertThat(copy.getStatus()).isEqualTo(WorkflowStatus.DRAFT);
             assertThat(copy.getVersion()).isEqualTo(1);
             assertThat(copy.getEdgesJson()).isEqualTo("[{}]");
-            assertThat(copy.getWorkflowKey()).startsWith("key_1_copy_");
 
             ArgumentCaptor<Node> nodeCaptor = ArgumentCaptor.forClass(Node.class);
             verify(nodeRepository).save(nodeCaptor.capture());

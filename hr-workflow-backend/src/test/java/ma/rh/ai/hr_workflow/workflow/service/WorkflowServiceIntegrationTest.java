@@ -65,7 +65,6 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
     private CreateWorkflowDTO buildCreateDTO(String name, String key) {
         CreateWorkflowDTO dto = new CreateWorkflowDTO();
         dto.setName(name);
-        dto.setWorkflowKey(key);
         dto.setDescription("desc");
         return dto;
     }
@@ -73,7 +72,6 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
     private Workflow buildActiveWorkflow(String name, String key, User creator) {
         Workflow wf = new Workflow();
         wf.setName(name);
-        wf.setWorkflowKey(key);
         wf.setStatus(WorkflowStatus.ACTIVE);
         wf.setVersion(1);
         wf.setCreatedBy(creator);

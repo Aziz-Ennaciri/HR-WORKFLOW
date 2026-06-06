@@ -21,24 +21,26 @@ public interface WorkflowMapper {
     @Mapping(target = "name", source = "dto.name")
     @Mapping(target = "description", source = "dto.description")
     @Mapping(target = "status", constant = "DRAFT")
-    @Mapping(target = "workflowKey", source = "dto.workflowKey")
     @Mapping(target = "version", constant = "1")
     @Mapping(target = "createdBy", source = "creator")
     @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "nodes", ignore = true)
     @Mapping(target = "edgesJson", ignore = true)
+    @Mapping(target = "instances", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
     Workflow toEntity(CreateWorkflowDTO dto, User creator);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
-    @Mapping(target = "workflowKey", ignore = true)
     @Mapping(target = "version", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "nodes", ignore = true)
+    @Mapping(target = "instances", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
     void updateEntity(UpdateWorkflowDTO dto, @MappingTarget Workflow workflow);
 
     @Mapping(target = "status", expression = "java(workflow.getStatus().name())")

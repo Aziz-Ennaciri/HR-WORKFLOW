@@ -3,9 +3,13 @@ package ma.rh.ai.hr_workflow.user.service.Impl;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
+import ma.rh.ai.hr_workflow.user.DTOs.ChangeEmailDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.ChangePasswordDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginRequestDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginResponseDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.UpdatePreferencesDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.UpdateProfileDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.UserResponseDTO;
 import ma.rh.ai.hr_workflow.user.mappers.UserMapper;
 import ma.rh.ai.hr_workflow.user.model.Role;
@@ -70,6 +74,9 @@ public class UserServiceImpl implements IUserService {
             throw new RuntimeException("Invalid email or password");
         }
 
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
         String token = jwtTokenProvider.generateToken(user);
 
         LoginResponseDTO response = new LoginResponseDTO();
@@ -114,6 +121,72 @@ public class UserServiceImpl implements IUserService {
     public void disableUser(Long id){
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
         user.setEnabled(false);
+    }
+
+    @Override
+    public UserResponseDTO getMe(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return userMapper.toResponseDTO(user);
+    }
+
+    @Override
+    @Transactional
+    public UserResponseDTO updateProfile(String email, UpdateProfileDTO dto) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        return userMapper.toResponseDTO(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserResponseDTO changeEmail(String email, ChangeEmailDTO dto) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+        if (userRepository.existsByEmail(dto.getNewEmail())) {
+            throw new RuntimeException("Email already in use");
+        }
+        user.setEmail(dto.getNewEmail());
+        return userMapper.toResponseDTO(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(String email, ChangePasswordDTO dto) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public UserResponseDTO updatePreferences(String email, UpdatePreferencesDTO dto) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (dto.getTheme() != null) user.setTheme(dto.getTheme());
+        if (dto.getLanguage() != null) user.setLanguage(dto.getLanguage());
+        if (dto.getEmailNotificationsEnabled() != null) {
+            user.setEmailNotificationsEnabled(dto.getEmailNotificationsEnabled());
+        }
+        return userMapper.toResponseDTO(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public void deleteMe(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setEnabled(false);
+        userRepository.save(user);
     }
 
     private RoleName determineRole(String roleStr) {

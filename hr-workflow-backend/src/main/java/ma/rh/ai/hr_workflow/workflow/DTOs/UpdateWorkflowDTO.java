@@ -15,9 +15,6 @@ public class UpdateWorkflowDTO {
 
     private String description;
 
-    @NotBlank
-    private String workflowKey;
-
     private Integer version;
 
     private WorkflowStatus status;

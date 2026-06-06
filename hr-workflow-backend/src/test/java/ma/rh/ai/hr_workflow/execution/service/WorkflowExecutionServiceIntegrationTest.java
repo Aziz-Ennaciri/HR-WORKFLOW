@@ -84,7 +84,6 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
 
         activeWorkflow = new Workflow();
         activeWorkflow.setName("ActiveWorkflow");
-        activeWorkflow.setWorkflowKey("active_wf_key");
         activeWorkflow.setStatus(WorkflowStatus.ACTIVE);
         activeWorkflow.setVersion(1);
         activeWorkflow.setCreatedBy(user);
@@ -148,7 +147,6 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
             // Arrange
             Workflow draft = new Workflow();
             draft.setName("Draft");
-            draft.setWorkflowKey("draft_key");
             draft.setStatus(WorkflowStatus.DRAFT);
             draft.setVersion(1);
             draft.setCreatedBy(user);

@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.workflow.controllers;
 
 import java.util.List;
 
+import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,15 @@ public class WorkflowController {
             @PathVariable Long id,
             @RequestBody UpdateWorkflowDTO dto) {
         WorkflowResponseDTO updated = workflowService.updateWorkflow(id, dto);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PatchMapping("/{id}")
+    @Operation(summary = "Patch workflow name/description (DRAFT only)")
+    public ResponseEntity<WorkflowResponseDTO> patchWorkflow(
+            @PathVariable Long id,
+            @Valid @RequestBody PatchWorkflowDTO dto) {
+        WorkflowResponseDTO updated = workflowService.patchWorkflow(id, dto);
         return ResponseEntity.ok(updated);
     }
 

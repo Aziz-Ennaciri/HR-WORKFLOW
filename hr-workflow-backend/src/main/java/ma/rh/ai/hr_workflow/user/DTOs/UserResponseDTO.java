@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.user.DTOs;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 import lombok.AllArgsConstructor;
@@ -15,4 +16,8 @@ public class UserResponseDTO {
     private String firstName;
     private String lastName;
     private Set<String> roles;
+    private String theme;
+    private String language;
+    private boolean emailNotificationsEnabled;
+    private LocalDateTime lastLoginAt;
 }

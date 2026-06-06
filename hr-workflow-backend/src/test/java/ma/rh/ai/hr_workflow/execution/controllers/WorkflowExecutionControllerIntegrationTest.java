@@ -83,7 +83,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
 
         activeWorkflow = new Workflow();
         activeWorkflow.setName("ExecCtrlWF");
-        activeWorkflow.setWorkflowKey("exec_ctrl_wf");
         activeWorkflow.setStatus(WorkflowStatus.ACTIVE);
         activeWorkflow.setVersion(1);
         activeWorkflow.setCreatedBy(user);

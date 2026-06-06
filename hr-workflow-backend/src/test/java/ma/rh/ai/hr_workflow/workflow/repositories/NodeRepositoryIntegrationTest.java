@@ -43,7 +43,6 @@ class NodeRepositoryIntegrationTest extends AbstractIntegrationTest {
 
         workflow = new Workflow();
         workflow.setName("NodeTestWorkflow");
-        workflow.setWorkflowKey("node_test_wf");
         workflow.setStatus(WorkflowStatus.DRAFT);
         workflow.setVersion(1);
         workflow.setCreatedBy(user);

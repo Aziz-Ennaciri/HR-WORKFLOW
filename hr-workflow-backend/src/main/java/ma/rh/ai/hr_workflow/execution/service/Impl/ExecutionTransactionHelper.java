@@ -85,7 +85,6 @@ public class ExecutionTransactionHelper {
                 .orElseThrow(() -> new RuntimeException("Node not found"));
 
         instance.getWorkflow().getName();
-        instance.getWorkflow().getWorkflowKey();
 
         NodeInstance nodeInstance = nodeInstanceRepository
                 .findByWorkflowInstanceIdAndNodeId(instance.getId(), node.getId())

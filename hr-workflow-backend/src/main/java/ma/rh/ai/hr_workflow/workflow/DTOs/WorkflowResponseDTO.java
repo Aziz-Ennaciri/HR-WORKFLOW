@@ -13,7 +13,6 @@ public class WorkflowResponseDTO {
     private Long id;
     private String name;
     private String description;
-    private String workflowKey;
     private Integer version;
     private String status;
     private Long createdById;

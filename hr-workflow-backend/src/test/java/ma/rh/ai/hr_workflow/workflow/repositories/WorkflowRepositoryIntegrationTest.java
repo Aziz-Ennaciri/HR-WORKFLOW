@@ -49,10 +49,9 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         userB = userRepository.save(userB);
     }
 
-    private Workflow buildWorkflow(String name, String key, User creator) {
+    private Workflow buildWorkflow(String name, User creator) {
         Workflow w = new Workflow();
         w.setName(name);
-        w.setWorkflowKey(key);
         w.setStatus(WorkflowStatus.DRAFT);
         w.setVersion(1);
         w.setCreatedBy(creator);
@@ -67,7 +66,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("save persists a workflow and findById retrieves it")
         void save_and_findById_roundTrip() {
             // Arrange
-            Workflow workflow = buildWorkflow("Onboarding", "onboarding_v1", userA);
+            Workflow workflow = buildWorkflow("Onboarding", userA);
 
             // Act
             Workflow saved = workflowRepository.save(workflow);
@@ -76,7 +75,6 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
             // Assert
             assertThat(found).isPresent();
             assertThat(found.get().getName()).isEqualTo("Onboarding");
-            assertThat(found.get().getWorkflowKey()).isEqualTo("onboarding_v1");
             assertThat(found.get().getStatus()).isEqualTo(WorkflowStatus.DRAFT);
         }
     }
@@ -89,9 +87,9 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("returns only workflows belonging to the given email")
         void returns_only_owner_workflows() {
             // Arrange
-            workflowRepository.save(buildWorkflow("WF-A1", "wf_a1", userA));
-            workflowRepository.save(buildWorkflow("WF-A2", "wf_a2", userA));
-            workflowRepository.save(buildWorkflow("WF-B1", "wf_b1", userB));
+            workflowRepository.save(buildWorkflow("WF-A1", userA));
+            workflowRepository.save(buildWorkflow("WF-A2", userA));
+            workflowRepository.save(buildWorkflow("WF-B1", userB));
 
             // Act
             List<Workflow> userAWorkflows = workflowRepository
@@ -115,8 +113,8 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("findByDeletedFalse excludes deleted workflows")
         void findByDeletedFalse_excludes_deleted() {
             // Arrange
-            Workflow active = workflowRepository.save(buildWorkflow("Active", "active_wf", userA));
-            Workflow deleted = buildWorkflow("Deleted", "deleted_wf", userA);
+            Workflow active = workflowRepository.save(buildWorkflow("Active", userA));
+            Workflow deleted = buildWorkflow("Deleted", userA);
             deleted.setDeleted(true);
             workflowRepository.save(deleted);
 
@@ -131,8 +129,8 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("findAll returns both deleted and non-deleted workflows")
         void findAll_returns_all_including_deleted() {
             // Arrange
-            workflowRepository.save(buildWorkflow("Normal", "normal_wf", userA));
-            Workflow deleted = buildWorkflow("Ghost", "ghost_wf", userA);
+            workflowRepository.save(buildWorkflow("Normal", userA));
+            Workflow deleted = buildWorkflow("Ghost", userA);
             deleted.setDeleted(true);
             workflowRepository.save(deleted);
 
@@ -147,8 +145,8 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("soft delete hides workflow from findByDeletedFalse")
         void softDelete_hidesWorkflow_fromDeletedFalseQuery() {
             // Arrange
-            workflowRepository.save(buildWorkflow("Visible", "visible_key", userA));
-            Workflow workflow = workflowRepository.save(buildWorkflow("ToDelete", "to_delete", userA));
+            workflowRepository.save(buildWorkflow("Visible", userA));
+            Workflow workflow = workflowRepository.save(buildWorkflow("ToDelete", userA));
 
             // Act
             workflow.setDeleted(true);

@@ -18,7 +18,6 @@ export default function CreateWorkflowModal({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    workflowKey: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,15 +35,12 @@ export default function CreateWorkflowModal({
       await api.post(`/workflows?creatorId=${user.id}`, {
         name: formData.name,
         description: formData.description,
-        workflowKey: formData.workflowKey,
-        version: 1,
-        status: "DRAFT",
       });
 
       alert("Workflow created successfully!");
       onSuccess();
       onClose();
-      setFormData({ name: "", description: "", workflowKey: "" });
+      setFormData({ name: "", description: "" });
     } catch (err: any) {
       console.error("Create workflow error:", err);
       setError(
@@ -131,30 +127,6 @@ export default function CreateWorkflowModal({
                   className={inputClass + " resize-none"}
                   placeholder="Describe what this workflow does…"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Workflow Key
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.workflowKey}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      workflowKey: e.target.value
-                        .toUpperCase()
-                        .replace(/\s/g, "_"),
-                    })
-                  }
-                  className={inputClass}
-                  placeholder="EMPLOYEE_ONBOARDING"
-                />
-                <p className="text-[11px] text-gray-400 mt-1.5">
-                  Unique identifier (uppercase, underscores only)
-                </p>
               </div>
 
               <div className="flex gap-3 pt-3">

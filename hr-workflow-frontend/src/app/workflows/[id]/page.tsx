@@ -40,6 +40,10 @@ export default function WorkflowDesignerPage() {
   const [duplicating, setDuplicating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [invalidNodeIds, setInvalidNodeIds] = useState<Set<string>>(new Set());
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const newNodeOffset = useRef(0);
   const edgesRef = useRef(edges);
   useEffect(() => {
@@ -82,7 +86,6 @@ export default function WorkflowDesignerPage() {
       const requestData = {
         name: workflow.name,
         description: workflow.description,
-        workflowKey: workflow.workflowKey,
         version: workflow.version,
         status: "ACTIVE",
         createdById: workflow.createdById,
@@ -102,7 +105,6 @@ export default function WorkflowDesignerPage() {
       await api.put(`/workflows/${params.id}`, {
         name: workflow.name,
         description: workflow.description,
-        workflowKey: workflow.workflowKey,
         version: workflow.version,
         status: "DRAFT",
         createdById: workflow.createdById,
@@ -331,6 +333,29 @@ export default function WorkflowDesignerPage() {
     }
   };
 
+  const openEditModal = () => {
+    setEditName(workflow?.name || "");
+    setEditDescription(workflow?.description || "");
+    setShowEditModal(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editName.trim()) return;
+    setEditSaving(true);
+    try {
+      const res = await api.patch(`/workflows/${params.id}`, {
+        name: editName.trim(),
+        description: editDescription,
+      });
+      setWorkflow((w: any) => ({ ...w, name: res.data.name, description: res.data.description }));
+      setShowEditModal(false);
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to update workflow");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -345,20 +370,21 @@ export default function WorkflowDesignerPage() {
 
     try {
       const wasActive = workflow?.status === "ACTIVE";
-      const edgesJson = JSON.stringify(edgesRef.current);
 
-      // Persist workflow (deactivate first if active, always carry edgesJson)
-      await api.put(`/workflows/${params.id}`, {
-        name: workflow.name,
-        description: workflow.description,
-        workflowKey: workflow.workflowKey,
-        version: workflow.version,
-        status: wasActive ? "DRAFT" : workflow.status,
-        createdById: workflow.createdById,
-        edgesJson,
-      });
-      if (wasActive) setWorkflow({ ...workflow, status: "DRAFT" });
+      // Step 1: Deactivate if currently active so we can edit
+      if (wasActive) {
+        await api.put(`/workflows/${params.id}`, {
+          name: workflow.name,
+          description: workflow.description,
+          version: workflow.version,
+          status: "DRAFT",
+          createdById: workflow.createdById,
+          edgesJson: JSON.stringify(edgesRef.current),
+        });
+        setWorkflow((w: any) => ({ ...w, status: "DRAFT" }));
+      }
 
+      // Step 2: Sync nodes and build old-id → new-backend-id map
       const existingNodesResponse = await api.get(`/nodes/workflow/${params.id}`);
       const existingNodes = existingNodesResponse.data;
       const existingNodeIds = new Set(existingNodes.map((n: any) => n.id.toString()));
@@ -376,6 +402,7 @@ export default function WorkflowDesignerPage() {
       }
 
       const orderMap = deriveOrderFromEdges(nodesRef.current, edgesRef.current);
+      const idRemap = new Map<string, string>();
 
       for (const node of nodesRef.current) {
         const order = orderMap.get(node.id) ?? 1;
@@ -388,27 +415,40 @@ export default function WorkflowDesignerPage() {
             configJson: JSON.stringify(node.data.config || {}),
           });
         } else {
+          const oldId = node.id;
           const response = await api.post(`/nodes/workflow/${params.id}`, {
             type: node.data.label,
             order,
             configJson: JSON.stringify(node.data.config || {}),
           });
-          node.id = response.data.id.toString();
+          const newId = response.data.id.toString();
+          idRemap.set(oldId, newId);
+          node.id = newId;
         }
       }
 
-      if (wasActive) {
-        await api.put(`/workflows/${params.id}`, {
-          name: workflow.name,
-          description: workflow.description,
-          workflowKey: workflow.workflowKey,
-          version: workflow.version,
-          status: "ACTIVE",
-          createdById: workflow.createdById,
-          edgesJson,
-        });
-        setWorkflow({ ...workflow, status: "ACTIVE" });
+      // Step 3: Remap edge source/target to backend IDs (fixes the disappearing-edges bug)
+      let finalEdges = edgesRef.current;
+      if (idRemap.size > 0) {
+        finalEdges = edgesRef.current.map((edge) => ({
+          ...edge,
+          source: idRemap.get(edge.source) ?? edge.source,
+          target: idRemap.get(edge.target) ?? edge.target,
+        }));
+        setEdges(finalEdges);
       }
+
+      // Step 4: Persist workflow with correct edgesJson and final status
+      const finalStatus = wasActive ? "ACTIVE" : (workflow.status ?? "DRAFT");
+      await api.put(`/workflows/${params.id}`, {
+        name: workflow.name,
+        description: workflow.description,
+        version: workflow.version,
+        status: finalStatus,
+        createdById: workflow.createdById,
+        edgesJson: JSON.stringify(finalEdges),
+      });
+      if (wasActive) setWorkflow((w: any) => ({ ...w, status: "ACTIVE" }));
 
       alert("✅ Workflow saved successfully!");
       await fetchWorkflow();
@@ -476,9 +516,30 @@ export default function WorkflowDesignerPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                {workflow?.name}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900">{workflow?.name}</h1>
+                {workflow?.status === "DRAFT" ? (
+                  <button
+                    onClick={openEditModal}
+                    title="Edit name & description"
+                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    title="Set workflow to DRAFT to edit name/description"
+                    className="text-gray-200 cursor-not-allowed"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-gray-500">{workflow?.description}</p>
             </div>
           </div>
@@ -695,6 +756,63 @@ export default function WorkflowDesignerPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Name/Description Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Workflow</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 focus:bg-white outline-none transition-all"
+                  placeholder="Workflow name"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 focus:bg-white outline-none transition-all resize-none"
+                  placeholder="Describe this workflow…"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-xl border border-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  disabled={editSaving || !editName.trim()}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                >
+                  {editSaving ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : "Save changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,6 +32,11 @@ public class User {
 
     private boolean enabled = true;
 
+    private String theme = "SYSTEM";
+    private String language = "EN";
+    private boolean emailNotificationsEnabled = true;
+    private LocalDateTime lastLoginAt;
+
     @OneToMany(mappedBy = "createdBy")
     private Set<Workflow> workflows = new HashSet<>();
 

@@ -3,6 +3,7 @@ package ma.rh.ai.hr_workflow.workflow.service.Impl;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
+import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
@@ -104,7 +105,6 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
         workflow.setName(dto.getName());
         workflow.setDescription(dto.getDescription());
-        workflow.setWorkflowKey(dto.getWorkflowKey());
 
         if (dto.getVersion() != null) {
             workflow.setVersion(dto.getVersion());
@@ -120,6 +120,21 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
         Workflow updated = workflowRepository.save(workflow);
         return workflowMapper.toResponseDTO(updated);
+    }
+
+    @Transactional
+    @Override
+    public WorkflowResponseDTO patchWorkflow(Long id, PatchWorkflowDTO dto) {
+        Workflow workflow = workflowRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+        if (workflow.getStatus() != WorkflowStatus.DRAFT) {
+            throw new IllegalStateException("Only DRAFT workflows can be renamed or described");
+        }
+        workflow.setName(dto.getName());
+        if (dto.getDescription() != null) {
+            workflow.setDescription(dto.getDescription());
+        }
+        return workflowMapper.toResponseDTO(workflowRepository.save(workflow));
     }
 
     @Transactional
@@ -166,7 +181,6 @@ public class WorkflowServiceImpl implements IWorkflowService {
         Workflow copy = new Workflow();
         copy.setName("Copy of " + original.getName());
         copy.setDescription(original.getDescription());
-        copy.setWorkflowKey(original.getWorkflowKey() + "_copy_" + System.currentTimeMillis());
         copy.setVersion(1);
         copy.setStatus(WorkflowStatus.DRAFT);
         copy.setCreatedBy(user);

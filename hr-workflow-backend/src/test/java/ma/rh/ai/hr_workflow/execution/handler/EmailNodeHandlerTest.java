@@ -44,7 +44,6 @@ class EmailNodeHandlerTest {
         // Arrange
         Workflow wf = new Workflow();
         wf.setName("HR Onboarding");
-        wf.setWorkflowKey("hr-onboarding");
 
         WorkflowInstance wfInstance = new WorkflowInstance();
         wfInstance.setWorkflow(wf);

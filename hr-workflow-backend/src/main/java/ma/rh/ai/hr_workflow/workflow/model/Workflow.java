@@ -30,8 +30,6 @@ public class Workflow {
 
     private String description;
 
-    private String workflowKey;
-
     private Integer version;
 
     @Enumerated(EnumType.STRING)
