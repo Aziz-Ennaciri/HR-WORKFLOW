@@ -53,6 +53,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh 'docker-compose -p hr-app down || true'
+                sh 'docker ps -a | grep "hr-workflow-backend\|hr-workflow-frontend\|hr-workflow-postgres" | awk \'{print $1}\' | xargs -r docker rm -f || true'
                 sh 'docker-compose -p hr-app up -d'
             }
         }
