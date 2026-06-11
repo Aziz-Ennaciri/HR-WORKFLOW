@@ -25,9 +25,9 @@ pipeline {
             }
             post {
                 always {
-                    sh '''
-                        docker ps -a | grep "postgres:15" | grep -v "hr-workflow" | grep -v "hr-infra" | awk '{print $1}' | xargs -r docker rm -f || true
-                    '''
+                    sh """
+                        docker ps -a | grep "postgres:15" | grep -v "hr-workflow" | grep -v "hr-infra" | awk '{print \$1}' | xargs -r docker rm -f || true
+                    """
                 }
             }
         }
@@ -53,7 +53,9 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh 'docker-compose -p hr-app down || true'
-                sh 'docker ps -a | grep "hr-workflow-" | awk \'{print $1}\' | xargs -r docker rm -f || true'
+                sh """
+                    docker ps -a | grep "hr-workflow-" | awk '{print \$1}' | xargs -r docker rm -f || true
+                """
                 sh 'docker-compose -p hr-app up -d'
             }
         }
