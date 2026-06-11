@@ -40,7 +40,9 @@ export default function NodeConfigPanel({
   const handleSave = () => {
     if (node?.data?.label === "DRIVE") {
       if (!config.folderId?.trim()) {
-        alert("Folder ID is required. Enter the subfolder name where files are stored.");
+        alert(
+          "Folder ID is required. Enter the subfolder name where files are stored.",
+        );
         return;
       }
     }
@@ -128,22 +130,36 @@ export default function NodeConfigPanel({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Temperature
+                Response Style
               </label>
-              <input
-                type="number"
-                min="0"
-                max="2"
-                step="0.1"
-                value={config.temperature || 0.7}
-                onChange={(e) =>
+              <select
+                value={
+                  config.temperature === 0.2
+                    ? "precise"
+                    : config.temperature === 1.0
+                      ? "creative"
+                      : "balanced"
+                }
+                onChange={(e) => {
+                  const temperatureMap: Record<string, number> = {
+                    precise: 0.2,
+                    balanced: 0.7,
+                    creative: 1.0,
+                  };
                   setConfig({
                     ...config,
-                    temperature: parseFloat(e.target.value),
-                  })
-                }
+                    temperature: temperatureMap[e.target.value],
+                  });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+              >
+                <option value="precise">Precise</option>
+                <option value="balanced">Balanced</option>
+                <option value="creative">Creative</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Controls how strict or creative the AI response will be
+              </p>
             </div>
           </>
         );
@@ -172,7 +188,7 @@ export default function NodeConfigPanel({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Folder ID *
+                Folder Name
               </label>
               <input
                 type="text"

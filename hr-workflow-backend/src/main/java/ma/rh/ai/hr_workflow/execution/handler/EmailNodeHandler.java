@@ -24,11 +24,10 @@ public class EmailNodeHandler implements NodeHandler{
         String configJson = node.getConfigJson();
         String inputData = nodeInstance.getInputData();
         
-        // Get workflow information
         String workflowName = nodeInstance.getWorkflowInstance().getWorkflow().getName();
 
-        String result = emailService.sendEmail(configJson, inputData, workflowName, null);
-        
+        String workflowKey = workflowName.toLowerCase().replaceAll("\\s+", "-");
+        String result = emailService.sendEmail(configJson, inputData, workflowName, workflowKey);
         return result;
     }
 }

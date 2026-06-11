@@ -23,19 +23,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @AutoConfigureMockMvc
 @Transactional
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
-            .withDatabaseName("hr_workflow_test")
-            .withUsername("test")
-            .withPassword("test")
-            .withReuse(true);
+    static PostgreSQLContainer<?> postgres;
+
+    static {
+        postgres = new PostgreSQLContainer<>("postgres:15")
+                .withDatabaseName("hr_workflow_test")
+                .withUsername("test")
+                .withPassword("test");
+        postgres.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {

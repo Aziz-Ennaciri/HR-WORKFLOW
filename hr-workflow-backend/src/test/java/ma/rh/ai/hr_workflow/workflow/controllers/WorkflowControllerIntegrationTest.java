@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,14 +45,14 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         adminUser.setEmail("wf-admin@test.com");
         adminUser.setPassword(passwordEncoder.encode("pass"));
         adminUser.setEnabled(true);
-        adminUser.setRoles(Set.of(adminRole));
+        adminUser.setRoles(new HashSet<>(Set.of(adminRole)));
         adminUser = userRepository.save(adminUser);
 
         rhUser = new User();
         rhUser.setEmail("wf-rh@test.com");
         rhUser.setPassword(passwordEncoder.encode("pass"));
         rhUser.setEnabled(true);
-        rhUser.setRoles(Set.of(rhRole));
+        rhUser.setRoles(new HashSet<>(Set.of(rhRole)));
         rhUser = userRepository.save(rhUser);
 
         adminToken = getAuthToken("wf-admin@test.com", "pass");

@@ -95,13 +95,13 @@ class LocalDriveServiceImplTest {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> getCvData(Map<String, Object> combined) {
-        return (Map<String, Object>) combined.get("cvData");
+    private Map<String, Object> getFileData(Map<String, Object> combined) {
+        return (Map<String, Object>) combined.get("fileData");
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> getCvs(Map<String, Object> cvData) {
-        return (List<Map<String, Object>>) cvData.get("cvs");
+    private List<Map<String, Object>> getFiles(Map<String, Object> fileData) {
+        return (List<Map<String, Object>>) fileData.get("files");
     }
 
     // ─── action = "write" ─────────────────────────────────────────────────────────
@@ -198,37 +198,37 @@ class LocalDriveServiceImplTest {
 
             Map<String, Object> combined = parseResult(result);
             assertThat(combined).containsKey("originalInput");
-            assertThat(combined).containsKey("cvData");
+            assertThat(combined).containsKey("fileData");
 
-            Map<String, Object> cvData = getCvData(combined);
-            assertThat(cvData.get("totalCVs")).isEqualTo(2);
-            assertThat(cvData).containsEntry("folder", "cv_uploads");
-            assertThat(getCvs(cvData)).hasSize(2);
+            Map<String, Object> fileData = getFileData(combined);
+            assertThat(fileData.get("totalFiles")).isEqualTo(2);
+            assertThat(fileData).containsEntry("folder", "cv_uploads");
+            assertThat(getFiles(fileData)).hasSize(2);
         }
 
         @Test
-        @DisplayName("file contents are included in each CV entry")
+        @DisplayName("file contents are included in each file entry")
         void saveFile_read_fileContentsIncluded() throws Exception {
             createTextFile(tempDir.resolve("docs"), "candidate.txt", "Senior Java Developer with 7 years");
 
             String result = service.saveFile(readConfig("docs"), "{\"prompt\":\"Evaluate\"}");
 
-            List<Map<String, Object>> cvs = getCvs(getCvData(parseResult(result)));
-            assertThat(cvs).hasSize(1);
-            assertThat(cvs.get(0)).containsEntry("fileName", "candidate.txt");
-            assertThat(cvs.get(0).get("content").toString()).contains("Senior Java Developer");
+            List<Map<String, Object>> files = getFiles(getFileData(parseResult(result)));
+            assertThat(files).hasSize(1);
+            assertThat(files.get(0)).containsEntry("fileName", "candidate.txt");
+            assertThat(files.get(0).get("content").toString()).contains("Senior Java Developer");
         }
 
         @Test
-        @DisplayName("empty folder returns totalCVs=0")
+        @DisplayName("empty folder returns totalFiles=0")
         void saveFile_read_emptyFolder_zeroTotal() throws Exception {
             Files.createDirectories(tempDir.resolve("empty_folder"));
 
             String result = service.saveFile(readConfig("empty_folder"), "{\"prompt\":\"Find\"}");
 
-            Map<String, Object> cvData = getCvData(parseResult(result));
-            assertThat(cvData.get("totalCVs")).isEqualTo(0);
-            assertThat(getCvs(cvData)).isEmpty();
+            Map<String, Object> fileData = getFileData(parseResult(result));
+            assertThat(fileData.get("totalFiles")).isEqualTo(0);
+            assertThat(getFiles(fileData)).isEmpty();
         }
 
         @Test
@@ -265,18 +265,18 @@ class LocalDriveServiceImplTest {
 
             Map<String, Object> combined = parseResult(result);
             assertThat(combined).doesNotContainKey("originalInput");
-            assertThat(combined).containsKey("cvData");
+            assertThat(combined).containsKey("fileData");
         }
 
         @Test
-        @DisplayName("non-existent folder throws RuntimeException")
-        void saveFile_read_folderNotFound_throws() {
-            String config = readConfig("nonexistent_folder");
-            String input = "{\"prompt\":\"Test\"}";
+        @DisplayName("non-existent folder auto-creates and returns empty result")
+        void saveFile_read_folderNotFound_autoCreates() throws Exception {
+            String result = service.saveFile(readConfig("nonexistent_folder"), "{\"prompt\":\"Test\"}");
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.saveFile(config, input));
-            assertThat(ex.getMessage()).contains("Local Drive operation failed");
+            Map<String, Object> fileData = getFileData(parseResult(result));
+            assertThat(fileData.get("totalFiles")).isEqualTo(0);
+            assertThat(getFiles(fileData)).isEmpty();
+            assertThat(tempDir.resolve("nonexistent_folder")).isDirectory();
         }
 
         @Test
@@ -289,11 +289,11 @@ class LocalDriveServiceImplTest {
 
             String result = service.saveFile(readConfig("sorted"), "{\"prompt\":\"Sort test\"}");
 
-            List<Map<String, Object>> cvs = getCvs(getCvData(parseResult(result)));
-            assertThat(cvs).hasSize(3);
-            assertThat(cvs.get(0)).containsEntry("fileName", "aaa_first.txt");
-            assertThat(cvs.get(1)).containsEntry("fileName", "mmm_middle.txt");
-            assertThat(cvs.get(2)).containsEntry("fileName", "zzz_last.txt");
+            List<Map<String, Object>> files = getFiles(getFileData(parseResult(result)));
+            assertThat(files).hasSize(3);
+            assertThat(files.get(0)).containsEntry("fileName", "aaa_first.txt");
+            assertThat(files.get(1)).containsEntry("fileName", "mmm_middle.txt");
+            assertThat(files.get(2)).containsEntry("fileName", "zzz_last.txt");
         }
     }
 
@@ -310,12 +310,12 @@ class LocalDriveServiceImplTest {
 
             String result = service.saveFile(readConfig("pdf_folder"), "{\"prompt\":\"Evaluate PDF\"}");
 
-            Map<String, Object> cvData = getCvData(parseResult(result));
-            assertThat(cvData.get("totalCVs")).isEqualTo(1);
+            Map<String, Object> fileData = getFileData(parseResult(result));
+            assertThat(fileData.get("totalFiles")).isEqualTo(1);
 
-            List<Map<String, Object>> cvs = getCvs(cvData);
-            assertThat(cvs.get(0)).containsEntry("fileName", "resume.pdf");
-            assertThat(cvs.get(0).get("content").toString()).contains("Jane Smith");
+            List<Map<String, Object>> files = getFiles(fileData);
+            assertThat(files.get(0)).containsEntry("fileName", "resume.pdf");
+            assertThat(files.get(0).get("content").toString()).contains("Jane Smith");
         }
 
         @Test
@@ -327,8 +327,8 @@ class LocalDriveServiceImplTest {
 
             String result = service.saveFile(readConfig("mixed"), "{\"prompt\":\"Mixed files\"}");
 
-            Map<String, Object> cvData = getCvData(parseResult(result));
-            assertThat(cvData.get("totalCVs")).isEqualTo(2);
+            Map<String, Object> fileData = getFileData(parseResult(result));
+            assertThat(fileData.get("totalFiles")).isEqualTo(2);
         }
     }
 
@@ -346,7 +346,7 @@ class LocalDriveServiceImplTest {
             Map<String, Object> combined = parseResult(
                     service.saveFile("{\"action\":\"READ\",\"folderId\":\"case_test\"}", "{\"prompt\":\"Test\"}"));
 
-            assertThat(combined).containsKey("cvData");
+            assertThat(combined).containsKey("fileData");
         }
 
         @Test
