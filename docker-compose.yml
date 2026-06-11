@@ -52,6 +52,8 @@ services:
 
 volumes:
   postgres-data:
+    external: true
+    name: hr-workflow_postgres-data
   file-storage:
 
 networks:
