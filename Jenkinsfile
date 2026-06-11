@@ -52,8 +52,8 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh 'docker-compose down || true'
-                sh 'docker-compose up -d'
+                sh 'docker-compose -p hr-app down || true'
+                sh 'docker-compose -p hr-app up -d'
             }
         }
     }
