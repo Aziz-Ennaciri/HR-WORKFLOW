@@ -62,14 +62,14 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         userB = userRepository.save(userB);
     }
 
-    private CreateWorkflowDTO buildCreateDTO(String name, String key) {
+    private CreateWorkflowDTO buildCreateDTO(String name) {
         CreateWorkflowDTO dto = new CreateWorkflowDTO();
         dto.setName(name);
         dto.setDescription("desc");
         return dto;
     }
 
-    private Workflow buildActiveWorkflow(String name, String key, User creator) {
+    private Workflow buildActiveWorkflow(String name, User creator) {
         Workflow wf = new Workflow();
         wf.setName(name);
         wf.setStatus(WorkflowStatus.ACTIVE);
@@ -86,7 +86,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("creates a workflow in DRAFT status with correct creator")
         void createWorkflow_persists_with_draft_status() {
             // Arrange
-            CreateWorkflowDTO dto = buildCreateDTO("New WF", "new_wf_key");
+            CreateWorkflowDTO dto = buildCreateDTO("New WF");
 
             // Act
             WorkflowResponseDTO result = workflowService.createWorkflow(dto, userA.getId());
@@ -108,7 +108,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         void activateWorkflow_transitions_to_ACTIVE() {
             // Arrange
             WorkflowResponseDTO created = workflowService.createWorkflow(
-                    buildCreateDTO("ToActivate", "activate_key"), userA.getId());
+                    buildCreateDTO("ToActivate"), userA.getId());
 
             Workflow wf = workflowRepository.findById(created.getId()).orElseThrow();
             Node node = new Node();
@@ -133,7 +133,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         void activateWorkflow_without_nodes_throws() {
             // Arrange
             WorkflowResponseDTO created = workflowService.createWorkflow(
-                    buildCreateDTO("EmptyWF", "empty_key"), userA.getId());
+                    buildCreateDTO("EmptyWF"), userA.getId());
 
             // Act & Assert
             assertThatThrownBy(() -> workflowService.activateWorkflow(created.getId()))
@@ -150,7 +150,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("soft delete marks the workflow as deleted and cancels running instances")
         void deleteWorkflow_marksDeleted_and_cancelsInstances() {
             // Arrange
-            Workflow wf = buildActiveWorkflow("ToDelete", "to_delete_key", userA);
+            Workflow wf = buildActiveWorkflow("ToDelete", userA);
 
             WorkflowInstance running = new WorkflowInstance();
             running.setWorkflow(wf);
@@ -175,8 +175,8 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("deleted workflow does not appear in findByDeletedFalse")
         void deleted_workflow_invisible_to_deleted_false_query() {
             // Arrange
-            buildActiveWorkflow("StillVisible", "still_visible_key", userA);
-            Workflow wf = buildActiveWorkflow("Hidden", "hidden_key", userA);
+            buildActiveWorkflow("StillVisible", userA);
+            Workflow wf = buildActiveWorkflow("Hidden", userA);
 
             // Act
             workflowService.deleteWorkflow(wf.getId());
@@ -196,7 +196,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("duplicate produces a DRAFT copy with the same nodes")
         void duplicateWorkflow_creates_deep_copy() {
             // Arrange
-            Workflow original = buildActiveWorkflow("Original", "orig_key", userA);
+            Workflow original = buildActiveWorkflow("Original", userA);
             Node n1 = new Node();
             n1.setWorkflow(original);
             n1.setType(NodeType.EMAIL);
@@ -231,8 +231,8 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("getWorkflowsByCreatorEmail returns only the calling user's workflows")
         void user_cannot_see_other_users_workflows() {
             // Arrange
-            workflowService.createWorkflow(buildCreateDTO("WF-A", "wf_a_iso"), userA.getId());
-            workflowService.createWorkflow(buildCreateDTO("WF-B", "wf_b_iso"), userB.getId());
+            workflowService.createWorkflow(buildCreateDTO("WF-A"), userA.getId());
+            workflowService.createWorkflow(buildCreateDTO("WF-B"), userB.getId());
 
             // Act
             List<WorkflowResponseDTO> userAResults = workflowService.getWorkflowsByCreatorEmail(userA.getEmail());

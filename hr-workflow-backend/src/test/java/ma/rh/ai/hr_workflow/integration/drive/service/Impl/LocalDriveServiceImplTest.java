@@ -274,7 +274,7 @@ class LocalDriveServiceImplTest {
             String result = service.saveFile(readConfig("nonexistent_folder"), "{\"prompt\":\"Test\"}");
 
             Map<String, Object> fileData = getFileData(parseResult(result));
-            assertThat(fileData.get("totalFiles")).isEqualTo(0);
+            assertThat(fileData).containsEntry("totalFiles", 0);
             assertThat(getFiles(fileData)).isEmpty();
             assertThat(tempDir.resolve("nonexistent_folder")).isDirectory();
         }

@@ -113,7 +113,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("findByDeletedFalse excludes deleted workflows")
         void findByDeletedFalse_excludes_deleted() {
             // Arrange
-            Workflow active = workflowRepository.save(buildWorkflow("Active", userA));
+            workflowRepository.save(buildWorkflow("Active", userA));
             Workflow deleted = buildWorkflow("Deleted", userA);
             deleted.setDeleted(true);
             workflowRepository.save(deleted);

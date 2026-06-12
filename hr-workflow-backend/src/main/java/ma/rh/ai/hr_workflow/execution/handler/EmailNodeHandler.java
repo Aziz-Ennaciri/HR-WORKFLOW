@@ -27,7 +27,6 @@ public class EmailNodeHandler implements NodeHandler{
         String workflowName = nodeInstance.getWorkflowInstance().getWorkflow().getName();
 
         String workflowKey = workflowName.toLowerCase().replaceAll("\\s+", "-");
-        String result = emailService.sendEmail(configJson, inputData, workflowName, workflowKey);
-        return result;
+        return emailService.sendEmail(configJson, inputData, workflowName, workflowKey);
     }
 }

@@ -29,6 +29,8 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements IUserService {
+    private static final String USER_NOT_FOUND = "User not found";
+
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -126,7 +128,7 @@ public class UserServiceImpl implements IUserService {
     @Override
     public UserResponseDTO getMe(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         return userMapper.toResponseDTO(user);
     }
 
@@ -134,7 +136,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO updateProfile(String email, UpdateProfileDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         user.setFirstName(dto.getFirstName());
         user.setLastName(dto.getLastName());
         return userMapper.toResponseDTO(userRepository.save(user));
@@ -144,12 +146,12 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO changeEmail(String email, ChangeEmailDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-            throw new RuntimeException("Current password is incorrect");
+            throw new IllegalArgumentException("Current password is incorrect");
         }
         if (userRepository.existsByEmail(dto.getNewEmail())) {
-            throw new RuntimeException("Email already in use");
+            throw new IllegalArgumentException("Email already in use");
         }
         user.setEmail(dto.getNewEmail());
         return userMapper.toResponseDTO(userRepository.save(user));
@@ -159,9 +161,9 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public void changePassword(String email, ChangePasswordDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-            throw new RuntimeException("Current password is incorrect");
+            throw new IllegalArgumentException("Current password is incorrect");
         }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userRepository.save(user);
@@ -171,7 +173,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO updatePreferences(String email, UpdatePreferencesDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         if (dto.getTheme() != null) user.setTheme(dto.getTheme());
         if (dto.getLanguage() != null) user.setLanguage(dto.getLanguage());
         if (dto.getEmailNotificationsEnabled() != null) {
@@ -184,7 +186,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public void deleteMe(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
         user.setEnabled(false);
         userRepository.save(user);
     }
