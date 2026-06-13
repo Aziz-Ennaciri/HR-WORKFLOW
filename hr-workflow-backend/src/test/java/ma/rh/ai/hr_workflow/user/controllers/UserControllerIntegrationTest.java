@@ -11,6 +11,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+// Additional DTOs are serialised inline as JSON strings — no extra imports needed
+
 @DisplayName("UserController Integration Tests")
 class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
@@ -159,6 +161,231 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             // Act & Assert
             mockMvc.perform(delete("/api/v1/users/" + targetId)
+                            .header("Authorization", token))
+                    .andExpect(status().isNoContent());
+        }
+    }
+
+    // ── /me endpoint tests ─────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("GET /api/v1/users/me")
+    class GetMe {
+
+        @Test
+        @DisplayName("authenticated user gets their own profile — returns 200 with email")
+        void getMe_authenticated_returns_200() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("me@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("me@test.com", "pass");
+
+            // Act & Assert
+            mockMvc.perform(get("/api/v1/users/me")
+                            .header("Authorization", token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email").value("me@test.com"));
+        }
+
+        @Test
+        @DisplayName("unauthenticated request resolves to 'anonymousUser' which is not in DB — throws RuntimeException")
+        void getMe_anonymousUser_throws() {
+            // Spring sets AnonymousAuthenticationToken (name="anonymousUser") when no Bearer header is
+            // present. No DB user matches that email, so the service throws RuntimeException.
+            assertThatThrownBy(() ->
+                mockMvc.perform(get("/api/v1/users/me")))
+                    .hasCauseInstanceOf(RuntimeException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /api/v1/users/me — update profile")
+    class UpdateProfile {
+
+        @Test
+        @DisplayName("authenticated user updates first/last name — returns 200")
+        void updateProfile_authenticated_returns_200() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("profile@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("profile@test.com", "pass");
+
+            String body = "{\"firstName\":\"Updated\",\"lastName\":\"Name\"}";
+
+            // Act & Assert
+            mockMvc.perform(patch("/api/v1/users/me")
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.firstName").value("Updated"))
+                    .andExpect(jsonPath("$.lastName").value("Name"));
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/users/me/email — change email")
+    class ChangeEmail {
+
+        @Test
+        @DisplayName("correct current password and free email — returns 200 with new email")
+        void changeEmail_correctPassword_returns_200() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("oldemail@test.com", "pass123", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("oldemail@test.com", "pass123");
+
+            String body = "{\"newEmail\":\"newemail@test.com\",\"currentPassword\":\"pass123\"}";
+
+            // Act & Assert
+            mockMvc.perform(put("/api/v1/users/me/email")
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email").value("newemail@test.com"));
+        }
+
+        @Test
+        @DisplayName("wrong current password throws IllegalArgumentException")
+        void changeEmail_wrongPassword_throws() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("emailwrong@test.com", "correct", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("emailwrong@test.com", "correct");
+
+            String body = "{\"newEmail\":\"other@test.com\",\"currentPassword\":\"wrongpwd\"}";
+
+            // Act & Assert
+            assertThatThrownBy(() ->
+                mockMvc.perform(put("/api/v1/users/me/email")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)))
+                    .hasCauseInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("new email already taken throws IllegalArgumentException")
+        void changeEmail_emailAlreadyInUse_throws() throws Exception {
+            // Arrange — register two users; user1 tries to take user2's email
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("emailuser1@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("emailuser2@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("emailuser1@test.com", "pass");
+
+            String body = "{\"newEmail\":\"emailuser2@test.com\",\"currentPassword\":\"pass\"}";
+
+            // Act & Assert
+            assertThatThrownBy(() ->
+                mockMvc.perform(put("/api/v1/users/me/email")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)))
+                    .hasCauseInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/users/me/password — change password")
+    class ChangePassword {
+
+        @Test
+        @DisplayName("correct current password — returns 204")
+        void changePassword_correctPassword_returns_204() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("changepwd@test.com", "oldpass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("changepwd@test.com", "oldpass");
+
+            String body = "{\"currentPassword\":\"oldpass\",\"newPassword\":\"newpass12\"}";
+
+            // Act & Assert
+            mockMvc.perform(put("/api/v1/users/me/password")
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isNoContent());
+        }
+
+        @Test
+        @DisplayName("wrong current password throws IllegalArgumentException")
+        void changePassword_wrongPassword_throws() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("pwdwrong@test.com", "correct", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("pwdwrong@test.com", "correct");
+
+            String body = "{\"currentPassword\":\"wrongpwd\",\"newPassword\":\"newpass12\"}";
+
+            // Act & Assert
+            assertThatThrownBy(() ->
+                mockMvc.perform(put("/api/v1/users/me/password")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)))
+                    .hasCauseInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/users/me/preferences — update preferences")
+    class UpdatePreferences {
+
+        @Test
+        @DisplayName("authenticated user updates theme and language — returns 200")
+        void updatePreferences_authenticated_returns_200() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("prefs@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("prefs@test.com", "pass");
+
+            String body = "{\"theme\":\"dark\",\"language\":\"fr\",\"emailNotificationsEnabled\":false}";
+
+            // Act & Assert
+            mockMvc.perform(put("/api/v1/users/me/preferences")
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/users/me — soft-delete own account")
+    class DeleteMe {
+
+        @Test
+        @DisplayName("authenticated user soft-deletes their account — returns 204")
+        void deleteMe_authenticated_returns_204() throws Exception {
+            // Arrange
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("deleteme@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+            String token = getAuthToken("deleteme@test.com", "pass");
+
+            // Act & Assert
+            mockMvc.perform(delete("/api/v1/users/me")
                             .header("Authorization", token))
                     .andExpect(status().isNoContent());
         }

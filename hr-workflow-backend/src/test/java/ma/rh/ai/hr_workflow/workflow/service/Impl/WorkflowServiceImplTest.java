@@ -6,6 +6,7 @@ import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
+import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
@@ -702,6 +703,88 @@ class WorkflowServiceImplTest {
 
             // Act & Assert
             assertThrows(RuntimeException.class, () -> service.archiveWorkflow(99L));
+        }
+    }
+
+    // ─── patchWorkflow ────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("patchWorkflow()")
+    class PatchWorkflow {
+
+        @Test
+        @DisplayName("happy path — DRAFT workflow name and description updated")
+        void patchWorkflow_draft_withDescription_happyPath() {
+            // Arrange
+            Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
+            existing.setDescription("old desc");
+            PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", "new desc");
+            Workflow saved = buildWorkflow(1L, "New Name", WorkflowStatus.DRAFT);
+            WorkflowResponseDTO expected = buildResponseDTO(1L, "New Name");
+
+            when(workflowRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(workflowRepository.save(existing)).thenReturn(saved);
+            when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
+
+            // Act
+            WorkflowResponseDTO result = service.patchWorkflow(1L, dto);
+
+            // Assert
+            assertThat(result).isEqualTo(expected);
+            assertThat(existing.getName()).isEqualTo("New Name");
+            assertThat(existing.getDescription()).isEqualTo("new desc");
+            verify(workflowRepository).save(existing);
+        }
+
+        @Test
+        @DisplayName("edge case — null description leaves existing description unchanged")
+        void patchWorkflow_draft_nullDescription_descriptionUnchanged() {
+            // Arrange
+            Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
+            existing.setDescription("keep this");
+            PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", null);
+            Workflow saved = buildWorkflow(1L, "New Name", WorkflowStatus.DRAFT);
+            WorkflowResponseDTO expected = buildResponseDTO(1L, "New Name");
+
+            when(workflowRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(workflowRepository.save(existing)).thenReturn(saved);
+            when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
+
+            // Act
+            service.patchWorkflow(1L, dto);
+
+            // Assert — description NOT overwritten
+            assertThat(existing.getDescription()).isEqualTo("keep this");
+        }
+
+        @Test
+        @DisplayName("exception — non-DRAFT workflow throws IllegalStateException")
+        void patchWorkflow_notDraft_throws() {
+            // Arrange
+            Workflow existing = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
+            PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", "desc");
+
+            when(workflowRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+            // Act & Assert
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> service.patchWorkflow(1L, dto));
+            assertThat(ex.getMessage()).contains("Only DRAFT workflows can be renamed or described");
+            verify(workflowRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("exception — workflow not found throws RuntimeException")
+        void patchWorkflow_notFound_throws() {
+            // Arrange
+            when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
+            PatchWorkflowDTO dto = new PatchWorkflowDTO("N", "d");
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.patchWorkflow(99L, dto));
+            assertThat(ex.getMessage()).contains("Workflow not found");
+            verify(workflowRepository, never()).save(any());
         }
     }
 }

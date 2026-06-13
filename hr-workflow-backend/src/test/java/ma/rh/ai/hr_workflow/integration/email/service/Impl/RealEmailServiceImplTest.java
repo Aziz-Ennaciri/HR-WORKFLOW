@@ -291,6 +291,26 @@ class RealEmailServiceImplTest {
             verify(mailSender).send(captor.capture());
             assertThat(captor.getValue().getText()).doesNotContain("CV Recruitment Analysis Complete");
         }
+
+        @Test
+        @DisplayName("non-null workflowName with null workflowKey — covers null-key ternary branch")
+        void sendEmail_nonNullName_nullKey_coversNullKeyBranch() throws Exception {
+            // Arrange — workflowName is non-CV so no CV customisation, workflowKey is null.
+            // This is the only path that reaches `workflowKey != null ? ... : ""` with key == null
+            // while also not returning early from the null-name guard.
+            String config = configJson("hr@test.com", "Sub", "Body");
+            String input  = requestJson("hr@test.com");
+            doNothing().when(mailSender).send(any(SimpleMailMessage.class));
+
+            // Act
+            service.sendEmail(config, input, "Onboarding Workflow", null);
+
+            // Assert — null key → not a CV workflow, body is unchanged
+            ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+            verify(mailSender).send(captor.capture());
+            assertThat(captor.getValue().getText()).doesNotContain("CV Recruitment Analysis Complete");
+            assertThat(captor.getValue().getText()).isEqualTo("Body");
+        }
     }
 
     // ─── CV workflow subject customization ────────────────────────────────────────

@@ -8,6 +8,7 @@ import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.RoleRepository;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
+import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -273,6 +274,69 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
             // Assert — new ID is different from the original
             Long newId = objectMapper.readTree(dupResult.getResponse().getContentAsString()).get("id").asLong();
             assertThat(newId).isNotEqualTo(originalId);
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /api/v1/workflows/{id} — patch name/description (DRAFT only)")
+    class PatchWorkflow {
+
+        @Test
+        @DisplayName("DRAFT workflow name patched — returns 200 with updated name")
+        void patch_draft_workflow_returns_200() throws Exception {
+            // Arrange — create a DRAFT workflow
+            MvcResult created = mockMvc.perform(post("/api/v1/workflows")
+                    .param("creatorId", adminUser.getId().toString())
+                    .header("Authorization", adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createWorkflowBody("BeforePatch")))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+            PatchWorkflowDTO patchDTO = new PatchWorkflowDTO("AfterPatch", "patched description");
+
+            // Act & Assert
+            mockMvc.perform(patch("/api/v1/workflows/" + id)
+                            .header("Authorization", adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(patchDTO)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("AfterPatch"));
+        }
+
+        @Test
+        @DisplayName("patching a non-DRAFT workflow throws IllegalStateException")
+        void patch_non_draft_workflow_throws() throws Exception {
+            // Arrange — create workflow then make it ACTIVE via update
+            MvcResult created = mockMvc.perform(post("/api/v1/workflows")
+                    .param("creatorId", adminUser.getId().toString())
+                    .header("Authorization", adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createWorkflowBody("ToActivate")))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+            // Promote to ACTIVE via PUT
+            UpdateWorkflowDTO activateDTO = new UpdateWorkflowDTO();
+            activateDTO.setName("ToActivate");
+            activateDTO.setStatus(ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus.ACTIVE);
+            mockMvc.perform(put("/api/v1/workflows/" + id)
+                    .header("Authorization", adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(activateDTO)))
+                    .andExpect(status().isOk());
+
+            PatchWorkflowDTO patchDTO = new PatchWorkflowDTO("ShouldFail", null);
+
+            // Act & Assert — service throws IllegalStateException for non-DRAFT
+            assertThatThrownBy(() ->
+                mockMvc.perform(patch("/api/v1/workflows/" + id)
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchDTO))))
+                    .hasCauseInstanceOf(IllegalStateException.class);
         }
     }
 }

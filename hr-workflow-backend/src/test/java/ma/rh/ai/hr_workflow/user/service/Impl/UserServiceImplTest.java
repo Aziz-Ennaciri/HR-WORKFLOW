@@ -1,9 +1,13 @@
 package ma.rh.ai.hr_workflow.user.service.Impl;
 
 import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
+import ma.rh.ai.hr_workflow.user.DTOs.ChangeEmailDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.ChangePasswordDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginRequestDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginResponseDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.UpdatePreferencesDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.UpdateProfileDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.UserResponseDTO;
 import ma.rh.ai.hr_workflow.user.mappers.UserMapper;
 import ma.rh.ai.hr_workflow.user.model.Role;
@@ -550,6 +554,356 @@ class UserServiceImplTest {
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> userService.disableUser(99L));
             assertThat(ex.getMessage()).contains("User not found");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // getMe()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("getMe()")
+    class GetMe {
+
+        @Test
+        @DisplayName("happy path — returns mapped DTO for existing email")
+        void getMe_happyPath() {
+            // Arrange
+            User user = buildEnabledUser(1L, "me@example.com", "enc");
+            UserResponseDTO response = buildResponseDTO(1L, "me@example.com");
+            when(userRepository.findByEmail("me@example.com")).thenReturn(Optional.of(user));
+            when(userMapper.toResponseDTO(user)).thenReturn(response);
+
+            // Act
+            UserResponseDTO result = userService.getMe("me@example.com");
+
+            // Assert
+            assertThat(result).isEqualTo(response);
+        }
+
+        @Test
+        @DisplayName("exception — email not found throws RuntimeException")
+        void getMe_notFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.getMe("ghost@example.com"));
+            assertThat(ex.getMessage()).contains("User not found");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // updateProfile()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("updateProfile()")
+    class UpdateProfile {
+
+        @Test
+        @DisplayName("happy path — first/last name updated and saved")
+        void updateProfile_happyPath() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "enc");
+            UpdateProfileDTO dto = new UpdateProfileDTO();
+            dto.setFirstName("NewFirst");
+            dto.setLastName("NewLast");
+            UserResponseDTO response = buildResponseDTO(1L, "u@example.com");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(userRepository.save(user)).thenReturn(user);
+            when(userMapper.toResponseDTO(user)).thenReturn(response);
+
+            // Act
+            UserResponseDTO result = userService.updateProfile("u@example.com", dto);
+
+            // Assert
+            assertThat(result).isEqualTo(response);
+            assertThat(user.getFirstName()).isEqualTo("NewFirst");
+            assertThat(user.getLastName()).isEqualTo("NewLast");
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("exception — user not found throws RuntimeException")
+        void updateProfile_notFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("none@example.com")).thenReturn(Optional.empty());
+            UpdateProfileDTO dto = new UpdateProfileDTO();
+            dto.setFirstName("A");
+            dto.setLastName("B");
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.updateProfile("none@example.com", dto));
+            assertThat(ex.getMessage()).contains("User not found");
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // changeEmail()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("changeEmail()")
+    class ChangeEmail {
+
+        @Test
+        @DisplayName("happy path — correct password and available new email updates email")
+        void changeEmail_happyPath() {
+            // Arrange
+            User user = buildEnabledUser(1L, "old@example.com", "encoded");
+            ChangeEmailDTO dto = new ChangeEmailDTO();
+            dto.setCurrentPassword("rawPwd");
+            dto.setNewEmail("new@example.com");
+            UserResponseDTO response = buildResponseDTO(1L, "new@example.com");
+
+            when(userRepository.findByEmail("old@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("rawPwd", "encoded")).thenReturn(true);
+            when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
+            when(userRepository.save(user)).thenReturn(user);
+            when(userMapper.toResponseDTO(user)).thenReturn(response);
+
+            // Act
+            UserResponseDTO result = userService.changeEmail("old@example.com", dto);
+
+            // Assert
+            assertThat(result).isEqualTo(response);
+            assertThat(user.getEmail()).isEqualTo("new@example.com");
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("exception — user not found throws RuntimeException")
+        void changeEmail_userNotFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+            ChangeEmailDTO dto = new ChangeEmailDTO();
+            dto.setCurrentPassword("pw");
+            dto.setNewEmail("x@example.com");
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.changeEmail("ghost@example.com", dto));
+            assertThat(ex.getMessage()).contains("User not found");
+            verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("exception — wrong current password throws IllegalArgumentException")
+        void changeEmail_wrongPassword_throws() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "encoded");
+            ChangeEmailDTO dto = new ChangeEmailDTO();
+            dto.setCurrentPassword("wrong");
+            dto.setNewEmail("new@example.com");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
+
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> userService.changeEmail("u@example.com", dto));
+            assertThat(ex.getMessage()).contains("Current password is incorrect");
+            verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("exception — new email already in use throws IllegalArgumentException")
+        void changeEmail_emailAlreadyInUse_throws() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "encoded");
+            ChangeEmailDTO dto = new ChangeEmailDTO();
+            dto.setCurrentPassword("rawPwd");
+            dto.setNewEmail("taken@example.com");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("rawPwd", "encoded")).thenReturn(true);
+            when(userRepository.existsByEmail("taken@example.com")).thenReturn(true);
+
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> userService.changeEmail("u@example.com", dto));
+            assertThat(ex.getMessage()).contains("Email already in use");
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // changePassword()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("changePassword()")
+    class ChangePassword {
+
+        @Test
+        @DisplayName("happy path — correct current password encodes and saves new password")
+        void changePassword_happyPath() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "oldEncoded");
+            ChangePasswordDTO dto = new ChangePasswordDTO();
+            dto.setCurrentPassword("oldRaw");
+            dto.setNewPassword("newPassword1");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("oldRaw", "oldEncoded")).thenReturn(true);
+            when(passwordEncoder.encode("newPassword1")).thenReturn("newEncoded");
+            when(userRepository.save(user)).thenReturn(user);
+
+            // Act
+            userService.changePassword("u@example.com", dto);
+
+            // Assert
+            assertThat(user.getPassword()).isEqualTo("newEncoded");
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("exception — user not found throws RuntimeException")
+        void changePassword_userNotFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+            ChangePasswordDTO dto = new ChangePasswordDTO();
+            dto.setCurrentPassword("pw");
+            dto.setNewPassword("newpass12");
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.changePassword("ghost@example.com", dto));
+            assertThat(ex.getMessage()).contains("User not found");
+            verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("exception — wrong current password throws IllegalArgumentException")
+        void changePassword_wrongCurrentPassword_throws() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "encoded");
+            ChangePasswordDTO dto = new ChangePasswordDTO();
+            dto.setCurrentPassword("wrong");
+            dto.setNewPassword("newpass12");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
+
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> userService.changePassword("u@example.com", dto));
+            assertThat(ex.getMessage()).contains("Current password is incorrect");
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // updatePreferences()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("updatePreferences()")
+    class UpdatePreferences {
+
+        @Test
+        @DisplayName("happy path — all preferences updated when all fields non-null")
+        void updatePreferences_allFieldsPresent() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "enc");
+            UpdatePreferencesDTO dto = new UpdatePreferencesDTO();
+            dto.setTheme("dark");
+            dto.setLanguage("fr");
+            dto.setEmailNotificationsEnabled(false);
+            UserResponseDTO response = buildResponseDTO(1L, "u@example.com");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(userRepository.save(user)).thenReturn(user);
+            when(userMapper.toResponseDTO(user)).thenReturn(response);
+
+            // Act
+            UserResponseDTO result = userService.updatePreferences("u@example.com", dto);
+
+            // Assert
+            assertThat(result).isEqualTo(response);
+            assertThat(user.getTheme()).isEqualTo("dark");
+            assertThat(user.getLanguage()).isEqualTo("fr");
+            assertThat(user.isEmailNotificationsEnabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("edge case — null fields are skipped, existing values preserved")
+        void updatePreferences_nullFieldsSkipped() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "enc");
+            user.setTheme("light");
+            user.setLanguage("en");
+            UpdatePreferencesDTO dto = new UpdatePreferencesDTO();
+            // all fields null — nothing should change
+            UserResponseDTO response = buildResponseDTO(1L, "u@example.com");
+
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(userRepository.save(user)).thenReturn(user);
+            when(userMapper.toResponseDTO(user)).thenReturn(response);
+
+            // Act
+            userService.updatePreferences("u@example.com", dto);
+
+            // Assert — original values unchanged
+            assertThat(user.getTheme()).isEqualTo("light");
+            assertThat(user.getLanguage()).isEqualTo("en");
+        }
+
+        @Test
+        @DisplayName("exception — user not found throws RuntimeException")
+        void updatePreferences_notFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+            UpdatePreferencesDTO dto = new UpdatePreferencesDTO();
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.updatePreferences("ghost@example.com", dto));
+            assertThat(ex.getMessage()).contains("User not found");
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // deleteMe()
+    // ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("deleteMe()")
+    class DeleteMe {
+
+        @Test
+        @DisplayName("happy path — user account is soft-disabled")
+        void deleteMe_happyPath() {
+            // Arrange
+            User user = buildEnabledUser(1L, "u@example.com", "enc");
+            when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(user));
+            when(userRepository.save(user)).thenReturn(user);
+
+            // Act
+            userService.deleteMe("u@example.com");
+
+            // Assert
+            assertThat(user.isEnabled()).isFalse();
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("exception — user not found throws RuntimeException")
+        void deleteMe_notFound_throws() {
+            // Arrange
+            when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+            // Act & Assert
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.deleteMe("ghost@example.com"));
+            assertThat(ex.getMessage()).contains("User not found");
+            verify(userRepository, never()).save(any());
         }
     }
 }
