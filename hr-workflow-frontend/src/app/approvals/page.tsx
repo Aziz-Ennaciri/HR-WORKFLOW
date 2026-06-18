@@ -7,6 +7,7 @@ import { useAuthGuard, getUser } from "@/lib/auth";
 import api from "@/lib/api";
 import { getWorkflowsUrl } from "@/lib/workflows";
 import toast from "react-hot-toast";
+import { FormatGptOutput } from "@/lib/formatGptOutput";
 
 export default function ApprovalsPage() {
   const router = useRouter();
@@ -232,11 +233,17 @@ export default function ApprovalsPage() {
                               Data submitted for review
                             </p>
                             <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 max-h-60 overflow-y-auto">
-                              <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono">
-                                {typeof inputData === "string"
-                                  ? inputData
-                                  : JSON.stringify(inputData, null, 2)}
-                              </pre>
+                              {inputData?.analysis ? (
+                                <FormatGptOutput text={inputData.analysis} />
+                              ) : (
+                                <FormatGptOutput
+                                  text={
+                                    typeof inputData === "string"
+                                      ? inputData
+                                      : JSON.stringify(inputData, null, 2)
+                                  }
+                                />
+                              )}
                             </div>
                           </div>
                         )}

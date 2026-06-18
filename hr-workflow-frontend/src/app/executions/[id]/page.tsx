@@ -8,6 +8,7 @@ import { useAuthGuard, getUser } from "@/lib/auth";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { getWorkflowsUrl } from "@/lib/workflows";
+import { extractCandidates, FormatGptOutput } from "@/lib/formatGptOutput";
 
 export default function ExecutionDetailPage() {
   const params = useParams();
@@ -381,10 +382,7 @@ function NodeResultCard({
     try {
       parsedOutput = JSON.parse(nodeInstance.outputData);
       if (parsedOutput.analysis) {
-        try {
-          const parsed = JSON.parse(parsedOutput.analysis);
-          if (Array.isArray(parsed)) candidates = parsed;
-        } catch {}
+        candidates = extractCandidates(parsedOutput.analysis);
       }
     } catch {}
   }
@@ -541,9 +539,9 @@ function NodeResultCard({
               <p className="text-gray-500 text-xs font-semibold mb-2">
                 AI Analysis
               </p>
-              <pre className="text-gray-600 text-xs whitespace-pre-wrap overflow-x-auto max-h-48">
-                {parsedOutput.analysis}
-              </pre>
+              <div className="max-h-64 overflow-y-auto">
+                <FormatGptOutput text={parsedOutput.analysis} />
+              </div>
             </div>
           )}
 

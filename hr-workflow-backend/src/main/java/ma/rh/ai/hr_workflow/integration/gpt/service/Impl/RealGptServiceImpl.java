@@ -108,6 +108,7 @@ public class RealGptServiceImpl implements GptService {
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("model", model);
+        request.put("system", "You are a helpful HR recruitment assistant. Respond in clear, readable natural language. Write your analysis as paragraphs or bullet points. Do not format your response as JSON.");
         request.put("prompt", prompt);
         request.put("stream", false);
 
@@ -334,13 +335,15 @@ public class RealGptServiceImpl implements GptService {
 
             p.append("=== RULES ===\n");
             if (!experience.isEmpty())
-                p.append("1. REMOVE candidates with less than ").append(experience).append(" years.\n");
+                p.append("1. Exclude candidates with less than ").append(experience).append(" years of experience.\n");
             if (!skills.isEmpty())
-                p.append("2. REMOVE candidates missing all of: ").append(skills).append(".\n");
-            p.append("3. Score 0-10, sort desc, return top ").append(topN).append(".\n");
-            p.append("4. If nobody matches: []\n");
-            p.append("5. JSON array only, no markdown.\n");
-            p.append("   [{\"name\":\"...\",\"email\":\"...\",\"experience\":number,\"skills\":\"...\",\"score\":number}]\n\n");
+                p.append("2. Exclude candidates who lack all of these skills: ").append(skills).append(".\n");
+            p.append("3. Score each remaining candidate 0-10 and select the top ").append(topN).append(".\n");
+            p.append("4. If no candidates match, say so in plain text.\n\n");
+            p.append("=== OUTPUT FORMAT ===\n");
+            p.append("Write a short natural language report. For each selected candidate, write one line:\n");
+            p.append("  [Full Name] — [email] — [X] years experience — Skills: [skills] — Score: [N]/10\n");
+            p.append("Then add a brief 1-2 sentence summary. Do not output JSON.\n\n");
 
             p.append("=== CVs ===\n");
             if (candidateData != null) p.append(candidateData.trim());
