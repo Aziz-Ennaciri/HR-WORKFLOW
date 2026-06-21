@@ -1,15 +1,24 @@
 package ma.rh.ai.hr_workflow.integration.excel.service.Impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import ma.rh.ai.hr_workflow.integration.excel.DTOs.ExcelResponseDTO;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,12 +29,16 @@ class RealExcelServiceImplTest {
     private ObjectMapper objectMapper;
     private RealExcelServiceImpl service;
 
+    @TempDir
+    Path tempDir;
+
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         service = new RealExcelServiceImpl(objectMapper);
+        ReflectionTestUtils.setField(service, "storagePath", tempDir.toString());
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -283,7 +296,102 @@ class RealExcelServiceImplTest {
         }
     }
 
-    // ─── Format 4: JSON table (non-analysis JSON input) ──────────────────────────
+    // ─── Format 4: Structured JSON array (jsonData field from GPT outputFormat=json) ──
+
+    @Nested
+    @DisplayName("Format 4: Structured JSON array (jsonData field — GPT outputFormat=json)")
+    class JsonDataArrayFormat {
+
+        private final String FULL_GPT_RESPONSE =
+                "{\"jsonData\":["
+                + "{\"rank\":\"1\",\"name\":\"Fatima Alaoui\",\"email\":\"fatima@test.com\","
+                + "\"experience\":\"10 years\",\"skills\":\"Java, Spring Boot\",\"score\":\"9/10\","
+                + "\"summary\":\"Excellent candidate\"},"
+                + "{\"rank\":\"2\",\"name\":\"Nour El Houda\",\"email\":\"nour@test.com\","
+                + "\"experience\":\"6 years\",\"skills\":\"Angular, Spring Boot\",\"score\":\"8.5/10\","
+                + "\"summary\":\"Seasoned developer\"}"
+                + "],\"analysis\":\"raw text\",\"model\":\"llama3.2:3b\",\"tokensUsed\":150}";
+
+        @Test
+        @DisplayName("happy path — jsonData array produces header + data rows")
+        void processData_jsonDataArray_happyPath() throws Exception {
+            String configJson = baseConfigJson("Rankings", "WRITE");
+
+            String result = service.processData(configJson, FULL_GPT_RESPONSE);
+
+            ExcelResponseDTO response = parseResponse(result);
+            assertThat(response.getSheetName()).isEqualTo("Rankings");
+            assertThat(response.getRowsProcessed()).isEqualTo(3); // 1 header + 2 data rows
+            assertThat(response.getColumnsProcessed()).isEqualTo(7); // rank, name, email, experience, skills, score, summary
+            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getFileSize()).isPositive();
+            assertThat(response.getOutputFileUrl()).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("single-item jsonData array — header + 1 row = 2 rows total")
+        void processData_jsonDataArray_singleItem() throws Exception {
+            String configJson = baseConfigJson("Results", "WRITE");
+            String singleItem =
+                    "{\"jsonData\":[{\"rank\":\"1\",\"name\":\"Alice\",\"score\":\"9/10\"}],"
+                    + "\"analysis\":\"Alice\",\"model\":\"llama3.2:3b\",\"tokensUsed\":50}";
+
+            String result = service.processData(configJson, singleItem);
+
+            ExcelResponseDTO response = parseResponse(result);
+            assertThat(response.getRowsProcessed()).isEqualTo(2); // header + 1 row
+            assertThat(response.getColumnsProcessed()).isEqualTo(3); // rank, name, score
+        }
+
+        @Test
+        @DisplayName("jsonData takes priority over analysis field when both present")
+        void processData_jsonDataTakesPriorityOverAnalysis() throws Exception {
+            String configJson = baseConfigJson("Priority", "WRITE");
+            String bothPresent =
+                    "{\"jsonData\":[{\"name\":\"Alice\",\"score\":\"9\"}],"
+                    + "\"analysis\":\"plain text that should NOT drive row count\","
+                    + "\"model\":\"test\",\"tokensUsed\":10}";
+
+            String result = service.processData(configJson, bothPresent);
+
+            ExcelResponseDTO response = parseResponse(result);
+            // jsonData path: 1 header + 1 row = 2 (not the text path which produces more rows)
+            assertThat(response.getRowsProcessed()).isEqualTo(2);
+            assertThat(response.getColumnsProcessed()).isEqualTo(2); // name, score
+        }
+
+        @Test
+        @DisplayName("jsonData output file exists on disk")
+        void processData_jsonDataArray_fileExistsOnDisk() throws Exception {
+            String configJson = baseConfigJson("Data", "WRITE");
+
+            String result = service.processData(configJson, FULL_GPT_RESPONSE);
+
+            ExcelResponseDTO response = parseResponse(result);
+            File f = new File(response.getOutputFileUrl());
+            assertThat(f).exists();
+            assertThat(f.getName()).endsWith(".xlsx");
+        }
+
+        @Test
+        @DisplayName("empty jsonData array falls through to analysis path")
+        void processData_emptyJsonDataArray_fallsToAnalysisPath() throws Exception {
+            String configJson = baseConfigJson("Empty", "WRITE");
+            String emptyArray =
+                    "{\"jsonData\":[],"
+                    + "\"analysis\":\"No candidates matched.\","
+                    + "\"model\":\"llama3.2:3b\",\"tokensUsed\":20}";
+
+            String result = service.processData(configJson, emptyArray);
+
+            // Empty jsonData → falls through to analysis text path
+            ExcelResponseDTO response = parseResponse(result);
+            assertThat(response.getRowsProcessed()).isGreaterThan(0);
+            assertThat(response.getColumnsProcessed()).isEqualTo(1);
+        }
+    }
+
+    // ─── Format 5: JSON table (non-analysis JSON input) ──────────────────────────
     //
     // NOTE: The production code's else-branch calls
     //   objectMapper.convertValue(dataNode, List.class)
@@ -291,7 +399,7 @@ class RealExcelServiceImplTest {
     // Tests here use JSON arrays, which is what the code actually handles at runtime.
 
     @Nested
-    @DisplayName("Format 4: JSON table (input is a JSON array without 'analysis' field)")
+    @DisplayName("Format 5: JSON table (input is a JSON array without 'analysis' field)")
     class JsonTableFormat {
 
         @Test
@@ -330,9 +438,9 @@ class RealExcelServiceImplTest {
         }
 
         @Test
-        @DisplayName("JSON input with 'analysis' field — routes to adaptive text formatter, not JSON table")
-        void processData_jsonWithAnalysisField_usesTextFormatter() throws Exception {
-            // Arrange
+        @DisplayName("analysis field with plain text — falls back to adaptive text formatter (columnsProcessed=1)")
+        void processData_jsonWithAnalysisField_plainText_usesTextFormatter() throws Exception {
+            // Arrange — "Short plain text result" has no [ so tryParseJsonArray returns null → text path
             String configJson = baseConfigJson("Data", "WRITE");
             String inputData  = "{\"analysis\":\"Short plain text result\"}";
 
@@ -342,6 +450,42 @@ class RealExcelServiceImplTest {
             // Assert — adaptive text path: columnsProcessed stays at 1 (default for text)
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getColumnsProcessed()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("analysis field containing JSON array — routes to professional table (new always-JSON path)")
+        void processData_analysisFieldContainsJsonArray_professionalTable() throws Exception {
+            // This is the main production path: GPT now always returns JSON in the analysis field.
+            String configJson = baseConfigJson("Rankings", "WRITE");
+            String inputData  = "{\"analysis\":\"[{\\\"rank\\\":\\\"1\\\",\\\"name\\\":\\\"Alice\\\","
+                    + "\\\"email\\\":\\\"alice@test.com\\\",\\\"score\\\":\\\"9/10\\\"},"
+                    + "{\\\"rank\\\":\\\"2\\\",\\\"name\\\":\\\"Bob\\\","
+                    + "\\\"email\\\":\\\"bob@test.com\\\",\\\"score\\\":\\\"7/10\\\"}]\","
+                    + "\"model\":\"llama3.2:3b\",\"tokensUsed\":80}";
+
+            String result = service.processData(configJson, inputData);
+
+            ExcelResponseDTO response = parseResponse(result);
+            assertThat(response.getSheetName()).isEqualTo("Rankings");
+            assertThat(response.getRowsProcessed()).isEqualTo(3); // 1 header + 2 data rows
+            assertThat(response.getColumnsProcessed()).isEqualTo(4); // rank, name, email, score
+            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getFileSize()).isPositive();
+        }
+
+        @Test
+        @DisplayName("analysis field with markdown-fenced JSON array — strips fences and parses correctly")
+        void processData_analysisFieldWithFencedJson_parsedCorrectly() throws Exception {
+            String configJson = baseConfigJson("Data", "WRITE");
+            // AI sometimes wraps JSON in ```json ... ``` fences
+            String fencedJson = "```json\\n[{\\\"name\\\":\\\"Alice\\\",\\\"score\\\":\\\"9/10\\\"}]\\n```";
+            String inputData  = "{\"analysis\":\"" + fencedJson + "\",\"model\":\"llama3.2:3b\",\"tokensUsed\":30}";
+
+            String result = service.processData(configJson, inputData);
+
+            ExcelResponseDTO response = parseResponse(result);
+            assertThat(response.getRowsProcessed()).isEqualTo(2); // header + 1 data row
+            assertThat(response.getColumnsProcessed()).isEqualTo(2); // name, score
         }
 
         @Test
@@ -420,6 +564,136 @@ class RealExcelServiceImplTest {
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.processData(brokenConfig, inputData));
             assertThat(ex.getMessage()).contains("Excel processing failed");
+        }
+    }
+
+    // ─── readData — READ operation ────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("readData() — READ operation")
+    class ReadData {
+
+        private Path writeXlsx(String folder, String fileName, String[] headers, String[]... dataRows)
+                throws Exception {
+            Path dir = folder != null ? tempDir.resolve(folder) : tempDir;
+            Files.createDirectories(dir);
+            Path file = dir.resolve(fileName);
+            try (XSSFWorkbook wb = new XSSFWorkbook();
+                 FileOutputStream fos = new FileOutputStream(file.toFile())) {
+                Sheet sheet = wb.createSheet("Data");
+                Row header = sheet.createRow(0);
+                for (int i = 0; i < headers.length; i++) {
+                    header.createCell(i).setCellValue(headers[i]);
+                }
+                for (int r = 0; r < dataRows.length; r++) {
+                    Row row = sheet.createRow(r + 1);
+                    for (int c = 0; c < dataRows[r].length; c++) {
+                        row.createCell(c).setCellValue(dataRows[r][c]);
+                    }
+                }
+                wb.write(fos);
+            }
+            return file;
+        }
+
+        private String configJson(String folderId, String fileName) {
+            if (folderId != null) {
+                return String.format(
+                    "{\"operation\":\"READ\",\"folderId\":\"%s\",\"fileName\":\"%s\"}",
+                    folderId, fileName);
+            }
+            return String.format("{\"operation\":\"READ\",\"fileName\":\"%s\"}", fileName);
+        }
+
+        @Test
+        @DisplayName("happy path XLSX — returns JSON array with headers as keys")
+        void readData_xlsx_happyPath() throws Exception {
+            writeXlsx("candidates", "data.xlsx",
+                new String[]{"Name", "Email", "Department"},
+                new String[]{"Fatima", "fatima@test.com", "Engineering"},
+                new String[]{"Ahmed", "ahmed@test.com", "HR"});
+
+            String result = service.readData(configJson("candidates", "data.xlsx"));
+
+            JsonNode arr = objectMapper.readTree(result);
+            assertThat(arr.isArray()).isTrue();
+            assertThat(arr.size()).isEqualTo(2);
+            assertThat(arr.get(0).get("Name").asText()).isEqualTo("Fatima");
+            assertThat(arr.get(0).get("Email").asText()).isEqualTo("fatima@test.com");
+            assertThat(arr.get(1).get("Department").asText()).isEqualTo("HR");
+        }
+
+        @Test
+        @DisplayName("happy path CSV — returns JSON array")
+        void readData_csv_happyPath() throws Exception {
+            Path dir = tempDir.resolve("employees");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("staff.csv"),
+                "Name,Email,Salary\nAlice,alice@test.com,50000\nBob,bob@test.com,45000\n");
+
+            String result = service.readData(configJson("employees", "staff.csv"));
+
+            JsonNode arr = objectMapper.readTree(result);
+            assertThat(arr.isArray()).isTrue();
+            assertThat(arr.size()).isEqualTo(2);
+            assertThat(arr.get(0).get("Name").asText()).isEqualTo("Alice");
+            assertThat(arr.get(1).get("Salary").asText()).isEqualTo("45000");
+        }
+
+        @Test
+        @DisplayName("XLSX headers only (no data rows) — returns empty array")
+        void readData_xlsx_headersOnly_returnsEmptyArray() throws Exception {
+            writeXlsx("data", "empty.xlsx", new String[]{"Name", "Email"});
+
+            String result = service.readData(configJson("data", "empty.xlsx"));
+
+            JsonNode arr = objectMapper.readTree(result);
+            assertThat(arr.isArray()).isTrue();
+            assertThat(arr.size()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("CSV with only header line — returns empty array")
+        void readData_csv_headerOnly_returnsEmptyArray() throws Exception {
+            Path dir = tempDir.resolve("data");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("header-only.csv"), "Name,Email\n");
+
+            String result = service.readData(configJson("data", "header-only.csv"));
+
+            JsonNode arr = objectMapper.readTree(result);
+            assertThat(arr.isArray()).isTrue();
+            assertThat(arr.size()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("file not found — throws RuntimeException")
+        void readData_fileNotFound_throws() {
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.readData(configJson("missing-folder", "ghost.xlsx")));
+            assertThat(ex.getMessage()).contains("Excel read failed");
+        }
+
+        @Test
+        @DisplayName("missing fileName — throws RuntimeException")
+        void readData_missingFileName_throws() {
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.readData("{\"operation\":\"READ\",\"folderId\":\"candidates\"}"));
+            assertThat(ex.getMessage()).contains("Excel read failed");
+        }
+
+        @Test
+        @DisplayName("no folderId — resolves file directly in storage root")
+        void readData_noFolderId_resolvesInRoot() throws Exception {
+            writeXlsx(null, "root.xlsx",
+                new String[]{"Col"},
+                new String[]{"Val"});
+
+            String result = service.readData("{\"operation\":\"READ\",\"fileName\":\"root.xlsx\"}");
+
+            JsonNode arr = objectMapper.readTree(result);
+            assertThat(arr.size()).isEqualTo(1);
+            assertThat(arr.get(0).get("Col").asText()).isEqualTo("Val");
         }
     }
 

@@ -2,6 +2,9 @@ package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
@@ -46,14 +49,14 @@ public class RealGptServiceImpl implements GptService {
         try {
             GptConfigDTO config = objectMapper.readValue(configJson, GptConfigDTO.class);
             String provider = config.getEffectiveProvider();
+            String outputFormat = config.getOutputFormat(); // "text" or "json"
 
-            log.info("🤖 GPT: provider={}", provider);
+            log.info("🤖 GPT: provider={}, outputFormat={}", provider, outputFormat);
 
-            String finalPrompt = buildPrompt(inputData);
+            String finalPrompt = buildPrompt(inputData, outputFormat);
             log.info("📝 Prompt ({} chars). Preview: {}", finalPrompt.length(),
                     finalPrompt.substring(0, Math.min(200, finalPrompt.length())));
 
-            // Route to the right provider
             String analysis;
             String model;
             int tokensUsed;
@@ -90,6 +93,22 @@ public class RealGptServiceImpl implements GptService {
             response.setTokensUsed(tokensUsed);
             response.setAnalyzedAt(LocalDateTime.now());
 
+            // Always try to extract a JSON array — the Excel node reads jsonData first
+            // and falls back to text formatting if the AI didn't return valid JSON.
+            String extracted = extractJsonArray(analysis);
+            if (extracted != null) {
+                try {
+                    JsonNode arr = objectMapper.readTree(extracted);
+                    response.setJsonData(objectMapper.convertValue(arr,
+                            new TypeReference<List<Map<String, Object>>>() {}));
+                    log.info("✅ Extracted JSON array with {} items", arr.size());
+                } catch (Exception ex) {
+                    log.warn("⚠️ JSON array extraction parse failed: {}", ex.getMessage());
+                }
+            } else {
+                log.warn("⚠️ AI did not return a parseable JSON array — Excel will fall back to text formatter");
+            }
+
             return objectMapper.writeValueAsString(response);
 
         } catch (Exception e) {
@@ -106,9 +125,12 @@ public class RealGptServiceImpl implements GptService {
         String model = config.getModel() != null ? config.getModel() : defaultOllamaModel;
         log.info("🦙 Ollama: model={}", model);
 
+        String systemPrompt = "You are an HR assistant. You MUST return ONLY a valid JSON array of objects. "
+                + "No markdown code blocks (```), no explanatory text, no preamble. Start with [ and end with ].";
+
         ObjectNode request = objectMapper.createObjectNode();
         request.put("model", model);
-        request.put("system", "You are a helpful HR recruitment assistant. Respond in clear, readable natural language. Write your analysis as paragraphs or bullet points. Do not format your response as JSON.");
+        request.put("system", systemPrompt);
         request.put("prompt", prompt);
         request.put("stream", false);
 
@@ -157,7 +179,8 @@ public class RealGptServiceImpl implements GptService {
 
             ObjectNode systemMsg = objectMapper.createObjectNode();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "You are a helpful HR assistant. Respond in clear, readable text like a natural language report. Be structured with sections and bullet points where appropriate.");
+            systemMsg.put("content", "You are an HR assistant. You MUST return ONLY a valid JSON array of objects. "
+                    + "No markdown code blocks (```), no explanatory text, no preamble. Start with [ and end with ].");
             messages.add(systemMsg);
 
             ObjectNode userMsg = objectMapper.createObjectNode();
@@ -214,7 +237,8 @@ public class RealGptServiceImpl implements GptService {
             messages.add(userMsg);
             request.set("messages", messages);
 
-            request.put("system", "You are a helpful HR assistant. Respond in clear, readable text like a natural language report. Be structured with sections and bullet points where appropriate.");
+            request.put("system", "You are an HR assistant. You MUST return ONLY a valid JSON array of objects. "
+                    + "No markdown code blocks (```), no explanatory text, no preamble. Start with [ and end with ].");
             request.put("temperature", temperature);
 
             HttpHeaders headers = new HttpHeaders();
@@ -244,7 +268,20 @@ public class RealGptServiceImpl implements GptService {
     //  PROMPT BUILDING (same as before — works for all providers)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private String buildPrompt(String inputData) {
+    private String buildPrompt(String inputData, String outputFormat) {
+        String base = buildBasePrompt(inputData);
+        // Always force JSON — the Excel node parses it into a structured table,
+        // and falls back to plain-text formatting if the AI doesn't comply.
+        return base
+                + "\n\nIMPORTANT: You MUST respond ONLY with a valid JSON array. "
+                + "Do not include ANY text before or after the JSON. Do not use markdown code fences (```).\n"
+                + "Each item is a JSON object. Suggested fields: rank, name, email, experience, skills, score, summary.\n"
+                + "Example: [{\"rank\":1,\"name\":\"Alice\",\"email\":\"alice@test.com\","
+                + "\"experience\":\"5 years\",\"skills\":\"Java, Spring Boot\",\"score\":\"9/10\","
+                + "\"summary\":\"Strong candidate\"}]\n";
+    }
+
+    private String buildBasePrompt(String inputData) {
         if (inputData == null || inputData.isBlank()) {
             return "No input data provided.";
         }
@@ -262,11 +299,10 @@ public class RealGptServiceImpl implements GptService {
                 }
 
                 if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
-
                     return root.get("prompt").asText().trim();
                 }
 
-                } catch (Exception e) {
+            } catch (Exception e) {
                 log.warn("⚠️ JSON parse failed: {}", e.getMessage());
             }
         }
@@ -277,6 +313,29 @@ public class RealGptServiceImpl implements GptService {
 
         log.info("⚙️ Mode: Fallback");
         return inputData;
+    }
+
+    private String extractJsonArray(String text) {
+        if (text == null || text.isBlank()) return null;
+        String cleaned = text.trim();
+        // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+        if (cleaned.startsWith("```")) {
+            int firstNewline = cleaned.indexOf('\n');
+            int lastFence = cleaned.lastIndexOf("```");
+            if (firstNewline > 0 && lastFence > firstNewline) {
+                cleaned = cleaned.substring(firstNewline + 1, lastFence).trim();
+            }
+        }
+        int start = cleaned.indexOf('[');
+        int end = cleaned.lastIndexOf(']');
+        if (start < 0 || end < 0 || end <= start) return null;
+        String candidate = cleaned.substring(start, end + 1).trim();
+        try {
+            objectMapper.readTree(candidate);
+            return candidate;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
@@ -339,11 +398,10 @@ public class RealGptServiceImpl implements GptService {
             if (!skills.isEmpty())
                 p.append("2. Exclude candidates who lack all of these skills: ").append(skills).append(".\n");
             p.append("3. Score each remaining candidate 0-10 and select the top ").append(topN).append(".\n");
-            p.append("4. If no candidates match, say so in plain text.\n\n");
+            p.append("4. If no candidates match, return an empty JSON array: []\n\n");
             p.append("=== OUTPUT FORMAT ===\n");
-            p.append("Write a short natural language report. For each selected candidate, write one line:\n");
-            p.append("  [Full Name] — [email] — [X] years experience — Skills: [skills] — Score: [N]/10\n");
-            p.append("Then add a brief 1-2 sentence summary. Do not output JSON.\n\n");
+            p.append("Return ONLY a JSON array of objects with these fields: rank, name, email, experience, skills, score, summary.\n");
+            p.append("Do not output any text before or after the JSON. No markdown code fences.\n\n");
 
             p.append("=== CVs ===\n");
             if (candidateData != null) p.append(candidateData.trim());

@@ -1,6 +1,8 @@
 package ma.rh.ai.hr_workflow.integration.gpt.dtos;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,4 +18,7 @@ public class GptResponseDTO {
     private String model;
     private Integer tokensUsed;
     private LocalDateTime analyzedAt;
+    // Populated when outputFormat=json — the AI's response parsed as an array of objects.
+    // The Excel node reads this field to render a professional structured table.
+    private List<Map<String, Object>> jsonData;
 }

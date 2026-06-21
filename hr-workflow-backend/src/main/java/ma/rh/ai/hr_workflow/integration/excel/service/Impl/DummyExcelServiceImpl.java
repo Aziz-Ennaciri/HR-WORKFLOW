@@ -3,6 +3,7 @@ package ma.rh.ai.hr_workflow.integration.excel.service.Impl;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +65,30 @@ public class DummyExcelServiceImpl implements ExcelService {
 
         } catch (Exception e) {
             throw new ExcelServiceException("Dummy Excel service failed",e);
+        }
+    }
+
+    @Override
+    public String readData(String configJson) {
+        try {
+            List<Map<String, String>> dummyRows = new ArrayList<>();
+
+            Map<String, String> row1 = new LinkedHashMap<>();
+            row1.put("Name", "Fatima Alaoui");
+            row1.put("Email", "fatima@example.com");
+            row1.put("Department", "Engineering");
+            dummyRows.add(row1);
+
+            Map<String, String> row2 = new LinkedHashMap<>();
+            row2.put("Name", "Ahmed Benali");
+            row2.put("Email", "ahmed@example.com");
+            row2.put("Department", "HR");
+            dummyRows.add(row2);
+
+            return objectMapper.writeValueAsString(dummyRows);
+
+        } catch (Exception e) {
+            throw new ExcelServiceException("Dummy Excel read failed", e);
         }
     }
 }

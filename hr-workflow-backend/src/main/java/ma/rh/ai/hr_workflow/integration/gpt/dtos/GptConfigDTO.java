@@ -19,6 +19,10 @@ public class GptConfigDTO {
     // NEW: API key for cloud providers (OpenAI, Anthropic, etc.)
     private String apiKey;
 
+    // "text" (default) or "json" — when "json", instructs the AI to return a JSON array
+    // and the Excel handler will render a professional structured table instead of plain text
+    private String outputFormat;
+
     /**
      * Returns the provider, defaulting to "ollama" if not set.
      */

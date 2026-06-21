@@ -161,6 +161,25 @@ export default function NodeConfigPanel({
                 Controls how strict or creative the AI response will be
               </p>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Output Format
+              </label>
+              <select
+                value={config.outputFormat || "text"}
+                onChange={(e) =>
+                  setConfig({ ...config, outputFormat: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="text">Text Report</option>
+                <option value="json">Structured JSON (for Excel)</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Choose &quot;Structured JSON&quot; when the next node is Excel — generates a
+                professionally formatted table with headers and alternating row colors
+              </p>
+            </div>
           </>
         );
 
@@ -225,7 +244,8 @@ export default function NodeConfigPanel({
         );
       }
 
-      case "EXCEL":
+      case "EXCEL": {
+        const isReadOp = (config.operation || "WRITE") === "READ";
         return (
           <>
             <div>
@@ -233,101 +253,87 @@ export default function NodeConfigPanel({
                 Operation *
               </label>
               <select
-                value={config.operation || "READ"}
+                value={config.operation || "WRITE"}
                 onChange={(e) =>
-                  setConfig({ ...config, operation: e.target.value })
+                  setConfig({ ...config, operation: e.target.value, fileName: "", folderId: "" })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
-                <option value="READ">📥 Read File (CSV/XLS to JSON)</option>
-                <option value="WRITE">📤 Write File (JSON to CSV/XLS)</option>
+                <option value="WRITE">📤 Generate Report</option>
+                <option value="READ">📥 Read from Excel</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                File Format *
-              </label>
-              <select
-                value={config.fileFormat || "CSV"}
-                onChange={(e) =>
-                  setConfig({ ...config, fileFormat: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              >
-                <option value="CSV">CSV</option>
-                <option value="XLSX">Excel (.xlsx)</option>
-              </select>
-            </div>
-
-            {config.operation === "READ" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload File *
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                        const result = event.target?.result as string;
-                        const base64 = result.split(",")[1];
-                        setConfig({
-                          ...config,
-                          uploadedFile: base64,
-                          fileName: file.name,
-                        });
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                {config.fileName && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    ✓ {config.fileName}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {config.operation === "WRITE" && (
+            {isReadOp ? (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Output File Name
+                    Folder
                   </label>
                   <input
                     type="text"
-                    value={config.fileName || "export"}
+                    value={config.folderId || ""}
+                    onChange={(e) =>
+                      setConfig({ ...config, folderId: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="e.g. candidates, employees"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Subfolder in the storage directory (e.g.{" "}
+                    <span className="font-mono">candidates</span> →{" "}
+                    <span className="font-mono">/storage/candidates/</span>)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    File Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={config.fileName || ""}
                     onChange={(e) =>
                       setConfig({ ...config, fileName: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="export"
+                    placeholder="e.g. candidates.xlsx, employees.csv"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Read data from this file and pass it to the next step.
+                    Supports .xlsx and .csv.
+                  </p>
                 </div>
+              </>
+            ) : (
+              <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sheet Name (for Excel)
+                    Report Name *
                   </label>
                   <input
                     type="text"
-                    value={config.sheetName || "Data"}
+                    value={config.fileName || ""}
                     onChange={(e) =>
-                      setConfig({ ...config, sheetName: e.target.value })
+                      setConfig({
+                        ...config,
+                        fileName: e.target.value,
+                        operation: "WRITE",
+                        fileFormat: "XLSX",
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="Data"
+                    placeholder="e.g. Candidate Rankings, Monthly Report"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Generate an Excel report from the previous step&apos;s data.
+                    It will be downloadable from the email and dashboard.
+                  </p>
                 </div>
               </>
             )}
           </>
         );
+      }
 
       case "APPROVAL":
         return (
@@ -458,7 +464,9 @@ export default function NodeConfigPanel({
           {node.data.label === "DRIVE" &&
             "Interact with Google Drive files and folders"}
           {node.data.label === "EXCEL" &&
-            "Read, write, or update Excel spreadsheets"}
+            (node.data.config?.operation === "READ"
+              ? "Read data from an existing Excel or CSV file and pass it as structured JSON to the next node."
+              : "Generate an Excel report from the previous step’s data. The report will be saved and shareable via email.")}
           {node.data.label === "APPROVAL" &&
             "Pause the workflow and wait for the assigned approver to review and approve or reject before continuing"}
         </p>

@@ -29,8 +29,10 @@ export function ExcelNode({ id, data, selected }: any) {
     </svg>
   );
 
-  const detail = data.config?.operation
-    ? `Operation: ${data.config.operation}`
+  const detail = data.config?.fileName
+    ? data.config.operation === "READ"
+      ? `Read: ${data.config.fileName}`
+      : `Report: ${data.config.fileName}`
     : undefined;
 
   return (

@@ -1,75 +1,68 @@
 package ma.rh.ai.hr_workflow.integration.email.service.Impl;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Primary;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailConfigDTO;
-import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailRequestDTO;
 import ma.rh.ai.hr_workflow.integration.email.DTOs.EmailResponseDTO;
 import ma.rh.ai.hr_workflow.integration.email.service.EmailService;
 
 @Slf4j
 @Service
-@Primary  // ✅ This makes it the default implementation
+@Primary
 @RequiredArgsConstructor
 public class RealEmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final ObjectMapper objectMapper;
 
+    // Fields that are internal/technical and must never appear in emails
+    private static final Set<String> HIDDEN_FIELDS = Set.of(
+        "fileContent", "outputFileUrl", "filePath", "fileSize",
+        "createdAt", "operation", "sheetName", "columnsProcessed"
+    );
+
     @Override
     public String sendEmail(String configJson, String inputData, String workflowName, String workflowKey) {
         try {
-            log.info("Sending real email...");
+            log.info("Sending HTML email for workflow: {}", workflowName);
 
-            // Parse configuration
             EmailConfigDTO config = objectMapper.readValue(configJson, EmailConfigDTO.class);
-            EmailRequestDTO request = objectMapper.readValue(inputData, EmailRequestDTO.class);
 
-            // Get email details from config
             String to = config.getTo();
-            String subject = config.getSubject() != null ? config.getSubject() : "Workflow Notification";
-            String body = config.getBody() != null ? config.getBody() : "";
-
-            // If recipient not in config, use from request
-            if (to == null || to.isEmpty()) {
-                to = request.getRecipient();
-            }
-
             if (to == null || to.isEmpty()) {
                 throw new RuntimeException("Email recipient is required");
             }
 
-            // Check if this is a CV/recruitment workflow
-            boolean isCvWorkflow = isCvRecruitmentWorkflow(workflowName, workflowKey);
+            String name = workflowName != null ? workflowName : "Workflow";
+            String subject = name + " — Workflow Results";
+            String htmlBody = buildHtmlEmail(name, inputData);
 
-            if (isCvWorkflow) {
-                // Customize email for CV recruitment workflow
-                subject = customizeSubjectForCvWorkflow(subject, workflowName);
-                body = customizeBodyForCvWorkflow(body, inputData, workflowName);
-                log.info("📧 Sending CV recruitment notification email");
-            }
-
-            // Create and send email
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(to);
-            message.setSubject(subject);
-            message.setText(body);
-
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
             mailSender.send(message);
 
-            log.info("✅ Email sent successfully to: {}", to);
+            log.info("Email sent successfully to: {}", to);
 
-            // Create response
             EmailResponseDTO response = new EmailResponseDTO();
             response.setMessageId("msg_" + UUID.randomUUID().toString().substring(0, 8));
             response.setRecipient(to);
@@ -79,86 +72,272 @@ public class RealEmailServiceImpl implements EmailService {
             return objectMapper.writeValueAsString(response);
 
         } catch (Exception e) {
-            log.error("❌ Failed to send email", e);
+            log.error("Failed to send email", e);
             throw new RuntimeException("Email sending failed: " + e.getMessage());
         }
     }
 
-    /**
-     * Check if this is a CV/recruitment workflow
-     */
-    private boolean isCvRecruitmentWorkflow(String workflowName, String workflowKey) {
-        if (workflowName == null) return false;
-        String name = workflowName.toLowerCase();
-        String key = workflowKey != null ? workflowKey.toLowerCase() : "";
-        return name.contains("cv") || name.contains("recruitment") || name.contains("candidate") ||
-               name.contains("hiring") || name.contains("job") || name.contains("rectrutemnt") ||
-               key.contains("cv") || key.contains("recruitment") || key.contains("candidate") ||
-               key.contains("hiring") || key.contains("job");
+    // ── Template orchestration ────────────────────────────────────────────────────
+
+    private String buildHtmlEmail(String workflowName, String rawContent) {
+        String safeName = escapeHtml(workflowName);
+        String bodyContent = resolveBodyContent(rawContent, safeName);
+
+        return "<!DOCTYPE html>"
+            + "<html><head><meta charset=\"UTF-8\"></head>"
+            + "<body style=\"margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;\">"
+            + "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f6f8;\">"
+            + "<tr><td align=\"center\" style=\"padding:30px 0;\">"
+            + "<table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" "
+            +   "style=\"background:#ffffff;border-radius:8px;overflow:hidden;"
+            +   "box-shadow:0 2px 8px rgba(0,0,0,0.1);\">"
+
+            // Header
+            + "<tr><td style=\"background:#1a365d;padding:32px 40px;\">"
+            + "<p style=\"margin:0;font-size:22px;font-weight:bold;color:#ffffff;"
+            +   "letter-spacing:1px;\">HR Workflow System</p>"
+            + "<p style=\"margin:8px 0 0;font-size:14px;color:#90cdf4;\">" + safeName + "</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style=\"padding:32px 40px;background:#ffffff;\">"
+            + bodyContent
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style=\"background:#f7f7f7;padding:24px 40px;"
+            +   "border-top:1px solid #e2e8f0;\">"
+            + "<p style=\"margin:0;font-size:14px;color:#4a5568;\">Best regards,"
+            +   "<br><strong>HR Workflow System</strong></p>"
+            + "<p style=\"margin:12px 0 0;font-size:12px;color:#6b7280;\">This is an automated "
+            +   "notification from HR Workflow System.</p>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table>"
+            + "</body></html>";
     }
 
-    /**
-     * Customize subject for CV workflow
-     */
-    private String customizeSubjectForCvWorkflow(String originalSubject, String workflowName) {
-        if (originalSubject != null && !originalSubject.isEmpty()) {
-            return originalSubject;
-        }
-        return "CV Analysis Complete - " + workflowName;
-    }
-
-    /**
-     * Customize body for CV workflow with Excel file information
-     */
-    private String customizeBodyForCvWorkflow(String originalBody, String inputData, String workflowName) {
-        StringBuilder body = new StringBuilder();
-
-        // Add original body if present
-        if (originalBody != null && !originalBody.isEmpty()) {
-            body.append(originalBody).append("\n\n");
+    private String resolveBodyContent(String rawContent, String safeName) {
+        if (rawContent == null || rawContent.isBlank()) {
+            return "<p style=\"margin:0 0 12px;font-size:15px;color:#2d3748;\">Hello,</p>"
+                + "<p style=\"font-size:14px;color:#4a5568;\">Workflow completed successfully. "
+                + "No output data available.</p>";
         }
 
-        body.append("🎯 CV Recruitment Analysis Complete\n\n");
-        body.append("Your ").append(workflowName).append(" workflow has successfully processed candidate CVs.\n\n");
+        String stripped = stripCodeFences(rawContent.trim());
 
-        // Try to extract Excel file information from inputData
         try {
-            // inputData should contain the Excel response from the previous node
-            var excelData = objectMapper.readTree(inputData);
+            JsonNode node = objectMapper.readTree(stripped);
 
-            if (excelData.has("rowsProcessed")) {
-                int rows = excelData.get("rowsProcessed").asInt();
-                int columns = excelData.get("columnsProcessed").asInt();
-                String sheetName = excelData.get("sheetName").asText("Data");
-
-                body.append("📊 Excel Report Generated:\n");
-                body.append("• Sheet Name: ").append(sheetName).append("\n");
-                body.append("• Candidates Processed: ").append(rows - 1).append("\n"); // Subtract header row
-                body.append("• Columns: ").append(columns).append("\n");
-                body.append("• File Size: ").append(excelData.get("fileSize").asLong() / 1024).append(" KB\n\n");
+            // File-output node (Excel/CSV result) — show download-button template
+            if (node.isObject() && node.has("webFileUrl")) {
+                return buildFileOutputContent(node, safeName);
             }
 
-            // Add download instructions
-            body.append("📥 The Excel file with candidate rankings is ready for download.\n");
-            body.append("You can access it from your workflow dashboard or use the direct download link below:\n\n");
-
-            // Add direct download link if available
-            if (excelData.has("webFileUrl")) {
-                String downloadUrl = "http://localhost:8080" + excelData.get("webFileUrl").asText();
-                body.append("🔗 Direct Download: ").append(downloadUrl).append("\n\n");
-            }
-
-            body.append("📁 File Location: ").append(excelData.get("outputFileUrl").asText()).append("\n");
+            // Regular JSON — scrub technical fields and render with standard intro
+            String sanitized = sanitizeForEmail(node);
+            return standardIntro(safeName) + renderContent(sanitized);
 
         } catch (Exception e) {
-            log.warn("Could not parse Excel data for email customization", e);
-            body.append("📊 An Excel report with candidate rankings has been generated.\n");
-            body.append("Please check your workflow dashboard for download options.\n\n");
+            return standardIntro(safeName) + renderAsPlainText(stripped);
+        }
+    }
+
+    // ── File-output content (download button) ─────────────────────────────────────
+
+    private String buildFileOutputContent(JsonNode node, String safeName) {
+        String downloadUrl = "http://localhost:8080" + node.get("webFileUrl").asText();
+
+        String countLine = "";
+        if (node.has("rowsProcessed")) {
+            int candidates = Math.max(0, node.get("rowsProcessed").asInt() - 1);
+            if (candidates > 0) {
+                countLine = "<p style=\"margin:16px 0;font-size:15px;color:#2d3748;\">"
+                    + "&#128202; <strong>" + candidates + "</strong> candidates processed</p>";
+            }
         }
 
-        body.append("✅ Best regards,\n");
-        body.append("HR Workflow System\n");
+        return "<p style=\"margin:0 0 12px;font-size:15px;color:#2d3748;\">Hello,</p>"
+            + "<p style=\"margin:0 0 16px;font-size:15px;color:#2d3748;\">Your workflow "
+            + "<strong>" + safeName + "</strong> has completed successfully.</p>"
+            + countLine
+            + "<p style=\"margin:24px 0 0;\">"
+            + "<a href=\"" + escapeHtml(downloadUrl) + "\" "
+            + "style=\"display:inline-block;background:#1a365d;color:#ffffff;"
+            + "text-decoration:none;padding:12px 24px;border-radius:6px;"
+            + "font-size:15px;font-weight:bold;letter-spacing:0.5px;\">"
+            + "Download Report</a>"
+            + "</p>";
+    }
 
-        return body.toString();
+    // ── JSON sanitization ─────────────────────────────────────────────────────────
+
+    private String sanitizeForEmail(JsonNode node) throws Exception {
+        if (node.isArray()) {
+            var arr = objectMapper.createArrayNode();
+            node.forEach(elem -> arr.add(elem.isObject() ? cleanObject((ObjectNode) elem) : elem));
+            return objectMapper.writeValueAsString(arr);
+        }
+        if (node.isObject()) {
+            return objectMapper.writeValueAsString(cleanObject((ObjectNode) node));
+        }
+        return node.toString();
+    }
+
+    private ObjectNode cleanObject(ObjectNode obj) {
+        ObjectNode result = objectMapper.createObjectNode();
+        obj.fields().forEachRemaining(entry -> {
+            if (!HIDDEN_FIELDS.contains(entry.getKey()) && !isTechnicalValue(entry.getValue())) {
+                result.set(entry.getKey(), entry.getValue());
+            }
+        });
+        return result;
+    }
+
+    private boolean isTechnicalValue(JsonNode value) {
+        if (!value.isTextual()) return false;
+        String text = value.asText();
+        return text.length() > 200 && text.chars().noneMatch(Character::isWhitespace);
+    }
+
+    // ── Content detection & rendering ─────────────────────────────────────────────
+
+    private String renderContent(String rawContent) {
+        if (rawContent == null || rawContent.isBlank()) {
+            return "<p style=\"font-size:14px;color:#4a5568;\">"
+                + "Workflow completed successfully. No output data available.</p>";
+        }
+
+        String content = stripCodeFences(rawContent.trim());
+
+        try {
+            JsonNode node = objectMapper.readTree(content);
+
+            if (node.isArray() && node.size() > 0 && node.get(0).isObject()) {
+                return renderAsTable(node);
+            }
+
+            if (node.isObject()) {
+                // Unwrap single-key wrapper objects like {"result": "..."}
+                if (node.size() == 1) {
+                    JsonNode inner = node.fields().next().getValue();
+                    if (inner.isTextual() || inner.isArray() || inner.isObject()) {
+                        return renderContent(inner.isTextual() ? inner.asText() : inner.toString());
+                    }
+                }
+                return renderAsKeyValue(node);
+            }
+
+            return renderAsPlainText(node.asText());
+
+        } catch (Exception e) {
+            return renderAsPlainText(content);
+        }
+    }
+
+    private String renderAsTable(JsonNode array) {
+        List<String> headers = new ArrayList<>();
+        array.get(0).fieldNames().forEachRemaining(headers::add);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+            + "style=\"border-collapse:collapse;font-size:14px;\"><thead><tr>");
+
+        for (String h : headers) {
+            sb.append("<th style=\"background:#2d3748;color:#ffffff;padding:10px 12px;"
+                + "text-align:left;font-weight:bold;border:1px solid #4a5568;\">")
+              .append(escapeHtml(formatKey(h))).append("</th>");
+        }
+        sb.append("</tr></thead><tbody>");
+
+        for (int i = 0; i < array.size(); i++) {
+            JsonNode row = array.get(i);
+            String bg = (i % 2 == 0) ? "#f8f9fa" : "#ffffff";
+            sb.append("<tr style=\"background:").append(bg).append(";\">");
+            for (String h : headers) {
+                String val = row.has(h) ? nodeToString(row.get(h)) : "";
+                sb.append("<td style=\"padding:10px 12px;border:1px solid #e2e8f0;color:#2d3748;\">")
+                  .append(escapeHtml(val)).append("</td>");
+            }
+            sb.append("</tr>");
+        }
+        sb.append("</tbody></table>");
+        return sb.toString();
+    }
+
+    private String renderAsKeyValue(JsonNode obj) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+            + "style=\"border-collapse:collapse;font-size:14px;\">");
+
+        Iterator<String> fields = obj.fieldNames();
+        int i = 0;
+        while (fields.hasNext()) {
+            String key = fields.next();
+            String val = nodeToString(obj.get(key));
+            String bg = (i % 2 == 0) ? "#f8f9fa" : "#ffffff";
+            sb.append("<tr style=\"background:").append(bg).append(";\">"
+                + "<td style=\"padding:10px 12px;font-weight:bold;color:#2d3748;"
+                + "border:1px solid #e2e8f0;width:35%;\">")
+              .append(escapeHtml(formatKey(key))).append("</td>"
+                + "<td style=\"padding:10px 12px;color:#4a5568;border:1px solid #e2e8f0;\">")
+              .append(escapeHtml(val)).append("</td></tr>");
+            i++;
+        }
+        sb.append("</table>");
+        return sb.toString();
+    }
+
+    private String renderAsPlainText(String text) {
+        return "<pre style=\"font-size:14px;line-height:1.6;color:#2d3748;white-space:pre-wrap;"
+            + "background:#f8f9fa;padding:16px;border-radius:4px;border:1px solid #e2e8f0;"
+            + "overflow-x:auto;font-family:monospace;\">"
+            + escapeHtml(text) + "</pre>";
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    private String stripCodeFences(String content) {
+        return content
+            .replaceAll("(?s)^```(?:json)?\\s*", "")
+            .replaceAll("(?s)```\\s*$", "")
+            .trim();
+    }
+
+    private String standardIntro(String safeName) {
+        return "<p style=\"margin:0 0 20px;font-size:15px;color:#2d3748;\">Your workflow "
+            + "<strong>" + safeName + "</strong> has completed. Here are the results:</p>";
+    }
+
+    private String nodeToString(JsonNode value) {
+        if (value == null || value.isNull()) return "";
+        if (value.isTextual()) return value.asText();
+        return value.toString();
+    }
+
+    private String formatKey(String key) {
+        String spaced = key
+            .replaceAll("([a-z])([A-Z])", "$1 $2")
+            .replace("_", " ")
+            .trim();
+        if (spaced.isEmpty()) return key;
+        StringBuilder result = new StringBuilder();
+        for (String word : spaced.split(" ")) {
+            if (!word.isEmpty()) {
+                if (result.length() > 0) result.append(" ");
+                result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            }
+        }
+        return result.toString();
+    }
+
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;");
     }
 }

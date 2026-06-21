@@ -15,5 +15,6 @@ public class ExcelConfigDTO {
     private String outputPath;
     private String fileFormat; // CSV, XLS, XLSX
     private String fileName;   // Name of the file to create/read
+    private String folderId;   // For READ: subfolder in storage (e.g. "candidates")
     private String uploadedFile; // Base64-encoded file content for READ operations
 }
