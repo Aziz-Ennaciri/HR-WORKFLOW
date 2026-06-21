@@ -50,11 +50,6 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
-    public Long getUserIdFromToken(String token) {
-        Claims claims = parseClaims(token);
-        return claims.get("userId", Long.class);
-    }
-
     public String getRolesFromToken(String token) {
         Claims claims = parseClaims(token);
         return claims.get("roles", String.class);
@@ -76,20 +71,6 @@ public class JwtTokenProvider {
             log.error("JWT token validation error: {}", ex.getMessage());
         }
         return false;
-    }
-
-    public boolean isTokenExpired(String token) {
-        try {
-            Claims claims = parseClaims(token);
-            return claims.getExpiration().before(new Date());
-        } catch (ExpiredJwtException e) {
-            return true;
-        }
-    }
-
-    public Date getExpirationDateFromToken(String token) {
-        Claims claims = parseClaims(token);
-        return claims.getExpiration();
     }
 
     private Claims parseClaims(String token) {

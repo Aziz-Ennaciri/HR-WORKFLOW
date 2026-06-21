@@ -2,7 +2,6 @@ package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 

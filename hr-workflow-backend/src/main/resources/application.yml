@@ -39,7 +39,6 @@ spring:
       mode: never
 jwt:
   secret: "j1tY7XfQe1ZMfSN/9Td8qz1UHcyUT0T1Rp7Z+NOO27cQyx69g9OcwYRwji3gNkK0Jm9z2IIKCWl8FVM0CVG95g=="
-  #  secret: "lKx6Cq9Wz7YpQ3nVt8mJr2Hs5DfUa1BcX4eTg0NyZsQ="
   expiration: 86400000
 server:
   port: 8080
@@ -47,8 +46,6 @@ server:
 google:
   credentials:
     path: classpath:google-credentials.json
-  #  drive:
-  #    folder:1LbFcIv10YFH8l2UeshhRayG3zC8E79kL
 
   ollama:
     url: http://localhost:11434/api/generate

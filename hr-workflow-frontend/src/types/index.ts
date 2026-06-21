@@ -22,10 +22,3 @@ export interface Node {
   configJson: string;
 }
 
-export interface WorkflowExecution {
-  id: number;
-  workflowId: number;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-  startedAt: string;
-  finishedAt?: string;
-}

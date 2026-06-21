@@ -153,8 +153,6 @@ public class NodeServiceImpl implements INodeService {
         nodeRepository.deleteByWorkflowId(workflowId);
     }
 
-    /* private methodes -- Helpers */
-
     private void validateNodeType(String type) {
         try {
             NodeType.valueOf(type.toUpperCase());
@@ -168,5 +166,4 @@ public class NodeServiceImpl implements INodeService {
                 .map(Enum::name)
                 .collect(Collectors.toList());
     }
-    /*  */
 }

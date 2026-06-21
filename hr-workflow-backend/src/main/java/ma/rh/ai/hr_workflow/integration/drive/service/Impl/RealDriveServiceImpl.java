@@ -27,7 +27,6 @@ import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
 
 @Slf4j
 @Service
-//@Primary
 @RequiredArgsConstructor
 public class RealDriveServiceImpl implements DriveService {
 

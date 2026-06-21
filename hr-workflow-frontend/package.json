@@ -9,21 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@types/xlsx": "^0.0.35",
     "axios": "^1.13.6",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.36.0",
-    "lucide-react": "^0.575.0",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
     "react-hot-toast": "^2.6.0",
     "reactflow": "^11.11.4",
     "recharts": "^3.8.0",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7",
-    "xlsx": "^0.18.5"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "^20",
