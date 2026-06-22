@@ -40,7 +40,6 @@ public class RealDriveServiceImpl implements DriveService {
         try {
             log.info("Uploading file to Google Drive...");
 
-            // Parse configuration
             DriveConfigDTO config = objectMapper.readValue(configJson, DriveConfigDTO.class);
             DriveRequestDTO request = objectMapper.readValue(inputData, DriveRequestDTO.class);
 
@@ -48,16 +47,13 @@ public class RealDriveServiceImpl implements DriveService {
             String fileName = request.getFileName() != null ? request.getFileName() : "workflow-output.txt";
             String fileContent = request.getContent() != null ? request.getContent() : inputData;
 
-            // Initialize Drive service
             Drive driveService = getDriveService();
 
-            // Create temporary file
             java.io.File tempFile = java.io.File.createTempFile("workflow-", ".txt");
             try (FileWriter writer = new FileWriter(tempFile)) {
                 writer.write(fileContent);
             }
 
-            // Upload to Google Drive
             File fileMetadata = new File();
             fileMetadata.setName(fileName);
             if (folderId != null && !folderId.isEmpty()) {
@@ -71,14 +67,12 @@ public class RealDriveServiceImpl implements DriveService {
 
             String fileId = uploadedFile.getId();
 
-            // Clean up temp file
             if (!tempFile.delete()) {
                 log.warn("Failed to delete temporary file: {}", tempFile.getAbsolutePath());
             }
 
             log.info("✅ File uploaded to Drive: {}", fileId);
 
-            // Create response
             DriveResponseDTO response = new DriveResponseDTO();
             response.setFileId(fileId);
             response.setFileName(fileName);

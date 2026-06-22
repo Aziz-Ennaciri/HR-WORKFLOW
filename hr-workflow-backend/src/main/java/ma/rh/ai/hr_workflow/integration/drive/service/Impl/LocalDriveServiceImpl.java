@@ -81,7 +81,6 @@ public class LocalDriveServiceImpl implements DriveService {
             return buildCombinedOutput(inputData, folderId, new ArrayList<>());
         }
 
-        // Read all files (any type — PDF and plain text supported)
         List<Map<String, String>> files = new ArrayList<>();
         Files.list(folderPath)
                 .filter(Files::isRegularFile)

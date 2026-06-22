@@ -48,7 +48,7 @@ public class RealGptServiceImpl implements GptService {
         try {
             GptConfigDTO config = objectMapper.readValue(configJson, GptConfigDTO.class);
             String provider = config.getEffectiveProvider();
-            String outputFormat = config.getOutputFormat(); // "text" or "json"
+            String outputFormat = config.getOutputFormat();
 
             log.info("🤖 GPT: provider={}, outputFormat={}", provider, outputFormat);
 
@@ -317,7 +317,6 @@ public class RealGptServiceImpl implements GptService {
     private String extractJsonArray(String text) {
         if (text == null || text.isBlank()) return null;
         String cleaned = text.trim();
-        // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
         if (cleaned.startsWith("```")) {
             int firstNewline = cleaned.indexOf('\n');
             int lastFence = cleaned.lastIndexOf("```");

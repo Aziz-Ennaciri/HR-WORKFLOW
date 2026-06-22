@@ -74,7 +74,6 @@ public class RealExcelServiceImpl implements ExcelService {
             if (dataNode != null) {
                 if (dataNode.has("jsonData") && dataNode.get("jsonData").isArray()
                         && dataNode.get("jsonData").size() > 0) {
-                    // Structured JSON array produced by GPT when outputFormat=json
                     JsonNode jsonDataNode = dataNode.get("jsonData");
                     log.info("📊 Excel: Detected jsonData array ({} items) — professional table formatter",
                             jsonDataNode.size());
@@ -83,8 +82,7 @@ public class RealExcelServiceImpl implements ExcelService {
                     dataList = objectMapper.convertValue(jsonDataNode, List.class);
                 } else if (dataNode.has("analysis")) {
                     String analysisText = dataNode.get("analysis").asText();
-                    // Try to parse as a JSON array first — AI now always returns JSON.
-                    // Falls back to text formatting if the response isn't valid JSON.
+
                     JsonNode analysisJson = tryParseJsonArray(analysisText);
                     if (analysisJson != null) {
                         log.info("📊 Excel: analysis field contains JSON array ({} items) — professional table",
@@ -122,8 +120,7 @@ public class RealExcelServiceImpl implements ExcelService {
                 webDir.mkdirs();
             }
             File webFile = new File(webDir, webFileName);
-            // Copy the already-formatted file byte-for-byte so the email download
-            // link serves the same styled workbook as the app download.
+
             Files.copy(tempFile.toPath(), webFile.toPath());
 
             String webFileUrl = "/api/v1/files/excel/" + webFileName;
@@ -498,7 +495,6 @@ public class RealExcelServiceImpl implements ExcelService {
         String candidate = cleaned.substring(start, end + 1).trim();
         try {
             JsonNode node = objectMapper.readTree(candidate);
-            // Must be a non-empty array of objects to be treated as structured data
             if (node.isArray() && node.size() > 0 && node.get(0).isObject()) {
                 return node;
             }
@@ -510,17 +506,13 @@ public class RealExcelServiceImpl implements ExcelService {
 
     // ─── Format 4: Structured JSON array (from GPT or jsonData field) ─────────
 
-    // Preferred column order — fields found in the AI response are sorted by this list first,
-    // then any extra fields the AI added come after.
     private static final List<String> PREFERRED_COLS =
             Arrays.asList("rank", "name", "email", "experience", "skills", "score", "summary");
 
     private int createJsonArraySheet(Workbook workbook, Sheet sheet, JsonNode arrayNode, int rowNum) {
-        // Collect all field names from the first object
         List<String> rawHeaders = new ArrayList<>();
         arrayNode.get(0).fieldNames().forEachRemaining(rawHeaders::add);
 
-        // Sort by preference: preferred columns first, then any extras the AI added
         List<String> headers = new ArrayList<>();
         for (String preferred : PREFERRED_COLS) {
             if (rawHeaders.contains(preferred)) headers.add(preferred);
@@ -533,7 +525,6 @@ public class RealExcelServiceImpl implements ExcelService {
         CellStyle evenRowStyle = buildEvenRowStyle(workbook);
         CellStyle oddRowStyle  = buildOddRowStyle(workbook);
 
-        // Header row
         Row headerRow = sheet.createRow(rowNum++);
         headerRow.setHeightInPoints(22);
         for (int i = 0; i < headers.size(); i++) {
@@ -542,7 +533,6 @@ public class RealExcelServiceImpl implements ExcelService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Data rows — alternating colors
         for (int r = 0; r < arrayNode.size(); r++) {
             JsonNode obj = arrayNode.get(r);
             Row row = sheet.createRow(rowNum++);
@@ -557,7 +547,6 @@ public class RealExcelServiceImpl implements ExcelService {
             }
         }
 
-        // Auto-size with min/max caps for readability
         for (int i = 0; i < headers.size(); i++) {
             sheet.autoSizeColumn(i);
             int w = sheet.getColumnWidth(i);
@@ -576,7 +565,6 @@ public class RealExcelServiceImpl implements ExcelService {
                 .collect(Collectors.joining(" "));
     }
 
-    // ─── Professional style builders (XSSF-specific for custom colours) ───────
 
     private CellStyle buildProfessionalHeaderStyle(Workbook workbook) {
         XSSFCellStyle style = (XSSFCellStyle) workbook.createCellStyle();

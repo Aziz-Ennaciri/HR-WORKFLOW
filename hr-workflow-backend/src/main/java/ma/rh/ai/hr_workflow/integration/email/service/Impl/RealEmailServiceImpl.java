@@ -32,7 +32,6 @@ public class RealEmailServiceImpl implements EmailService {
     private final JavaMailSender mailSender;
     private final ObjectMapper objectMapper;
 
-    // Fields that are internal/technical and must never appear in emails
     private static final Set<String> HIDDEN_FIELDS = Set.of(
         "fileContent", "outputFileUrl", "filePath", "fileSize",
         "createdAt", "operation", "sheetName", "columnsProcessed"
@@ -129,12 +128,10 @@ public class RealEmailServiceImpl implements EmailService {
         try {
             JsonNode node = objectMapper.readTree(stripped);
 
-            // File-output node (Excel/CSV result) — show download-button template
             if (node.isObject() && node.has("webFileUrl")) {
                 return buildFileOutputContent(node, safeName);
             }
 
-            // Regular JSON — scrub technical fields and render with standard intro
             String sanitized = sanitizeForEmail(node);
             return standardIntro(safeName) + renderContent(sanitized);
 
@@ -218,7 +215,6 @@ public class RealEmailServiceImpl implements EmailService {
             }
 
             if (node.isObject()) {
-                // Unwrap single-key wrapper objects like {"result": "..."}
                 if (node.size() == 1) {
                     JsonNode inner = node.fields().next().getValue();
                     if (inner.isTextual() || inner.isArray() || inner.isObject()) {
