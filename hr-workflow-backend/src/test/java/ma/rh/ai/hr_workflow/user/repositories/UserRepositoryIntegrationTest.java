@@ -49,13 +49,13 @@ class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns the user matching the email")
         void findByEmail_returns_correct_user() {
-            // Arrange
+             
             userRepository.save(buildUser("alice@test.com", rhRole, true));
 
-            // Act
+             
             Optional<User> found = userRepository.findByEmail("alice@test.com");
 
-            // Assert
+             
             assertThat(found).isPresent();
             assertThat(found.get().getEmail()).isEqualTo("alice@test.com");
         }
@@ -63,20 +63,17 @@ class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns empty when email not found")
         void findByEmail_returns_empty_for_unknown() {
-            // Act & Assert
             assertThat(userRepository.findByEmail("unknown@test.com")).isEmpty();
         }
 
         @Test
         @DisplayName("disabled user is still findable by email")
         void disabled_user_is_findable_by_email() {
-            // Arrange
+             
             userRepository.save(buildUser("disabled@test.com", rhRole, false));
 
-            // Act
             Optional<User> found = userRepository.findByEmail("disabled@test.com");
 
-            // Assert
             assertThat(found).isPresent();
             assertThat(found.get().isEnabled()).isFalse();
         }
@@ -89,17 +86,15 @@ class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns true when email already registered")
         void existsByEmail_returns_true_for_existing() {
-            // Arrange
+             
             userRepository.save(buildUser("bob@test.com", rhRole, true));
 
-            // Act & Assert
             assertThat(userRepository.existsByEmail("bob@test.com")).isTrue();
         }
 
         @Test
         @DisplayName("returns false when email not yet registered")
         void existsByEmail_returns_false_for_new() {
-            // Act & Assert
             assertThat(userRepository.existsByEmail("new@test.com")).isFalse();
         }
     }
@@ -111,14 +106,13 @@ class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("findAll returns every inserted user")
         void findAll_returns_all_users() {
-            // Arrange
+             
             userRepository.save(buildUser("u1@test.com", rhRole, true));
             userRepository.save(buildUser("u2@test.com", adminRole, true));
 
-            // Act
             List<User> all = userRepository.findAll();
 
-            // Assert
+             
             assertThat(all).hasSizeGreaterThanOrEqualTo(2);
             assertThat(all).extracting(User::getEmail).contains("u1@test.com", "u2@test.com");
         }
@@ -131,13 +125,13 @@ class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("user is saved with assigned role and role survives a reload")
         void user_saved_with_role_survives_reload() {
-            // Arrange
+             
             User saved = userRepository.save(buildUser("admin@test.com", adminRole, true));
 
-            // Act
+             
             User reloaded = userRepository.findById(saved.getId()).orElseThrow();
 
-            // Assert
+             
             assertThat(reloaded.getRoles()).extracting(Role::getName)
                     .containsExactly(RoleName.ROLE_ADMIN);
         }

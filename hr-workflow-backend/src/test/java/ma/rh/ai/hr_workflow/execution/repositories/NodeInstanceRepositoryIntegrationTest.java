@@ -98,15 +98,12 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("finds the specific node instance for a workflow instance and node")
         void finds_correct_node_instance() {
-            // Arrange
             nodeInstanceRepository.save(buildNodeInstance(node1, NodeInstanceStatus.COMPLETED, 1));
             nodeInstanceRepository.save(buildNodeInstance(node2, NodeInstanceStatus.PENDING, 2));
 
-            // Act
             Optional<NodeInstance> found = nodeInstanceRepository
                     .findByWorkflowInstanceIdAndNodeId(workflowInstance.getId(), node1.getId());
 
-            // Assert
             assertThat(found).isPresent();
             assertThat(found.get().getNode().getId()).isEqualTo(node1.getId());
             assertThat(found.get().getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
@@ -115,7 +112,6 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns empty when the combination does not exist")
         void returns_empty_for_unknown_combination() {
-            // Act & Assert
             Optional<NodeInstance> found = nodeInstanceRepository
                     .findByWorkflowInstanceIdAndNodeId(99999L, 99999L);
             assertThat(found).isEmpty();
@@ -129,15 +125,12 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns node instances sorted by executionOrder ascending")
         void returns_ordered_node_instances() {
-            // Arrange
             nodeInstanceRepository.save(buildNodeInstance(node2, NodeInstanceStatus.PENDING, 2));
             nodeInstanceRepository.save(buildNodeInstance(node1, NodeInstanceStatus.COMPLETED, 1));
 
-            // Act
             List<NodeInstance> ordered = nodeInstanceRepository
                     .findByWorkflowInstanceIdOrderByExecutionOrderAsc(workflowInstance.getId());
 
-            // Assert
             assertThat(ordered).hasSize(2);
             assertThat(ordered.get(0).getExecutionOrder()).isEqualTo(1);
             assertThat(ordered.get(1).getExecutionOrder()).isEqualTo(2);
@@ -151,15 +144,12 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("error message saved on a FAILED node instance is retrievable")
         void errorMessage_persisted_and_retrievable() {
-            // Arrange
             NodeInstance ni = buildNodeInstance(node1, NodeInstanceStatus.FAILED, 1);
             ni.setErrorMessage("GPT timeout after 30s");
             nodeInstanceRepository.save(ni);
 
-            // Act
             NodeInstance reloaded = nodeInstanceRepository.findById(ni.getId()).orElseThrow();
 
-            // Assert
             assertThat(reloaded.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
             assertThat(reloaded.getErrorMessage()).isEqualTo("GPT timeout after 30s");
         }

@@ -64,15 +64,12 @@ class NodeRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns nodes sorted by orderIndex ascending")
         void nodes_are_returned_in_order() {
-            // Arrange
             nodeRepository.save(buildNode(NodeType.EMAIL, 3));
             nodeRepository.save(buildNode(NodeType.GPT, 1));
             nodeRepository.save(buildNode(NodeType.DRIVE, 2));
 
-            // Act
             List<Node> ordered = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId());
 
-            // Assert
             assertThat(ordered).hasSize(3);
             assertThat(ordered.get(0).getOrderIndex()).isEqualTo(1);
             assertThat(ordered.get(1).getOrderIndex()).isEqualTo(2);
@@ -87,17 +84,17 @@ class NodeRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns only nodes of the requested type")
         void filter_by_node_type() {
-            // Arrange
+             
             nodeRepository.save(buildNode(NodeType.EMAIL, 1));
             nodeRepository.save(buildNode(NodeType.EMAIL, 2));
             nodeRepository.save(buildNode(NodeType.GPT, 3));
 
-            // Act
+             
             List<Node> emailNodes = nodeRepository.findByWorkflowIdAndType(workflow.getId(), NodeType.EMAIL);
             List<Node> gptNodes = nodeRepository.findByWorkflowIdAndType(workflow.getId(), NodeType.GPT);
             List<Node> driveNodes = nodeRepository.findByWorkflowIdAndType(workflow.getId(), NodeType.DRIVE);
 
-            // Assert
+             
             assertThat(emailNodes).hasSize(2).allMatch(n -> n.getType() == NodeType.EMAIL);
             assertThat(gptNodes).hasSize(1).allMatch(n -> n.getType() == NodeType.GPT);
             assertThat(driveNodes).isEmpty();
@@ -111,15 +108,15 @@ class NodeRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("deleteByWorkflowId removes all nodes of that workflow")
         void deleteByWorkflowId_removes_all_nodes() {
-            // Arrange
+             
             nodeRepository.save(buildNode(NodeType.EMAIL, 1));
             nodeRepository.save(buildNode(NodeType.GPT, 2));
             assertThat(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId())).hasSize(2);
 
-            // Act
+             
             nodeRepository.deleteByWorkflowId(workflow.getId());
 
-            // Assert
+             
             assertThat(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId())).isEmpty();
         }
     }

@@ -74,10 +74,9 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("create workflow returns 201 with workflow body")
         void create_workflow_returns_201() throws Exception {
-            // Arrange
+             
             String body = createWorkflowBody("Recruitment WF");
 
-            // Act & Assert
             mockMvc.perform(post("/api/v1/workflows")
                             .param("creatorId", adminUser.getId().toString())
                             .header("Authorization", adminToken)
@@ -91,7 +90,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("create workflow without auth still returns 201 (security is permitAll)")
         void create_workflow_no_auth_returns_201() throws Exception {
-            // Act & Assert — security config uses anyRequest().permitAll(), so no token still succeeds
             mockMvc.perform(post("/api/v1/workflows")
                             .param("creatorId", adminUser.getId().toString())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -107,7 +105,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("admin sees all workflows regardless of creator")
         void admin_sees_all_workflows() throws Exception {
-            // Arrange — RH creates its own workflow
             mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
@@ -115,13 +112,11 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .content(createWorkflowBody("RH-WF")))
                     .andExpect(status().isCreated());
 
-            // Act — admin GETs all
             MvcResult result = mockMvc.perform(get("/api/v1/workflows")
                             .header("Authorization", adminToken))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert
             JsonNode list = objectMapper.readTree(result.getResponse().getContentAsString());
             assertThat(list.isArray()).isTrue();
             assertThat(list.size()).isGreaterThanOrEqualTo(1);
@@ -130,7 +125,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("RH user sees only their own workflows")
         void rh_user_sees_only_own_workflows() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
@@ -145,13 +140,12 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .content(createWorkflowBody("ADMIN-WF")))
                     .andExpect(status().isCreated());
 
-            // Act
+             
             MvcResult result = mockMvc.perform(get("/api/v1/workflows")
                             .header("Authorization", rhToken))
                     .andExpect(status().isOk())
                     .andReturn();
 
-            // Assert — RH only sees their own
             JsonNode list = objectMapper.readTree(result.getResponse().getContentAsString());
             assertThat(list.isArray()).isTrue();
             for (JsonNode wf : list) {
@@ -167,7 +161,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns the workflow when it exists")
         void getById_existing_returns_200() throws Exception {
-            // Arrange
+             
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -177,7 +171,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
 
-            // Act & Assert
             mockMvc.perform(get("/api/v1/workflows/" + id)
                             .header("Authorization", adminToken))
                     .andExpect(status().isOk())
@@ -201,7 +194,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("update workflow returns 200 with updated name")
         void update_workflow_returns_200() throws Exception {
-            // Arrange — create
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -214,7 +206,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
             UpdateWorkflowDTO update = new UpdateWorkflowDTO();
             update.setName("NewName");
 
-            // Act & Assert
             mockMvc.perform(put("/api/v1/workflows/" + id)
                             .header("Authorization", adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -231,7 +222,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("delete workflow returns 204 No Content")
         void delete_workflow_returns_204() throws Exception {
-            // Arrange
+             
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -241,7 +232,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
 
-            // Act & Assert
             mockMvc.perform(delete("/api/v1/workflows/" + id)
                             .header("Authorization", adminToken))
                     .andExpect(status().isNoContent());
@@ -255,7 +245,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("duplicate workflow returns 201 with new workflow ID")
         void duplicate_workflow_returns_201() throws Exception {
-            // Arrange
+             
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -265,13 +255,12 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .andReturn();
             Long originalId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
 
-            // Act
+             
             MvcResult dupResult = mockMvc.perform(post("/api/v1/workflows/" + originalId + "/duplicate")
                             .header("Authorization", adminToken))
                     .andExpect(status().isCreated())
                     .andReturn();
 
-            // Assert — new ID is different from the original
             Long newId = objectMapper.readTree(dupResult.getResponse().getContentAsString()).get("id").asLong();
             assertThat(newId).isNotEqualTo(originalId);
         }
@@ -284,7 +273,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("DRAFT workflow name patched — returns 200 with updated name")
         void patch_draft_workflow_returns_200() throws Exception {
-            // Arrange — create a DRAFT workflow
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -296,7 +284,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
 
             PatchWorkflowDTO patchDTO = new PatchWorkflowDTO("AfterPatch", "patched description");
 
-            // Act & Assert
             mockMvc.perform(patch("/api/v1/workflows/" + id)
                             .header("Authorization", adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -308,7 +295,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("patching a non-DRAFT workflow throws IllegalStateException")
         void patch_non_draft_workflow_throws() throws Exception {
-            // Arrange — create workflow then make it ACTIVE via update
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
@@ -318,7 +304,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
 
-            // Promote to ACTIVE via PUT
             UpdateWorkflowDTO activateDTO = new UpdateWorkflowDTO();
             activateDTO.setName("ToActivate");
             activateDTO.setStatus(ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus.ACTIVE);
@@ -330,7 +315,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
 
             PatchWorkflowDTO patchDTO = new PatchWorkflowDTO("ShouldFail", null);
 
-            // Act & Assert — service throws IllegalStateException for non-DRAFT
             assertThatThrownBy(() ->
                 mockMvc.perform(patch("/api/v1/workflows/" + id)
                         .header("Authorization", adminToken)

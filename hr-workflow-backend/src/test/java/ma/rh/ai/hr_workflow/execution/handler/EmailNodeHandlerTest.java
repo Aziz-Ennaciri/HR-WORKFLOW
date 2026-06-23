@@ -41,7 +41,6 @@ class EmailNodeHandlerTest {
     @Test
     @DisplayName("execute() delegates to emailService with configJson, inputData, workflowName, workflowKey")
     void execute_delegatesCorrectArguments() throws Exception {
-        // Arrange
         Workflow wf = new Workflow();
         wf.setName("HR Onboarding");
 
@@ -57,10 +56,8 @@ class EmailNodeHandlerTest {
 
         when(emailService.sendEmail(any(), any(), any(), any())).thenReturn("sent");
 
-        // Act
         String result = handler.execute(node, ni);
 
-        // Assert
         assertThat(result).isEqualTo("sent");
         verify(emailService).sendEmail(
                 "{\"to\":\"hr@company.com\"}",

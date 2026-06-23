@@ -85,13 +85,13 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("creates a workflow in DRAFT status with correct creator")
         void createWorkflow_persists_with_draft_status() {
-            // Arrange
+             
             CreateWorkflowDTO dto = buildCreateDTO("New WF");
 
-            // Act
+             
             WorkflowResponseDTO result = workflowService.createWorkflow(dto, userA.getId());
 
-            // Assert
+             
             assertThat(result.getId()).isNotNull();
             assertThat(result.getName()).isEqualTo("New WF");
             assertThat(result.getStatus()).isEqualTo("DRAFT");
@@ -106,7 +106,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("activates a DRAFT workflow that has at least one node")
         void activateWorkflow_transitions_to_ACTIVE() {
-            // Arrange
+             
             WorkflowResponseDTO created = workflowService.createWorkflow(
                     buildCreateDTO("ToActivate"), userA.getId());
 
@@ -116,26 +116,22 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
             node.setType(NodeType.EMAIL);
             node.setOrderIndex(1);
             node = nodeRepository.save(node);
-            // Hibernate's first-level cache holds an already-initialized (empty) nodes
-            // collection for `wf`. Explicitly adding the saved node keeps the in-memory
-            // collection in sync so activateWorkflow's isEmpty() check sees the node.
             wf.getNodes().add(node);
 
-            // Act
+             
             WorkflowResponseDTO activated = workflowService.activateWorkflow(created.getId());
 
-            // Assert
+             
             assertThat(activated.getStatus()).isEqualTo("ACTIVE");
         }
 
         @Test
         @DisplayName("activating a workflow without nodes throws IllegalStateException")
         void activateWorkflow_without_nodes_throws() {
-            // Arrange
+             
             WorkflowResponseDTO created = workflowService.createWorkflow(
                     buildCreateDTO("EmptyWF"), userA.getId());
 
-            // Act & Assert
             assertThatThrownBy(() -> workflowService.activateWorkflow(created.getId()))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("node");
@@ -149,7 +145,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("soft delete marks the workflow as deleted and cancels running instances")
         void deleteWorkflow_marksDeleted_and_cancelsInstances() {
-            // Arrange
+             
             Workflow wf = buildActiveWorkflow("ToDelete", userA);
 
             WorkflowInstance running = new WorkflowInstance();
@@ -159,14 +155,12 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
             running.setCreatedAt(LocalDateTime.now());
             instanceRepository.save(running);
 
-            // Act
+             
             workflowService.deleteWorkflow(wf.getId());
 
-            // Assert — workflow is soft-deleted
             Workflow afterDelete = workflowRepository.findById(wf.getId()).orElseThrow();
             assertThat(afterDelete.isDeleted()).isTrue();
 
-            // Assert — running instances cancelled
             WorkflowInstance cancelledInstance = instanceRepository.findById(running.getId()).orElseThrow();
             assertThat(cancelledInstance.getStatus()).isEqualTo(WorkflowInstanceStatus.CANCELLED);
         }
@@ -174,14 +168,14 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("deleted workflow does not appear in findByDeletedFalse")
         void deleted_workflow_invisible_to_deleted_false_query() {
-            // Arrange
+             
             buildActiveWorkflow("StillVisible", userA);
             Workflow wf = buildActiveWorkflow("Hidden", userA);
 
-            // Act
+             
             workflowService.deleteWorkflow(wf.getId());
 
-            // Assert
+             
             List<WorkflowResponseDTO> visible = workflowService.getAllWorkflows();
             assertThat(visible).isNotEmpty();
             assertThat(visible).extracting(WorkflowResponseDTO::getName).doesNotContain("Hidden");
@@ -195,7 +189,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("duplicate produces a DRAFT copy with the same nodes")
         void duplicateWorkflow_creates_deep_copy() {
-            // Arrange
+             
             Workflow original = buildActiveWorkflow("Original", userA);
             Node n1 = new Node();
             n1.setWorkflow(original);
@@ -209,10 +203,10 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
             n2.setOrderIndex(2);
             nodeRepository.save(n2);
 
-            // Act
+             
             WorkflowResponseDTO copy = workflowService.duplicateWorkflow(original.getId(), userA.getEmail());
 
-            // Assert
+             
             assertThat(copy.getId()).isNotEqualTo(original.getId());
             assertThat(copy.getName()).startsWith("Copy of");
             assertThat(copy.getStatus()).isEqualTo("DRAFT");
@@ -230,15 +224,15 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("getWorkflowsByCreatorEmail returns only the calling user's workflows")
         void user_cannot_see_other_users_workflows() {
-            // Arrange
+             
             workflowService.createWorkflow(buildCreateDTO("WF-A"), userA.getId());
             workflowService.createWorkflow(buildCreateDTO("WF-B"), userB.getId());
 
-            // Act
+             
             List<WorkflowResponseDTO> userAResults = workflowService.getWorkflowsByCreatorEmail(userA.getEmail());
             List<WorkflowResponseDTO> userBResults = workflowService.getWorkflowsByCreatorEmail(userB.getEmail());
 
-            // Assert
+             
             assertThat(userAResults).extracting(WorkflowResponseDTO::getName).contains("WF-A").doesNotContain("WF-B");
             assertThat(userBResults).extracting(WorkflowResponseDTO::getName).contains("WF-B").doesNotContain("WF-A");
         }

@@ -55,11 +55,6 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected PasswordEncoder passwordEncoder;
 
-    /**
-     * Calls the login endpoint and returns a "Bearer {token}" string ready for the
-     * Authorization header.  Works inside @Transactional tests because MockMvc
-     * dispatches in the same thread and the JPA repository joins the ambient transaction.
-     */
     protected String getAuthToken(String email, String password) throws Exception {
         LoginRequestDTO request = new LoginRequestDTO(email, password);
         MvcResult result = mockMvc.perform(

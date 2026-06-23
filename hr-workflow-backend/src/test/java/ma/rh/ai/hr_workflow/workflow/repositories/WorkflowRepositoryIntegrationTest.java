@@ -65,14 +65,14 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("save persists a workflow and findById retrieves it")
         void save_and_findById_roundTrip() {
-            // Arrange
+             
             Workflow workflow = buildWorkflow("Onboarding", userA);
 
-            // Act
+             
             Workflow saved = workflowRepository.save(workflow);
             Optional<Workflow> found = workflowRepository.findById(saved.getId());
 
-            // Assert
+             
             assertThat(found).isPresent();
             assertThat(found.get().getName()).isEqualTo("Onboarding");
             assertThat(found.get().getStatus()).isEqualTo(WorkflowStatus.DRAFT);
@@ -86,18 +86,18 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("returns only workflows belonging to the given email")
         void returns_only_owner_workflows() {
-            // Arrange
+             
             workflowRepository.save(buildWorkflow("WF-A1", userA));
             workflowRepository.save(buildWorkflow("WF-A2", userA));
             workflowRepository.save(buildWorkflow("WF-B1", userB));
 
-            // Act
+             
             List<Workflow> userAWorkflows = workflowRepository
                     .findByCreatedByEmailAndDeletedFalse(userA.getEmail());
             List<Workflow> userBWorkflows = workflowRepository
                     .findByCreatedByEmailAndDeletedFalse(userB.getEmail());
 
-            // Assert
+             
             assertThat(userAWorkflows).hasSize(2)
                     .allMatch(w -> w.getCreatedBy().getEmail().equals("userA@test.com"));
             assertThat(userBWorkflows).hasSize(1)
@@ -112,48 +112,48 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("findByDeletedFalse excludes deleted workflows")
         void findByDeletedFalse_excludes_deleted() {
-            // Arrange
+             
             workflowRepository.save(buildWorkflow("Active", userA));
             Workflow deleted = buildWorkflow("Deleted", userA);
             deleted.setDeleted(true);
             workflowRepository.save(deleted);
 
-            // Act
+             
             List<Workflow> result = workflowRepository.findByDeletedFalse();
 
-            // Assert
+             
             assertThat(result).extracting(Workflow::getName).contains("Active").doesNotContain("Deleted");
         }
 
         @Test
         @DisplayName("findAll returns both deleted and non-deleted workflows")
         void findAll_returns_all_including_deleted() {
-            // Arrange
+             
             workflowRepository.save(buildWorkflow("Normal", userA));
             Workflow deleted = buildWorkflow("Ghost", userA);
             deleted.setDeleted(true);
             workflowRepository.save(deleted);
 
-            // Act
+             
             List<Workflow> all = workflowRepository.findAll();
 
-            // Assert
+             
             assertThat(all).hasSizeGreaterThanOrEqualTo(2);
         }
 
         @Test
         @DisplayName("soft delete hides workflow from findByDeletedFalse")
         void softDelete_hidesWorkflow_fromDeletedFalseQuery() {
-            // Arrange
+             
             workflowRepository.save(buildWorkflow("Visible", userA));
             Workflow workflow = workflowRepository.save(buildWorkflow("ToDelete", userA));
 
-            // Act
+             
             workflow.setDeleted(true);
             workflowRepository.save(workflow);
             List<Workflow> visible = workflowRepository.findByDeletedFalse();
 
-            // Assert
+             
             assertThat(visible).isNotEmpty();
             assertThat(visible).extracting(Workflow::getName).doesNotContain("ToDelete");
         }

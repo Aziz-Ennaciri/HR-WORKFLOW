@@ -41,7 +41,6 @@ class WorkflowInstanceServiceImplTest {
         service = new WorkflowInstanceServiceImpl(workflowInstancerepository, workflowRepository);
     }
 
-    // ─── helpers ─────────────────────────────────────────────────────────────
 
     private WorkflowInstance instanceWithStatus(WorkflowInstanceStatus status) {
         WorkflowInstance wi = new WorkflowInstance();
@@ -49,7 +48,6 @@ class WorkflowInstanceServiceImplTest {
         return wi;
     }
 
-    // ─── createInstance ──────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("createInstance()")
@@ -58,7 +56,6 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — builds WorkflowInstance with PENDING status and saves it")
         void createInstance_happyPath_savesWithPendingStatus() {
-            // Arrange
             Workflow wf = new Workflow();
             wf.setId(10L);
             User user = new User();
@@ -72,10 +69,8 @@ class WorkflowInstanceServiceImplTest {
             saved.setId(100L);
             when(workflowInstancerepository.save(captor.capture())).thenReturn(saved);
 
-            // Act
             WorkflowInstance result = service.createInstance(dto, user);
 
-            // Assert
             assertThat(result).isEqualTo(saved);
             WorkflowInstance created = captor.getValue();
             assertThat(created.getWorkflow()).isEqualTo(wf);
@@ -88,17 +83,14 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — null inputData is saved as null")
         void createInstance_nullInputData_savedWithNull() {
-            // Arrange
             Workflow wf = new Workflow();
             wf.setId(1L);
             TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(1L, null);
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(wf));
             when(workflowInstancerepository.save(any())).thenReturn(new WorkflowInstance());
 
-            // Act
             service.createInstance(dto, new User());
 
-            // Assert
             ArgumentCaptor<WorkflowInstance> captor = ArgumentCaptor.forClass(WorkflowInstance.class);
             verify(workflowInstancerepository).save(captor.capture());
             assertThat(captor.getValue().getInputData()).isNull();
@@ -107,18 +99,15 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void createInstance_workflowNotFound_throws() {
-            // Arrange
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
             TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(99L, null);
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.createInstance(dto, new User()));
             assertThat(ex.getMessage()).contains("Workflow not found");
         }
     }
 
-    // ─── startInstance ───────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("startInstance()")
@@ -127,14 +116,11 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — sets status to RUNNING, sets startedAt, does NOT save")
         void startInstance_setsRunningWithoutSave() {
-            // Arrange
             WorkflowInstance wi = instanceWithStatus(WorkflowInstanceStatus.PENDING);
             when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.startInstance(1L);
 
-            // Assert
             assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
             assertThat(result.getStartedAt()).isNotNull();
             verify(workflowInstancerepository, never()).save(any());
@@ -143,17 +129,14 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("exception — instance not found throws RuntimeException")
         void startInstance_notFound_throws() {
-            // Arrange
             when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.startInstance(99L));
             assertThat(ex.getMessage()).contains("WorkflowInstance not found");
         }
     }
 
-    // ─── completeInstance ────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("completeInstance()")
@@ -162,15 +145,12 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — sets COMPLETED, outputData, finishedAt, durationMs; does NOT save")
         void completeInstance_setsCompletedWithoutSave() {
-            // Arrange
             WorkflowInstance wi = new WorkflowInstance();
             wi.setStartedAt(LocalDateTime.now().minusSeconds(5));
             when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.completeInstance(1L, "{\"result\":\"done\"}");
 
-            // Assert
             assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
             assertThat(result.getOutputData()).isEqualTo("{\"result\":\"done\"}");
             assertThat(result.getFinishedAt()).isNotNull();
@@ -181,14 +161,11 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — null outputData is stored as null")
         void completeInstance_nullOutput_storedAsNull() {
-            // Arrange
             WorkflowInstance wi = new WorkflowInstance();
             when(workflowInstancerepository.findById(2L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.completeInstance(2L, null);
 
-            // Assert
             assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
             assertThat(result.getOutputData()).isNull();
         }
@@ -196,31 +173,25 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("edge case — no startedAt means durationMs is null (complete() skips calculation)")
         void completeInstance_noStartedAt_durationMsIsNull() {
-            // Arrange
             WorkflowInstance wi = new WorkflowInstance(); // startedAt = null
             when(workflowInstancerepository.findById(3L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.completeInstance(3L, "out");
 
-            // Assert
             assertThat(result.getDurationMs()).isNull();
         }
 
         @Test
         @DisplayName("exception — instance not found throws RuntimeException")
         void completeInstance_notFound_throws() {
-            // Arrange
             when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.completeInstance(99L, null));
             assertThat(ex.getMessage()).contains("WorkflowInstance not found");
         }
     }
 
-    // ─── failInstance ────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("failInstance()")
@@ -229,15 +200,12 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — sets FAILED, errorMessage, stackTrace, finishedAt; does NOT save")
         void failInstance_setsFailedWithoutSave() {
-            // Arrange
             WorkflowInstance wi = new WorkflowInstance();
             wi.setStartedAt(LocalDateTime.now().minusSeconds(2));
             when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.failInstance(1L, "NPE thrown", "java.lang.NullPointerException...");
 
-            // Assert
             assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
             assertThat(result.getErrorMessage()).isEqualTo("NPE thrown");
             assertThat(result.getErrorStackTrace()).isEqualTo("java.lang.NullPointerException...");
@@ -249,14 +217,11 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("happy path — null errorMessage and stackTrace are stored as null")
         void failInstance_nullErrorAndTrace_storedAsNull() {
-            // Arrange
             WorkflowInstance wi = new WorkflowInstance();
             when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
 
-            // Act
             WorkflowInstance result = service.failInstance(1L, null, null);
 
-            // Assert
             assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
             assertThat(result.getErrorMessage()).isNull();
             assertThat(result.getErrorStackTrace()).isNull();
@@ -265,10 +230,8 @@ class WorkflowInstanceServiceImplTest {
         @Test
         @DisplayName("exception — instance not found throws RuntimeException")
         void failInstance_notFound_throws() {
-            // Arrange
             when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.failInstance(99L, "error", "trace"));
             assertThat(ex.getMessage()).contains("WorkflowInstance not found");

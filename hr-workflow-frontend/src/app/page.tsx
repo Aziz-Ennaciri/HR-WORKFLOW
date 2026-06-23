@@ -1,285 +1,215 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import Button from "../components/ui/Button";
-import Footer from "../components/layout/Footer";
+import { useRouter } from "next/navigation";
+import { isAuthenticated } from "@/lib/auth";
+
+/* ─── Data ─────────────────────────────────────────── */
+
+const features = [
+  {
+    icon: "📂",
+    title: "Read Documents",
+    desc: "Connect to file storage and automatically read CVs, policies, and HR documents.",
+  },
+  {
+    icon: "🤖",
+    title: "AI Analysis",
+    desc: "Use AI (Ollama/GPT) to evaluate candidates, review documents, and generate insights.",
+  },
+  {
+    icon: "📊",
+    title: "Excel Reports",
+    desc: "Automatically generate structured Excel reports with formatted tables and rankings.",
+  },
+  {
+    icon: "✅",
+    title: "Approvals & Email",
+    desc: "Add manager approvals and receive professional email notifications with results.",
+  },
+];
+
+const steps = [
+  {
+    title: "Build",
+    desc: 'Create a workflow by connecting nodes: Drive → AI → Excel → Email.',
+  },
+  {
+    title: "Execute",
+    desc: "Run your workflow with one click and monitor each step in real time.",
+  },
+  {
+    title: "Results",
+    desc: "Get structured Excel reports, approval requests, and email notifications automatically.",
+  },
+];
+
+/* ─── Page ──────────────────────────────────────────── */
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated()) router.replace("/dashboard");
+  }, [router]);
+
   return (
-    <div>
-      {/* Hero */}
-      <section className="bg-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.04),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(99,102,241,0.04),transparent_50%)]" />
-        <div className="max-w-7xl mx-auto px-6 py-24 lg:py-32 relative">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-16">
-            <div className="max-w-xl">
-              <p className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold tracking-wider uppercase border border-blue-100">
-                Enterprise HR Automation
-              </p>
-              <h1 className="mt-6 text-4xl sm:text-5xl lg:text-[56px] font-bold leading-[1.1] text-gray-900 tracking-tight">
-                Build, run, and scale
-                <span className="text-blue-600"> HR workflows</span> in minutes
-              </h1>
-              <p className="mt-6 text-lg text-gray-500 leading-relaxed">
-                Combine drag-and-drop workflow orchestration with intelligent AI
-                and API integration for onboarding, approvals, payroll, and team
-                operations.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/login">
-                  <button className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md active:scale-[0.97]">
-                    Log in
-                  </button>
-                </Link>
-                <Link href="/register">
-                  <button className="px-7 py-3 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:border-gray-300 transition-all">
-                    Create account
-                  </button>
-                </Link>
-              </div>
+    <div className="min-h-screen flex flex-col bg-[#f7fafc]">
+      {/* ── Navbar ── */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-[#1a365d] rounded-[6px] flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-xs">HR</span>
             </div>
-
-            {/* Preview card */}
-            <div className="relative max-w-lg w-full">
-              <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-lg shadow-gray-100/50">
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                </div>
-                <h3 className="text-gray-900 text-base font-semibold mb-4">
-                  Live Workflow Overview
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    {
-                      icon: "🔄",
-                      text: "Candidate data sync from form → HRIS → Slack",
-                    },
-                    {
-                      icon: "📄",
-                      text: "Auto-send onboarding docs after approval",
-                    },
-                    {
-                      icon: "💰",
-                      text: "Payroll trigger and audit trail generation",
-                    },
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2.5 border border-gray-100"
-                    >
-                      <span>{item.icon}</span>
-                      <span>{item.text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <span className="font-bold text-[#1a202c] text-[15px] tracking-tight">
+              HR Workflow
+            </span>
           </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="bg-[#f8f9fb]">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-              Why HR Workflow System?
-            </h2>
-            <p className="mt-3 text-gray-400 text-base max-w-lg mx-auto">
-              Everything you need to automate, track, and scale your HR
-              operations
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                title: "Visual Workflow Builder",
-                desc: "Drag & drop nodes and conditional logic for fast design.",
-                icon: "🧩",
-              },
-              {
-                title: "AI & Business Logic",
-                desc: "Use AI nodes for decision support, content generation and routing.",
-                icon: "🤖",
-              },
-              {
-                title: "Integrations",
-                desc: "Connect email, storage, HR systems and APIs without code.",
-                icon: "🔗",
-              },
-              {
-                title: "Enterprise Security",
-                desc: "Role-based access, audit logs and data encryption in transit and at rest.",
-                icon: "🔒",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-gray-200 bg-white p-6 hover:shadow-md hover:border-gray-300 transition-all"
-              >
-                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xl mb-4 border border-gray-100">
-                  {item.icon}
-                </div>
-                <h3 className="text-base font-semibold text-gray-900 mb-1.5">
-                  {item.title}
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Social proof */}
-      <section className="bg-white border-y border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-16">
-          <p className="text-center text-sm text-gray-400 font-medium uppercase tracking-wider mb-8">
-            Trusted by teams at
-          </p>
-          <div className="flex flex-wrap justify-center items-center gap-8">
-            {["Google", "Microsoft", "Stripe", "Amazon", "Airbnb"].map(
-              (logo) => (
-                <div
-                  key={logo}
-                  className="text-lg font-semibold text-gray-300 tracking-tight"
-                >
-                  {logo}
-                </div>
-              ),
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="bg-[#f8f9fb]">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-10 tracking-tight">
-            Built for teams, trusted by leaders
-          </h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                quote: "Our onboarding time dropped by 70%.",
-                name: "Sara",
-                role: "Head of People",
-              },
-              {
-                quote:
-                  "Finally we can standardize HR processes across all departments.",
-                name: "Omar",
-                role: "Operations",
-              },
-              {
-                quote: "The transparency and audit trail is a game-changer.",
-                name: "Lina",
-                role: "Compliance Lead",
-              },
-            ].map((item) => (
-              <div
-                key={item.name}
-                className="rounded-2xl border border-gray-200 bg-white p-6"
-              >
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <svg
-                      key={i}
-                      className="w-4 h-4 text-amber-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                  "{item.quote}"
-                </p>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">
-                    {item.name}
-                  </p>
-                  <p className="text-gray-400 text-xs">{item.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12 tracking-tight">
-            How it works
-          </h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Design",
-                desc: "Compose nodes, triggers and branches with our visual canvas.",
-              },
-              {
-                step: "02",
-                title: "Test",
-                desc: "Run sandbox executions to validate data flow and outcomes.",
-              },
-              {
-                step: "03",
-                title: "Deploy",
-                desc: "Activate workflows and monitor execution health in real time.",
-              },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="rounded-2xl border border-gray-200 p-6 bg-white hover:shadow-md transition-all"
-              >
-                <div className="text-blue-600 text-2xl font-bold mb-3 tracking-tight">
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1.5">
-                  {item.title}
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-gray-900">
-        <div className="max-w-5xl mx-auto text-center px-6 py-20">
-          <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">
-            Ready to accelerate HR operations?
-          </h2>
-          <p className="text-gray-400 text-base mb-8 max-w-lg mx-auto">
-            Onboard faster, reduce manual follow-ups, and keep everyone aligned
-            with one workflow platform.
-          </p>
-          <div className="flex justify-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <Link href="/login">
-              <button className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
-                Log In
+              <button className="px-4 py-2 text-sm font-medium text-[#4a5568] hover:text-[#1a202c] hover:bg-gray-50 rounded-[6px] transition-colors">
+                Sign in
               </button>
             </Link>
             <Link href="/register">
-              <button className="px-8 py-3 bg-white/10 hover:bg-white/15 text-white text-sm font-semibold rounded-xl border border-white/20 transition-all">
-                Sign up now
+              <button className="px-4 py-2 text-sm font-semibold bg-[#1a365d] text-white rounded-[6px] hover:bg-[#2d4a7c] transition-colors shadow-sm">
+                Get Started
+              </button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Hero ── */}
+      <section className="bg-gradient-to-br from-[#0f1f38] via-[#1a365d] to-[#243b6e] py-24 lg:py-32 relative overflow-hidden">
+        {/* Subtle background circle */}
+        <div className="absolute top-[-80px] right-[-80px] w-72 h-72 rounded-full border border-white/5 pointer-events-none" />
+        <div className="absolute bottom-[-60px] left-[-60px] w-56 h-56 rounded-full border border-white/5 pointer-events-none" />
+
+        <div className="relative max-w-3xl mx-auto px-6 text-center">
+          <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-bold text-white leading-tight tracking-tight">
+            Automate Your HR
+            <br />
+            Workflows with AI
+          </h1>
+          <p className="mt-6 text-[17px] text-white/60 leading-relaxed max-w-xl mx-auto">
+            Build intelligent HR workflows that read documents, analyze
+            candidates with AI, generate Excel reports, and send email
+            notifications — all automated.
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <Link href="/register">
+              <button className="px-7 py-3 bg-white text-[#1a365d] text-sm font-bold rounded-[6px] hover:bg-blue-50 transition-colors shadow-md hover:shadow-lg">
+                Get Started
+              </button>
+            </Link>
+            <Link href="/login">
+              <button className="px-7 py-3 border border-white/25 text-white text-sm font-semibold rounded-[6px] hover:bg-white/10 transition-colors">
+                Sign In
               </button>
             </Link>
           </div>
         </div>
       </section>
 
-      <Footer />
+      {/* ── What It Does ── */}
+      <section className="py-20 bg-[#f7fafc]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#1a202c]">
+              What It Does
+            </h2>
+            <p className="mt-2 text-[#4a5568] text-base max-w-lg mx-auto">
+              A complete workflow automation system for common HR tasks
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map((f) => (
+              <FeatureCard key={f.title} {...f} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section className="py-20 bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#1a202c]">
+              How It Works
+            </h2>
+          </div>
+
+          <div className="relative grid gap-6 md:grid-cols-3">
+            {/* Connecting dashed line between steps (desktop only) */}
+            <div
+              className="hidden md:block absolute top-[40px] left-[calc(33%+24px)] right-[calc(33%+24px)] h-px border-t-2 border-dashed border-gray-200"
+              aria-hidden="true"
+            />
+
+            {steps.map((step, i) => (
+              <StepCard key={i} number={i + 1} {...step} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="mt-auto bg-[#1a202c] py-8">
+        <div className="max-w-6xl mx-auto px-6 text-center space-y-1">
+          <p className="text-white/75 font-semibold text-sm">
+            HR Workflow System — Final Year Project
+          </p>
+          <p className="text-white/35 text-xs">
+            Built with Spring Boot, Next.js, and Ollama
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+/* ─── Feature card ───────────────────────────────────── */
+function FeatureCard({
+  icon,
+  title,
+  desc,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-100 p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+      <div className="w-11 h-11 rounded-lg bg-blue-50 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform duration-200">
+        {icon}
+      </div>
+      <h3 className="text-[15px] font-bold text-[#1a202c] mb-1.5">{title}</h3>
+      <p className="text-[#4a5568] text-sm leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
+/* ─── Step card ──────────────────────────────────────── */
+function StepCard({
+  number,
+  title,
+  desc,
+}: {
+  number: number;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="relative z-10 bg-white rounded-lg border border-gray-100 shadow-sm p-7 text-center hover:shadow-md transition-shadow duration-200">
+      <div className="w-10 h-10 rounded-full bg-[#1a365d] text-white font-bold text-sm flex items-center justify-center mx-auto mb-4">
+        {number}
+      </div>
+      <h3 className="text-[15px] font-bold text-[#1a202c] mb-2">{title}</h3>
+      <p className="text-[#4a5568] text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }

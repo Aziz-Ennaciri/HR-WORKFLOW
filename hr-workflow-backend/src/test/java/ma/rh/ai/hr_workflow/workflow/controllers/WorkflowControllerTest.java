@@ -44,7 +44,6 @@ class WorkflowControllerTest {
         SecurityContextHolder.clearContext();
     }
 
-    // ── createWorkflow ──────────────────────────────
 
     @Test
     @DisplayName("createWorkflow delegates to service and returns 201 CREATED")
@@ -73,12 +72,10 @@ class WorkflowControllerTest {
         assertThat(result.getBody()).isSameAs(response);
     }
 
-    // ── getWorkflows (auth branches) ────────────────
 
     @Test
     @DisplayName("getWorkflows returns 401 when SecurityContext has no authentication")
     void getWorkflows_nullAuth_returns401() {
-        // SecurityContextHolder has no Authentication set
         ResponseEntity<List<WorkflowResponseDTO>> result = controller.getWorkflows();
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
@@ -110,7 +107,6 @@ class WorkflowControllerTest {
         assertThat(result.getBody()).isSameAs(own);
     }
 
-    // ── updateWorkflow ──────────────────────────────
 
     @Test
     @DisplayName("updateWorkflow delegates to service and returns 200 OK")
@@ -125,7 +121,6 @@ class WorkflowControllerTest {
         assertThat(result.getBody()).isSameAs(response);
     }
 
-    // ── deleteWorkflow ──────────────────────────────
 
     @Test
     @DisplayName("deleteWorkflow delegates to service and returns 204 NO CONTENT")
@@ -136,7 +131,6 @@ class WorkflowControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
-    // ── duplicateWorkflow (auth branches) ──────────
 
     @Test
     @DisplayName("duplicateWorkflow returns 401 when SecurityContext has no authentication")
@@ -159,7 +153,6 @@ class WorkflowControllerTest {
         assertThat(result.getBody()).isSameAs(copy);
     }
 
-    // ── helpers ─────────────────────────────────────
 
     private void setAuth(String username, String... roles) {
         var authorities = java.util.Arrays.stream(roles)

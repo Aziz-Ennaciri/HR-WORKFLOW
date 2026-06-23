@@ -11,7 +11,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-// Additional DTOs are serialised inline as JSON strings — no extra imports needed
 
 @DisplayName("UserController Integration Tests")
 class UserControllerIntegrationTest extends AbstractIntegrationTest {
@@ -33,10 +32,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("register a new user returns 201 with user body")
         void register_returns_201() throws Exception {
-            // Arrange
+             
             String body = objectMapper.writeValueAsString(buildDTO("reg@test.com", "pass123", "ROLE_RH"));
 
-            // Act & Assert
             mockMvc.perform(post("/api/v1/users/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -47,13 +45,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("registering with a duplicate email throws (unhandled RuntimeException)")
         void register_duplicate_email_returns_error() throws Exception {
-            // Arrange — first registration
             String body = objectMapper.writeValueAsString(buildDTO("dup@test.com", "pass", "ROLE_RH"));
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isCreated());
 
-            // Act — second registration with same email throws in Spring 6 MockMvc
             assertThatThrownBy(() ->
                 mockMvc.perform(post("/api/v1/users/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -69,7 +65,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("login with correct credentials returns 200 and a JWT token")
         void login_valid_credentials_returns_token() throws Exception {
-            // Arrange — register first
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("login@test.com", "pass", "ROLE_RH"))))
@@ -77,7 +72,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String loginBody = "{\"email\":\"login@test.com\",\"password\":\"pass\"}";
 
-            // Act & Assert
             mockMvc.perform(post("/api/v1/users/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginBody))
@@ -89,7 +83,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("login with wrong password throws (unhandled RuntimeException)")
         void login_wrong_password_returns_error() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("badpwd@test.com", "correct", "ROLE_RH"))))
@@ -97,7 +91,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String loginBody = "{\"email\":\"badpwd@test.com\",\"password\":\"wrong\"}";
 
-            // Act — Spring 6 MockMvc re-throws unhandled exceptions instead of returning 500
             assertThatThrownBy(() ->
                 mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -113,7 +106,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user can list all users")
         void getAllUsers_authenticated_returns_200() throws Exception {
-            // Arrange — register and get token
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("list@test.com", "pass", "ROLE_RH"))))
@@ -121,7 +113,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String token = getAuthToken("list@test.com", "pass");
 
-            // Act & Assert
             mockMvc.perform(get("/api/v1/users")
                             .header("Authorization", token))
                     .andExpect(status().isOk())
@@ -131,7 +122,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("unauthenticated request returns 200 (security is permitAll)")
         void getAllUsers_unauthenticated_returns_200() throws Exception {
-            // Act & Assert — security config uses anyRequest().permitAll(), no auth required
             mockMvc.perform(get("/api/v1/users"))
                     .andExpect(status().is2xxSuccessful());
         }
@@ -144,7 +134,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user can disable another user — returns 204")
         void disableUser_returns_204() throws Exception {
-            // Arrange — register two users
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("admin-dis@test.com", "pass", "ROLE_ADMIN"))))
@@ -159,14 +148,12 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
             Long targetId = objectMapper.readTree(registerResponse).get("id").asLong();
             String token = getAuthToken("admin-dis@test.com", "pass");
 
-            // Act & Assert
             mockMvc.perform(delete("/api/v1/users/" + targetId)
                             .header("Authorization", token))
                     .andExpect(status().isNoContent());
         }
     }
 
-    // ── /me endpoint tests ─────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("GET /api/v1/users/me")
@@ -175,14 +162,13 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user gets their own profile — returns 200 with email")
         void getMe_authenticated_returns_200() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("me@test.com", "pass", "ROLE_RH"))))
                     .andExpect(status().isCreated());
             String token = getAuthToken("me@test.com", "pass");
 
-            // Act & Assert
             mockMvc.perform(get("/api/v1/users/me")
                             .header("Authorization", token))
                     .andExpect(status().isOk())
@@ -192,8 +178,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("unauthenticated request resolves to 'anonymousUser' which is not in DB — throws RuntimeException")
         void getMe_anonymousUser_throws() {
-            // Spring sets AnonymousAuthenticationToken (name="anonymousUser") when no Bearer header is
-            // present. No DB user matches that email, so the service throws RuntimeException.
             assertThatThrownBy(() ->
                 mockMvc.perform(get("/api/v1/users/me")))
                     .hasCauseInstanceOf(RuntimeException.class);
@@ -207,7 +191,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user updates first/last name — returns 200")
         void updateProfile_authenticated_returns_200() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("profile@test.com", "pass", "ROLE_RH"))))
@@ -216,7 +200,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"firstName\":\"Updated\",\"lastName\":\"Name\"}";
 
-            // Act & Assert
             mockMvc.perform(patch("/api/v1/users/me")
                             .header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -234,7 +217,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("correct current password and free email — returns 200 with new email")
         void changeEmail_correctPassword_returns_200() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("oldemail@test.com", "pass123", "ROLE_RH"))))
@@ -243,7 +226,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"newEmail\":\"newemail@test.com\",\"currentPassword\":\"pass123\"}";
 
-            // Act & Assert
             mockMvc.perform(put("/api/v1/users/me/email")
                             .header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -255,7 +237,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("wrong current password throws IllegalArgumentException")
         void changeEmail_wrongPassword_throws() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("emailwrong@test.com", "correct", "ROLE_RH"))))
@@ -264,7 +246,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"newEmail\":\"other@test.com\",\"currentPassword\":\"wrongpwd\"}";
 
-            // Act & Assert
             assertThatThrownBy(() ->
                 mockMvc.perform(put("/api/v1/users/me/email")
                         .header("Authorization", token)
@@ -276,7 +257,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("new email already taken throws IllegalArgumentException")
         void changeEmail_emailAlreadyInUse_throws() throws Exception {
-            // Arrange — register two users; user1 tries to take user2's email
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("emailuser1@test.com", "pass", "ROLE_RH"))))
@@ -289,7 +269,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"newEmail\":\"emailuser2@test.com\",\"currentPassword\":\"pass\"}";
 
-            // Act & Assert
             assertThatThrownBy(() ->
                 mockMvc.perform(put("/api/v1/users/me/email")
                         .header("Authorization", token)
@@ -306,7 +285,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("correct current password — returns 204")
         void changePassword_correctPassword_returns_204() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("changepwd@test.com", "oldpass", "ROLE_RH"))))
@@ -315,7 +294,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"currentPassword\":\"oldpass\",\"newPassword\":\"newpass12\"}";
 
-            // Act & Assert
             mockMvc.perform(put("/api/v1/users/me/password")
                             .header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -326,7 +304,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("wrong current password throws IllegalArgumentException")
         void changePassword_wrongPassword_throws() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("pwdwrong@test.com", "correct", "ROLE_RH"))))
@@ -335,7 +313,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"currentPassword\":\"wrongpwd\",\"newPassword\":\"newpass12\"}";
 
-            // Act & Assert
             assertThatThrownBy(() ->
                 mockMvc.perform(put("/api/v1/users/me/password")
                         .header("Authorization", token)
@@ -352,7 +329,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user updates theme and language — returns 200")
         void updatePreferences_authenticated_returns_200() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("prefs@test.com", "pass", "ROLE_RH"))))
@@ -361,7 +338,6 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"theme\":\"dark\",\"language\":\"fr\",\"emailNotificationsEnabled\":false}";
 
-            // Act & Assert
             mockMvc.perform(put("/api/v1/users/me/preferences")
                             .header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -377,14 +353,13 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("authenticated user soft-deletes their account — returns 204")
         void deleteMe_authenticated_returns_204() throws Exception {
-            // Arrange
+             
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(buildDTO("deleteme@test.com", "pass", "ROLE_RH"))))
                     .andExpect(status().isCreated());
             String token = getAuthToken("deleteme@test.com", "pass");
 
-            // Act & Assert
             mockMvc.perform(delete("/api/v1/users/me")
                             .header("Authorization", token))
                     .andExpect(status().isNoContent());

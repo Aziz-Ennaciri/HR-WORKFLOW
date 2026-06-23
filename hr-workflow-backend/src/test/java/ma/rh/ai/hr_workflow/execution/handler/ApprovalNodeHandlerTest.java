@@ -83,7 +83,6 @@ class ApprovalNodeHandlerTest {
             // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             assertThat(nodeInstance.getAssignedTo()).isEqualTo(approver);
         }
@@ -91,15 +90,12 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("happy path — approverEmail not in user repo → no assignment, still returns APPROVAL_SIGNAL")
         void execute_approverEmailNotFound_noAssignment() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{\"approverEmail\":\"unknown@company.com\"}");
             NodeInstance nodeInstance = new NodeInstance();
             when(userRepository.findByEmail("unknown@company.com")).thenReturn(Optional.empty());
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             assertThat(nodeInstance.getAssignedTo()).isNull();
         }
@@ -107,14 +103,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("happy path — configJson has no approverEmail field → no user lookup, returns APPROVAL_SIGNAL")
         void execute_noApproverEmailField_noUserLookup() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{\"timeout\":\"48h\",\"requireComment\":true}");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
             assertThat(nodeInstance.getAssignedTo()).isNull();
@@ -123,14 +116,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("happy path — approverEmail is empty string → no user lookup, returns APPROVAL_SIGNAL")
         void execute_blankApproverEmail_noUserLookup() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{\"approverEmail\":\"\"}");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
         }
@@ -138,14 +128,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("happy path — approverEmail is whitespace → no user lookup, returns APPROVAL_SIGNAL")
         void execute_whitespaceApproverEmail_noUserLookup() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{\"approverEmail\":\"   \"}");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
         }
@@ -160,14 +147,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("null configJson — skips parsing, returns APPROVAL_SIGNAL without throwing")
         void execute_nullConfig_returnsSignal() throws Exception {
-            // Arrange
             Node node = nodeWithConfig(null);
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
         }
@@ -175,14 +159,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("blank configJson — skips parsing, returns APPROVAL_SIGNAL without throwing")
         void execute_blankConfig_returnsSignal() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("   ");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
         }
@@ -197,14 +178,11 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("malformed JSON — logs warning and returns APPROVAL_SIGNAL without throwing")
         void execute_malformedJson_returnsSignalWithoutThrowing() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{this is not valid json");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act — must NOT throw; handler catches and logs the exception
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
             assertThat(nodeInstance.getAssignedTo()).isNull();
@@ -213,28 +191,22 @@ class ApprovalNodeHandlerTest {
         @Test
         @DisplayName("JSON array instead of object — logs warning, returns APPROVAL_SIGNAL")
         void execute_jsonArray_returnsSignal() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("[\"not\",\"an\",\"object\"]");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
         }
 
         @Test
         @DisplayName("empty JSON object — no approverEmail, no user lookup, returns APPROVAL_SIGNAL")
         void execute_emptyJsonObject_returnsSignal() throws Exception {
-            // Arrange
             Node node = nodeWithConfig("{}");
             NodeInstance nodeInstance = new NodeInstance();
 
-            // Act
             String result = handler.execute(node, nodeInstance);
 
-            // Assert
             assertThat(result).isEqualTo(ApprovalNodeHandler.APPROVAL_SIGNAL);
             verify(userRepository, never()).findByEmail(any());
         }

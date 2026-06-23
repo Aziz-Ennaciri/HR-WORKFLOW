@@ -43,7 +43,7 @@ class UserServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("register a new user then login returns a JWT token")
         void register_then_login_returns_token() {
-            // Arrange
+             
             CreateUserDTO createDTO = buildCreateDTO("newuser@test.com", "secret123", "ROLE_RH");
 
             // Act
@@ -64,10 +64,9 @@ class UserServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("registering with an already-used email throws RuntimeException")
         void register_duplicate_email_throws() {
-            // Arrange
+             
             userService.register(buildCreateDTO("dup@test.com", "pass", "ROLE_RH"));
 
-            // Act & Assert
             assertThatThrownBy(() ->
                     userService.register(buildCreateDTO("dup@test.com", "pass2", "ROLE_RH")))
                     .isInstanceOf(RuntimeException.class)
@@ -82,7 +81,7 @@ class UserServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("login with incorrect password throws RuntimeException")
         void login_wrong_password_throws() {
-            // Arrange
+             
             userService.register(buildCreateDTO("secure@test.com", "correctPass", "ROLE_RH"));
 
             // Act & Assert
@@ -100,11 +99,10 @@ class UserServiceIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("disabled user cannot log in")
         void disabled_user_login_throws() {
-            // Arrange
+             
             UserResponseDTO user = userService.register(buildCreateDTO("dis@test.com", "pass", "ROLE_RH"));
             userService.disableUser(user.getId());
 
-            // Act & Assert
             assertThatThrownBy(() ->
                     userService.login(buildLoginDTO("dis@test.com", "pass")))
                     .isInstanceOf(RuntimeException.class)

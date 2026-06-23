@@ -69,15 +69,12 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
         @Test
         @DisplayName("returns all instances for the workflow ordered by createdAt desc")
         void returns_instances_for_workflow() {
-            // Arrange
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.COMPLETED));
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.FAILED));
 
-            // Act
             List<WorkflowInstance> result =
                     instanceRepository.findByWorkflowIdOrderByCreatedAtDesc(workflow.getId());
 
-            // Assert
             assertThat(result).hasSize(2);
             assertThat(result).allMatch(i -> i.getWorkflow().getId().equals(workflow.getId()));
         }
@@ -85,10 +82,8 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
         @Test
         @DisplayName("returns empty list when no instances exist for the workflow")
         void returns_empty_for_unknown_workflow() {
-            // Act
             List<WorkflowInstance> result = instanceRepository.findByWorkflowIdOrderByCreatedAtDesc(99999L);
 
-            // Assert
             assertThat(result).isEmpty();
         }
     }
@@ -100,17 +95,14 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
         @Test
         @DisplayName("returns only instances with the requested statuses")
         void filter_by_status_in() {
-            // Arrange
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.RUNNING));
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.PENDING));
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.COMPLETED));
 
-            // Act
             List<WorkflowInstance> active = instanceRepository.findByWorkflowIdAndStatusIn(
                     workflow.getId(),
                     List.of(WorkflowInstanceStatus.RUNNING, WorkflowInstanceStatus.PENDING));
 
-            // Assert
             assertThat(active).hasSize(2);
             assertThat(active).extracting(WorkflowInstance::getStatus)
                     .containsExactlyInAnyOrder(
@@ -126,14 +118,11 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
         @Test
         @DisplayName("returns instances belonging to workflows created by the given email")
         void returns_instances_for_creator_email() {
-            // Arrange
             instanceRepository.save(buildInstance(WorkflowInstanceStatus.COMPLETED));
 
-            // Act
             List<WorkflowInstance> result =
                     instanceRepository.findByWorkflow_CreatedBy_Email(user.getEmail());
 
-            // Assert
             assertThat(result).isNotEmpty();
             assertThat(result).allMatch(i ->
                     i.getWorkflow().getCreatedBy().getEmail().equals(user.getEmail()));
@@ -147,14 +136,11 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
         @Test
         @DisplayName("status change from PENDING to RUNNING is persisted")
         void status_transition_persisted() {
-            // Arrange
             WorkflowInstance instance = instanceRepository.save(buildInstance(WorkflowInstanceStatus.PENDING));
 
-            // Act
             instance.setStatus(WorkflowInstanceStatus.RUNNING);
             instanceRepository.save(instance);
 
-            // Assert
             WorkflowInstance reloaded = instanceRepository.findById(instance.getId()).orElseThrow();
             assertThat(reloaded.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
         }

@@ -56,7 +56,6 @@ class WorkflowServiceImplTest {
     @InjectMocks
     private WorkflowServiceImpl service;
 
-    // ─── helpers ─────────────────────────────────────────────────────────────────
 
     private User buildUser(Long id, String email) {
         User u = new User();
@@ -83,7 +82,6 @@ class WorkflowServiceImplTest {
         return dto;
     }
 
-    // ─── createWorkflow ───────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("createWorkflow()")
@@ -92,7 +90,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — persists workflow and returns mapped DTO")
         void createWorkflow_happyPath() {
-            // Arrange
+             
             CreateWorkflowDTO dto = new CreateWorkflowDTO("My Workflow", "desc");
             User creator = buildUser(1L, "hr@test.com");
             Workflow entity = buildWorkflow(null, "My Workflow", WorkflowStatus.DRAFT);
@@ -104,10 +102,10 @@ class WorkflowServiceImplTest {
             when(workflowRepository.save(entity)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.createWorkflow(dto, 1L);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             verify(workflowRepository).save(entity);
         }
@@ -115,11 +113,11 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — creator not found throws RuntimeException")
         void createWorkflow_userNotFound_throws() {
-            // Arrange
+             
             CreateWorkflowDTO dto = new CreateWorkflowDTO("W", "d");
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.createWorkflow(dto, 99L));
             assertThat(ex.getMessage()).contains("User not found");
@@ -127,7 +125,6 @@ class WorkflowServiceImplTest {
         }
     }
 
-    // ─── getWorkflowById ──────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("getWorkflowById()")
@@ -136,33 +133,32 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — returns mapped DTO")
         void getWorkflowById_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(5L, "Test", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO expected = buildResponseDTO(5L, "Test");
             when(workflowRepository.findById(5L)).thenReturn(Optional.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.getWorkflowById(5L);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
         }
 
         @Test
         @DisplayName("exception — id not found throws RuntimeException")
         void getWorkflowById_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.getWorkflowById(99L));
             assertThat(ex.getMessage()).contains("Workflow not found");
         }
     }
 
-    // ─── getWorkflowWithNodes ─────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("getWorkflowWithNodes()")
@@ -171,7 +167,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — delegates to mapper with workflow and its nodes")
         void getWorkflowWithNodes_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
             Node n = new Node();
             n.setId(100L);
@@ -181,10 +177,10 @@ class WorkflowServiceImplTest {
             when(workflowRepository.findWorkflowWithNodes(1L)).thenReturn(w);
             when(workflowWithNodesMapper.toDTO(w, w.getNodes())).thenReturn(expected);
 
-            // Act
+             
             WorkflowWithNodesResponseDTO result = service.getWorkflowWithNodes(1L);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             verify(workflowWithNodesMapper).toDTO(w, w.getNodes());
         }
@@ -192,17 +188,16 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — null from repo throws RuntimeException with id in message")
         void getWorkflowWithNodes_nullResult_throws() {
-            // Arrange
+             
             when(workflowRepository.findWorkflowWithNodes(99L)).thenReturn(null);
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.getWorkflowWithNodes(99L));
             assertThat(ex.getMessage()).contains("99");
         }
     }
 
-    // ─── getAllWorkflows ───────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("getAllWorkflows()")
@@ -211,7 +206,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — returns all non-deleted workflows as DTOs")
         void getAllWorkflows_happyPath() {
-            // Arrange
+             
             Workflow w1 = buildWorkflow(1L, "A", WorkflowStatus.ACTIVE);
             Workflow w2 = buildWorkflow(2L, "B", WorkflowStatus.DRAFT);
             WorkflowResponseDTO r1 = buildResponseDTO(1L, "A");
@@ -221,28 +216,27 @@ class WorkflowServiceImplTest {
             when(workflowMapper.toResponseDTO(w1)).thenReturn(r1);
             when(workflowMapper.toResponseDTO(w2)).thenReturn(r2);
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getAllWorkflows();
 
-            // Assert
+             
             assertThat(result).containsExactly(r1, r2);
         }
 
         @Test
         @DisplayName("edge case — empty repository returns empty list")
         void getAllWorkflows_empty() {
-            // Arrange
+             
             when(workflowRepository.findByDeletedFalse()).thenReturn(List.of());
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getAllWorkflows();
 
-            // Assert
+             
             assertThat(result).isEmpty();
         }
     }
 
-    // ─── getAllWorkflowsPageable ───────────────────────────────────────────────────
 
     @Nested
     @DisplayName("getAllWorkflowsPageable()")
@@ -251,7 +245,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — page content is mapped to DTOs")
         void getAllWorkflowsPageable_happyPath() {
-            // Arrange
+             
             Pageable pageable = PageRequest.of(0, 10);
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
@@ -260,10 +254,10 @@ class WorkflowServiceImplTest {
             when(workflowRepository.findByDeletedFalse(pageable)).thenReturn(page);
             when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
 
-            // Act
+             
             Page<WorkflowResponseDTO> result = service.getAllWorkflowsPageable(pageable);
 
-            // Assert
+             
             assertThat(result.getContent()).containsExactly(dto);
             assertThat(result.getTotalElements()).isEqualTo(1);
         }
@@ -271,21 +265,20 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("edge case — empty page returns page with no content")
         void getAllWorkflowsPageable_emptyPage() {
-            // Arrange
+             
             Pageable pageable = PageRequest.of(0, 10);
             Page<Workflow> emptyPage = new PageImpl<>(List.of(), pageable, 0);
             when(workflowRepository.findByDeletedFalse(pageable)).thenReturn(emptyPage);
 
-            // Act
+             
             Page<WorkflowResponseDTO> result = service.getAllWorkflowsPageable(pageable);
 
-            // Assert
+             
             assertThat(result.getContent()).isEmpty();
             assertThat(result.getTotalElements()).isZero();
         }
     }
 
-    // ─── getWorkflowsByCreator ────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("getWorkflowsByCreator()")
@@ -294,35 +287,34 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — returns list filtered by creator id")
         void getWorkflowsByCreator_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
 
             when(workflowRepository.findByCreatedByIdAndDeletedFalse(5L)).thenReturn(List.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getWorkflowsByCreator(5L);
 
-            // Assert
+             
             assertThat(result).containsExactly(dto);
         }
 
         @Test
         @DisplayName("edge case — no workflows for creator id returns empty list")
         void getWorkflowsByCreator_noWorkflows_returnsEmpty() {
-            // Arrange
+             
             when(workflowRepository.findByCreatedByIdAndDeletedFalse(5L)).thenReturn(List.of());
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getWorkflowsByCreator(5L);
 
-            // Assert
+             
             assertThat(result).isEmpty();
         }
     }
 
-    // ─── getWorkflowsByCreatorEmail ───────────────────────────────────────────────
 
     @Nested
     @DisplayName("getWorkflowsByCreatorEmail()")
@@ -331,7 +323,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — returns list filtered by creator email")
         void getWorkflowsByCreatorEmail_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
 
@@ -339,29 +331,28 @@ class WorkflowServiceImplTest {
                     .thenReturn(List.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getWorkflowsByCreatorEmail("hr@test.com");
 
-            // Assert
+             
             assertThat(result).containsExactly(dto);
         }
 
         @Test
         @DisplayName("edge case — no workflows for given email returns empty list")
         void getWorkflowsByCreatorEmail_noWorkflows_returnsEmpty() {
-            // Arrange
+             
             when(workflowRepository.findByCreatedByEmailAndDeletedFalse("nobody@test.com"))
                     .thenReturn(List.of());
 
-            // Act
+             
             List<WorkflowResponseDTO> result = service.getWorkflowsByCreatorEmail("nobody@test.com");
 
-            // Assert
+             
             assertThat(result).isEmpty();
         }
     }
 
-    // ─── updateWorkflow ───────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("updateWorkflow()")
@@ -370,7 +361,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — optional fields null: only name/desc/key applied")
         void updateWorkflow_happyPath_nullOptionals() {
-            // Arrange
+             
             Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
             existing.setVersion(1);
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "new desc",
@@ -382,20 +373,20 @@ class WorkflowServiceImplTest {
             when(workflowRepository.save(existing)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.updateWorkflow(1L, dto);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             assertThat(existing.getName()).isEqualTo("New Name");
             assertThat(existing.getDescription()).isEqualTo("new desc");
-            assertThat(existing.getVersion()).isEqualTo(1); // unchanged
+            assertThat(existing.getVersion()).isEqualTo(1);
         }
 
         @Test
         @DisplayName("happy path — version, status and edgesJson applied when non-null")
         void updateWorkflow_happyPath_allOptionalFields() {
-            // Arrange
+             
             Workflow existing = buildWorkflow(1L, "Old", WorkflowStatus.DRAFT);
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New", "desc",
                     3, WorkflowStatus.ACTIVE, null, "{\"edges\":[]}");
@@ -406,10 +397,9 @@ class WorkflowServiceImplTest {
             when(workflowRepository.save(existing)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
-            // Act
+             
             service.updateWorkflow(1L, dto);
 
-            // Assert — optional fields applied to the entity before save
             assertThat(existing.getVersion()).isEqualTo(3);
             assertThat(existing.getStatus()).isEqualTo(WorkflowStatus.ACTIVE);
             assertThat(existing.getEdgesJson()).isEqualTo("{\"edges\":[]}");
@@ -418,11 +408,11 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void updateWorkflow_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("N", "d", null, null, null, null);
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.updateWorkflow(99L, dto));
             assertThat(ex.getMessage()).contains("Workflow not found");
@@ -430,7 +420,6 @@ class WorkflowServiceImplTest {
         }
     }
 
-    // ─── activateWorkflow ─────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("activateWorkflow()")
@@ -439,7 +428,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — DRAFT workflow with nodes transitions to ACTIVE")
         void activateWorkflow_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
             Node n = new Node();
             n.setId(1L);
@@ -449,10 +438,10 @@ class WorkflowServiceImplTest {
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.activateWorkflow(1L);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             assertThat(w.getStatus()).isEqualTo(WorkflowStatus.ACTIVE);
         }
@@ -460,12 +449,12 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — non-DRAFT workflow throws IllegalStateException")
         void activateWorkflow_notDraft_throws() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             w.setNodes(List.of(new Node()));
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
 
-            // Act & Assert
+             
             IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.activateWorkflow(1L));
             assertThat(ex.getMessage()).contains("Only DRAFT workflows can be activated");
@@ -474,12 +463,12 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — DRAFT workflow with no nodes throws IllegalStateException")
         void activateWorkflow_noNodes_throws() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
             w.setNodes(new ArrayList<>());
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
 
-            // Act & Assert
+             
             IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.activateWorkflow(1L));
             assertThat(ex.getMessage()).contains("Workflow must have at least one node");
@@ -488,15 +477,14 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void activateWorkflow_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             assertThrows(RuntimeException.class, () -> service.activateWorkflow(99L));
         }
     }
 
-    // ─── deleteWorkflow ───────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("deleteWorkflow()")
@@ -505,7 +493,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — cancels RUNNING and PENDING instances, soft-deletes workflow")
         void deleteWorkflow_cancelsRunningInstances() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             WorkflowInstance running = new WorkflowInstance();
             running.setStatus(WorkflowInstanceStatus.RUNNING);
@@ -516,10 +504,10 @@ class WorkflowServiceImplTest {
             when(workflowInstanceRepository.findByWorkflowIdAndStatusIn(eq(1L), anyList()))
                     .thenReturn(List.of(running, pending));
 
-            // Act
+             
             service.deleteWorkflow(1L);
 
-            // Assert
+             
             assertThat(running.getStatus()).isEqualTo(WorkflowInstanceStatus.CANCELLED);
             assertThat(pending.getStatus()).isEqualTo(WorkflowInstanceStatus.CANCELLED);
             assertThat(w.isDeleted()).isTrue();
@@ -530,16 +518,16 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — no active instances, workflow still soft-deleted")
         void deleteWorkflow_noActiveInstances_stillDeleted() {
-            // Arrange
+             
             Workflow w = buildWorkflow(2L, "W", WorkflowStatus.DRAFT);
             when(workflowRepository.findById(2L)).thenReturn(Optional.of(w));
             when(workflowInstanceRepository.findByWorkflowIdAndStatusIn(eq(2L), anyList()))
                     .thenReturn(List.of());
 
-            // Act
+             
             service.deleteWorkflow(2L);
 
-            // Assert
+             
             assertThat(w.isDeleted()).isTrue();
             verify(workflowRepository).save(w);
             verify(workflowInstanceRepository, never()).save(any(WorkflowInstance.class));
@@ -548,16 +536,15 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void deleteWorkflow_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             assertThrows(RuntimeException.class, () -> service.deleteWorkflow(99L));
             verify(workflowRepository, never()).save(any());
         }
     }
 
-    // ─── duplicateWorkflow ────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("duplicateWorkflow()")
@@ -566,7 +553,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — creates copy with 'Copy of' prefix, copies all nodes")
         void duplicateWorkflow_happyPath() {
-            // Arrange
+             
             Workflow original = buildWorkflow(1L, "Original", WorkflowStatus.ACTIVE);
             original.setEdgesJson("[{}]");
             original.setDescription("original desc");
@@ -590,10 +577,10 @@ class WorkflowServiceImplTest {
             WorkflowResponseDTO expected = buildResponseDTO(99L, "Copy of Original");
             when(workflowMapper.toResponseDTO(savedCopy)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.duplicateWorkflow(1L, "user@test.com");
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
 
             ArgumentCaptor<Workflow> workflowCaptor = ArgumentCaptor.forClass(Workflow.class);
@@ -615,10 +602,10 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — original workflow not found throws RuntimeException")
         void duplicateWorkflow_workflowNotFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.duplicateWorkflow(99L, "user@test.com"));
             assertThat(ex.getMessage()).contains("Workflow not found");
@@ -628,12 +615,12 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — user email not found throws RuntimeException")
         void duplicateWorkflow_userNotFound_throws() {
-            // Arrange
+             
             Workflow original = buildWorkflow(1L, "Orig", WorkflowStatus.ACTIVE);
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(original));
             when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.duplicateWorkflow(1L, "ghost@test.com"));
             assertThat(ex.getMessage()).contains("User not found");
@@ -641,7 +628,6 @@ class WorkflowServiceImplTest {
         }
     }
 
-    // ─── archiveWorkflow ──────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("archiveWorkflow()")
@@ -650,16 +636,16 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — DRAFT workflow transitions to ARCHIVED")
         void archiveWorkflow_fromDraft_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "W");
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.archiveWorkflow(1L);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             assertThat(w.getStatus()).isEqualTo(WorkflowStatus.ARCHIVED);
         }
@@ -667,16 +653,16 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — UNACTIVATE workflow transitions to ARCHIVED")
         void archiveWorkflow_fromUnactivate_happyPath() {
-            // Arrange
+             
             Workflow w = buildWorkflow(2L, "W", WorkflowStatus.UNACTIVATE);
             WorkflowResponseDTO expected = buildResponseDTO(2L, "W");
             when(workflowRepository.findById(2L)).thenReturn(Optional.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.archiveWorkflow(2L);
 
-            // Assert
+             
             assertThat(w.getStatus()).isEqualTo(WorkflowStatus.ARCHIVED);
             assertThat(result).isEqualTo(expected);
         }
@@ -684,29 +670,28 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — ACTIVE workflow throws IllegalStateException")
         void archiveWorkflow_activeWorkflow_throws() {
-            // Arrange
+             
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
 
-            // Act & Assert
+             
             IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.archiveWorkflow(1L));
             assertThat(ex.getMessage()).contains("still activated");
-            assertThat(w.getStatus()).isEqualTo(WorkflowStatus.ACTIVE); // unchanged
+            assertThat(w.getStatus()).isEqualTo(WorkflowStatus.ACTIVE);
         }
 
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void archiveWorkflow_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
 
-            // Act & Assert
+             
             assertThrows(RuntimeException.class, () -> service.archiveWorkflow(99L));
         }
     }
 
-    // ─── patchWorkflow ────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("patchWorkflow()")
@@ -715,7 +700,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("happy path — DRAFT workflow name and description updated")
         void patchWorkflow_draft_withDescription_happyPath() {
-            // Arrange
+             
             Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
             existing.setDescription("old desc");
             PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", "new desc");
@@ -726,10 +711,10 @@ class WorkflowServiceImplTest {
             when(workflowRepository.save(existing)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
-            // Act
+             
             WorkflowResponseDTO result = service.patchWorkflow(1L, dto);
 
-            // Assert
+             
             assertThat(result).isEqualTo(expected);
             assertThat(existing.getName()).isEqualTo("New Name");
             assertThat(existing.getDescription()).isEqualTo("new desc");
@@ -739,7 +724,7 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("edge case — null description leaves existing description unchanged")
         void patchWorkflow_draft_nullDescription_descriptionUnchanged() {
-            // Arrange
+             
             Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
             existing.setDescription("keep this");
             PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", null);
@@ -750,23 +735,22 @@ class WorkflowServiceImplTest {
             when(workflowRepository.save(existing)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
-            // Act
+             
             service.patchWorkflow(1L, dto);
 
-            // Assert — description NOT overwritten
             assertThat(existing.getDescription()).isEqualTo("keep this");
         }
 
         @Test
         @DisplayName("exception — non-DRAFT workflow throws IllegalStateException")
         void patchWorkflow_notDraft_throws() {
-            // Arrange
+             
             Workflow existing = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             PatchWorkflowDTO dto = new PatchWorkflowDTO("New Name", "desc");
 
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(existing));
 
-            // Act & Assert
+             
             IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.patchWorkflow(1L, dto));
             assertThat(ex.getMessage()).contains("Only DRAFT workflows can be renamed or described");
@@ -776,11 +760,11 @@ class WorkflowServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void patchWorkflow_notFound_throws() {
-            // Arrange
+             
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
             PatchWorkflowDTO dto = new PatchWorkflowDTO("N", "d");
 
-            // Act & Assert
+             
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.patchWorkflow(99L, dto));
             assertThat(ex.getMessage()).contains("Workflow not found");

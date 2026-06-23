@@ -41,7 +41,6 @@ class RealExcelServiceImplTest {
         ReflectionTestUtils.setField(service, "storagePath", tempDir.toString());
     }
 
-    // ─── helpers ─────────────────────────────────────────────────────────────────
 
     private String baseConfigJson(String sheetName, String operation) {
         return String.format("{\"sheetName\":\"%s\",\"operation\":\"%s\"}",
@@ -50,7 +49,6 @@ class RealExcelServiceImplTest {
     }
 
     private String analysisInputJson(String analysisText) {
-        // Escapes for embedding in JSON
         String escaped = analysisText
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -63,7 +61,6 @@ class RealExcelServiceImplTest {
         return objectMapper.readValue(json, ExcelResponseDTO.class);
     }
 
-    // ─── Format 1: Markdown table ─────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Format 1: Markdown table (analysis field with | headers)")
@@ -79,19 +76,15 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("happy path — analysis with markdown table produces multi-row Excel")
         void processData_markdownTable_happyPath() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Rankings", "WRITE");
             String inputData  = analysisInputJson(MARKDOWN_TABLE);
-
-            // Act
+            
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Rankings");
             assertThat(response.getOperation()).isEqualTo("WRITE");
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
-            // 1 header + 3 data rows = 4 rows total
             assertThat(response.getRowsProcessed()).isEqualTo(4);
             assertThat(response.getOutputFileUrl()).isNotBlank();
             assertThat(response.getFileContent()).isNotBlank();
@@ -102,33 +95,26 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("markdown table with separator lines — separators are skipped")
         void processData_markdownTable_separatorsSkipped() throws Exception {
-            // Arrange
             String configJson  = baseConfigJson("Sheet1", "WRITE");
             String markdownTwo = "| Col A | Col B |\n"
                     + "|-------|-------|\n"
                     + "| Val 1 | Val 2 |";
             String inputData   = analysisInputJson(markdownTwo);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
-            // Header row + 1 data row = 2 rows; separator line is not written
             assertThat(response.getRowsProcessed()).isEqualTo(2);
         }
 
         @Test
         @DisplayName("verifies output file exists on disk")
         void processData_markdownTable_fileExistsOnDisk() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Data", "WRITE");
             String inputData  = analysisInputJson(MARKDOWN_TABLE);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
             File f = new File(response.getOutputFileUrl());
             assertThat(f).exists();
@@ -136,7 +122,6 @@ class RealExcelServiceImplTest {
         }
     }
 
-    // ─── Format 2: Block sections ─────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Format 2: Block/section format (numbered sections with bullets)")
@@ -161,17 +146,13 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("happy path — analysis with numbered+bullet blocks produces structured table")
         void processData_blockSections_happyPath() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Candidates", "WRITE");
             String inputData  = analysisInputJson(BLOCK_TEXT);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Candidates");
-            // 1 header row + 3 block rows = 4 rows
             assertThat(response.getRowsProcessed()).isEqualTo(4);
             assertThat(response.getFileContent()).isNotBlank();
             assertThat(response.getFileSize()).isGreaterThan(0L);
@@ -180,7 +161,6 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("block text with colon-separated bullet fields — parsed into columns")
         void processData_blockSections_colonBullets_createsColumns() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Results", "WRITE");
             String twoBlocks  = "1. Alice\n"
                     + "- Score: 9\n"
@@ -191,18 +171,15 @@ class RealExcelServiceImplTest {
                     + "- Experience: 2 years";
             String inputData  = analysisInputJson(twoBlocks);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
-            assertThat(response.getRowsProcessed()).isEqualTo(3); // 1 header + 2 blocks
+            assertThat(response.getRowsProcessed()).isEqualTo(3);
         }
 
         @Test
         @DisplayName("markdown heading (## Title) with bullets also triggers block format")
         void processData_blockSections_hashHeadings_detected() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Data", "WRITE");
             String headingText = "## Top Candidates\n"
                     + "- Score: 9\n"
@@ -213,16 +190,14 @@ class RealExcelServiceImplTest {
                     + "- Name: Bob";
             String inputData  = analysisInputJson(headingText);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
         }
     }
 
-    // ─── Format 3: Plain text fallback ────────────────────────────────────────────
 
     @Nested
     @DisplayName("Format 3: Plain text fallback (no table, no structured blocks)")
@@ -231,20 +206,16 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("happy path — plain text produces title row + content rows")
         void processData_plainText_happyPath() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Analysis", "WRITE");
             String plainText  = "This is a plain analysis result.\n"
                     + "No table structure here.\n"
                     + "Just narrative text about the candidates.";
             String inputData  = analysisInputJson(plainText);
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Analysis");
-            // Title row + blank separator + 3 text lines = 5 rows
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
             assertThat(response.getFileContent()).isNotBlank();
         }
@@ -252,29 +223,26 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("single line plain text — creates title + content in 3 rows")
         void processData_plainText_singleLine() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Result", "WRITE");
             String inputData  = analysisInputJson("No candidates matched the criteria.");
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
-            assertThat(response.getRowsProcessed()).isEqualTo(3); // title + blank + 1 line
+            assertThat(response.getRowsProcessed()).isEqualTo(3);
         }
 
         @Test
         @DisplayName("raw non-JSON text input (textData path) — also dispatches to adaptive formatter")
         void processData_rawTextInput_notJson() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("RawData", "WRITE");
             String rawText    = "just plain text, not json at all";
 
-            // Act
+             
             String result = service.processData(configJson, rawText);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("RawData");
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
@@ -283,20 +251,19 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("raw non-JSON text that looks like markdown table — uses markdown formatter")
         void processData_rawTextInput_markdownTable_usesMarkdownFormatter() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("Table", "WRITE");
             String rawMarkdown = "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |";
 
-            // Act
+             
             String result = service.processData(configJson, rawMarkdown);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
-            assertThat(response.getRowsProcessed()).isEqualTo(2); // header + 1 data row
+            assertThat(response.getRowsProcessed()).isEqualTo(2);
         }
     }
 
-    // ─── Format 4: Structured JSON array (jsonData field from GPT outputFormat=json) ──
 
     @Nested
     @DisplayName("Format 4: Structured JSON array (jsonData field — GPT outputFormat=json)")
@@ -321,8 +288,8 @@ class RealExcelServiceImplTest {
 
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Rankings");
-            assertThat(response.getRowsProcessed()).isEqualTo(3); // 1 header + 2 data rows
-            assertThat(response.getColumnsProcessed()).isEqualTo(7); // rank, name, email, experience, skills, score, summary
+            assertThat(response.getRowsProcessed()).isEqualTo(3);
+            assertThat(response.getColumnsProcessed()).isEqualTo(7);
             assertThat(response.getFileContent()).isNotBlank();
             assertThat(response.getFileSize()).isPositive();
             assertThat(response.getOutputFileUrl()).isNotBlank();
@@ -339,8 +306,8 @@ class RealExcelServiceImplTest {
             String result = service.processData(configJson, singleItem);
 
             ExcelResponseDTO response = parseResponse(result);
-            assertThat(response.getRowsProcessed()).isEqualTo(2); // header + 1 row
-            assertThat(response.getColumnsProcessed()).isEqualTo(3); // rank, name, score
+            assertThat(response.getRowsProcessed()).isEqualTo(2);
+            assertThat(response.getColumnsProcessed()).isEqualTo(3);
         }
 
         @Test
@@ -355,9 +322,8 @@ class RealExcelServiceImplTest {
             String result = service.processData(configJson, bothPresent);
 
             ExcelResponseDTO response = parseResponse(result);
-            // jsonData path: 1 header + 1 row = 2 (not the text path which produces more rows)
             assertThat(response.getRowsProcessed()).isEqualTo(2);
-            assertThat(response.getColumnsProcessed()).isEqualTo(2); // name, score
+            assertThat(response.getColumnsProcessed()).isEqualTo(2);
         }
 
         @Test
@@ -384,19 +350,13 @@ class RealExcelServiceImplTest {
 
             String result = service.processData(configJson, emptyArray);
 
-            // Empty jsonData → falls through to analysis text path
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
             assertThat(response.getColumnsProcessed()).isEqualTo(1);
         }
     }
 
-    // ─── Format 5: JSON table (non-analysis JSON input) ──────────────────────────
-    //
-    // NOTE: The production code's else-branch calls
-    //   objectMapper.convertValue(dataNode, List.class)
-    // which succeeds for JSON arrays but throws for JSON objects.
-    // Tests here use JSON arrays, which is what the code actually handles at runtime.
+
 
     @Nested
     @DisplayName("Format 5: JSON table (input is a JSON array without 'analysis' field)")
@@ -405,18 +365,16 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("happy path — JSON array produces valid response with columnsProcessed = array size")
         void processData_jsonArray_happyPath() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("Report", "WRITE");
-            // JSON array — convertValue(ArrayNode, List.class) succeeds
             String inputData  = "[\"Alice\",\"Bob\",\"Carol\"]";
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Report");
-            // columnsProcessed = dataNode.size() = 3 (array elements)
             assertThat(response.getColumnsProcessed()).isEqualTo(3);
             assertThat(response.getFileContent()).isNotBlank();
             assertThat(response.getFileSize()).isPositive();
@@ -425,14 +383,14 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("JSON array with multiple elements — columnsProcessed equals element count")
         void processData_jsonArray_elementCountCorrect() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("Data", "WRITE");
             String inputData  = "[1, 2, 3, 4, 5]";
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getColumnsProcessed()).isEqualTo(5);
         }
@@ -440,14 +398,12 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("analysis field with plain text — falls back to adaptive text formatter (columnsProcessed=1)")
         void processData_jsonWithAnalysisField_plainText_usesTextFormatter() throws Exception {
-            // Arrange — "Short plain text result" has no [ so tryParseJsonArray returns null → text path
             String configJson = baseConfigJson("Data", "WRITE");
             String inputData  = "{\"analysis\":\"Short plain text result\"}";
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert — adaptive text path: columnsProcessed stays at 1 (default for text)
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getColumnsProcessed()).isEqualTo(1);
         }
@@ -455,7 +411,6 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("analysis field containing JSON array — routes to professional table (new always-JSON path)")
         void processData_analysisFieldContainsJsonArray_professionalTable() throws Exception {
-            // This is the main production path: GPT now always returns JSON in the analysis field.
             String configJson = baseConfigJson("Rankings", "WRITE");
             String inputData  = "{\"analysis\":\"[{\\\"rank\\\":\\\"1\\\",\\\"name\\\":\\\"Alice\\\","
                     + "\\\"email\\\":\\\"alice@test.com\\\",\\\"score\\\":\\\"9/10\\\"},"
@@ -467,8 +422,8 @@ class RealExcelServiceImplTest {
 
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Rankings");
-            assertThat(response.getRowsProcessed()).isEqualTo(3); // 1 header + 2 data rows
-            assertThat(response.getColumnsProcessed()).isEqualTo(4); // rank, name, email, score
+            assertThat(response.getRowsProcessed()).isEqualTo(3);
+            assertThat(response.getColumnsProcessed()).isEqualTo(4);
             assertThat(response.getFileContent()).isNotBlank();
             assertThat(response.getFileSize()).isPositive();
         }
@@ -477,32 +432,30 @@ class RealExcelServiceImplTest {
         @DisplayName("analysis field with markdown-fenced JSON array — strips fences and parses correctly")
         void processData_analysisFieldWithFencedJson_parsedCorrectly() throws Exception {
             String configJson = baseConfigJson("Data", "WRITE");
-            // AI sometimes wraps JSON in ```json ... ``` fences
+
             String fencedJson = "```json\\n[{\\\"name\\\":\\\"Alice\\\",\\\"score\\\":\\\"9/10\\\"}]\\n```";
             String inputData  = "{\"analysis\":\"" + fencedJson + "\",\"model\":\"llama3.2:3b\",\"tokensUsed\":30}";
 
             String result = service.processData(configJson, inputData);
 
             ExcelResponseDTO response = parseResponse(result);
-            assertThat(response.getRowsProcessed()).isEqualTo(2); // header + 1 data row
-            assertThat(response.getColumnsProcessed()).isEqualTo(2); // name, score
+            assertThat(response.getRowsProcessed()).isEqualTo(2);
+            assertThat(response.getColumnsProcessed()).isEqualTo(2);
         }
 
         @Test
         @DisplayName("plain JSON object without 'analysis' — throws RuntimeException (known production limitation)")
         void processData_jsonObject_throwsRuntimeException() {
-            // Arrange — JSON objects hit a convertValue(ObjectNode, List.class) failure
             String configJson = baseConfigJson("Report", "WRITE");
             String inputData  = "{\"name\":\"Alice\",\"score\":\"9\"}";
 
-            // Act & Assert
+
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.processData(configJson, inputData));
             assertThat(ex.getMessage()).contains("Excel processing failed");
         }
     }
 
-    // ─── Config variations ────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Config variations")
@@ -511,14 +464,13 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("null sheetName in config defaults to 'Data'")
         void processData_nullSheetName_defaultsToData() throws Exception {
-            // Arrange — use analysis-field JSON to avoid convertValue issue on plain objects
-            String configJson = "{\"operation\":\"WRITE\"}"; // no sheetName
+            String configJson = "{\"operation\":\"WRITE\"}";
             String inputData  = analysisInputJson("some analysis");
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Data");
         }
@@ -526,14 +478,14 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("null operation in config defaults to 'WRITE'")
         void processData_nullOperation_defaultsToWrite() throws Exception {
-            // Arrange
-            String configJson = "{\"sheetName\":\"Sheet1\"}"; // no operation
+             
+            String configJson = "{\"sheetName\":\"Sheet1\"}";
             String inputData  = analysisInputJson("result text");
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getOperation()).isEqualTo("WRITE");
         }
@@ -541,14 +493,14 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("custom sheetName is reflected in response and file")
         void processData_customSheetName() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("MyCustomSheet", "WRITE");
             String inputData  = analysisInputJson("custom sheet data");
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("MyCustomSheet");
         }
@@ -556,18 +508,16 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("exception — invalid configJson throws RuntimeException")
         void processData_invalidConfigJson_throws() {
-            // Arrange
+             
             String brokenConfig = "{not valid json}";
             String inputData    = "{\"key\":\"val\"}";
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.processData(brokenConfig, inputData));
             assertThat(ex.getMessage()).contains("Excel processing failed");
         }
     }
 
-    // ─── readData — READ operation ────────────────────────────────────────────────
 
     @Nested
     @DisplayName("readData() — READ operation")
@@ -697,7 +647,6 @@ class RealExcelServiceImplTest {
         }
     }
 
-    // ─── Response structure invariants ───────────────────────────────────────────
 
     @Nested
     @DisplayName("Response structure — invariants for all formats")
@@ -706,14 +655,13 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("response always contains non-null outputFileUrl, webFileUrl, fileContent")
         void processData_responseHasRequiredFields() throws Exception {
-            // Arrange — use analysis-field JSON to avoid the convertValue limitation on objects
             String configJson = baseConfigJson("Sheet", "WRITE");
             String inputData  = analysisInputJson("Summary of results");
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getOutputFileUrl()).isNotNull();
             assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/");
@@ -726,14 +674,14 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("webFileUrl follows pattern /api/v1/files/excel/<uuid>.xlsx")
         void processData_webFileUrlPattern() throws Exception {
-            // Arrange
+             
             String configJson = baseConfigJson("Sheet", "WRITE");
             String inputData  = analysisInputJson("Some analysis text here");
 
-            // Act
+             
             String result = service.processData(configJson, inputData);
 
-            // Assert
+              
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getWebFileUrl())
                     .matches("/api/v1/files/excel/workflow-\\d+-[a-f0-9]+\\.xlsx");
@@ -742,14 +690,11 @@ class RealExcelServiceImplTest {
         @Test
         @DisplayName("fileContent is valid Base64-encoded bytes")
         void processData_fileContentIsBase64() throws Exception {
-            // Arrange
             String configJson = baseConfigJson("Sheet", "WRITE");
             String inputData  = analysisInputJson("Some plain text result for encoding test");
 
-            // Act
             String result = service.processData(configJson, inputData);
 
-            // Assert
             ExcelResponseDTO response = parseResponse(result);
             assertDoesNotThrow(() -> java.util.Base64.getDecoder().decode(response.getFileContent()),
                     "fileContent should be valid Base64");

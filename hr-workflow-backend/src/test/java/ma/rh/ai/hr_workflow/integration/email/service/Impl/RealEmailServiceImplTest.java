@@ -41,7 +41,6 @@ class RealEmailServiceImplTest {
         service = new RealEmailServiceImpl(mailSender, objectMapper);
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────────
 
     private MimeMessage newMessage() throws Exception {
         return new MimeMessage(jakarta.mail.Session.getInstance(new Properties()));
@@ -60,7 +59,6 @@ class RealEmailServiceImplTest {
         return (String) msg.getContent();
     }
 
-    // ── Happy path ────────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Happy path")
@@ -131,7 +129,6 @@ class RealEmailServiceImplTest {
         }
     }
 
-    // ── File-output content (download button) ─────────────────────────────────────
 
     @Nested
     @DisplayName("File-output node — download button template")
@@ -226,7 +223,6 @@ class RealEmailServiceImplTest {
         }
     }
 
-    // ── Content sanitization ──────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Content sanitization — technical fields hidden")
@@ -301,7 +297,6 @@ class RealEmailServiceImplTest {
         }
     }
 
-    // ── Content rendering ─────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Content rendering")
@@ -463,7 +458,6 @@ class RealEmailServiceImplTest {
         }
     }
 
-    // ── Error handling ────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Error handling")

@@ -131,7 +131,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @Test
         @DisplayName("returns existing workflow instance")
         void getById_existing_returns_200() throws Exception {
-            // Arrange — trigger first
             MvcResult triggered = mockMvc.perform(post("/api/v1/executions/trigger")
                     .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
@@ -142,7 +141,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
             Long instanceId = objectMapper.readTree(triggered.getResponse().getContentAsString())
                     .get("id").asLong();
 
-            // Act & Assert
             mockMvc.perform(get("/api/v1/executions/" + instanceId)
                             .header("Authorization", userToken))
                     .andExpect(status().isOk())
@@ -166,7 +164,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @Test
         @DisplayName("retry from failed node returns 200")
         void retryFromNode_returns_200() throws Exception {
-            // Arrange — trigger, then manually mark as failed
             MvcResult triggered = mockMvc.perform(post("/api/v1/executions/trigger")
                     .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
@@ -177,7 +174,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
             Long instanceId = objectMapper.readTree(triggered.getResponse().getContentAsString())
                     .get("id").asLong();
 
-            // Mark instance and node as FAILED so retryFromNode can operate
             WorkflowInstance instance = instanceRepository.findById(instanceId).orElseThrow();
             instance.setStatus(WorkflowInstanceStatus.FAILED);
             instanceRepository.save(instance);
@@ -203,7 +199,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @Test
         @DisplayName("authenticated user sees their own workflow executions")
         void getAllExecutions_returns_own_instances() throws Exception {
-            // Arrange — trigger one
             mockMvc.perform(post("/api/v1/executions/trigger")
                     .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
@@ -211,7 +206,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
                     .content(triggerBody(activeWorkflow.getId())))
                     .andExpect(status().isCreated());
 
-            // Act & Assert
             mockMvc.perform(get("/api/v1/executions")
                             .header("Authorization", userToken))
                     .andExpect(status().isOk())

@@ -38,16 +38,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for WorkflowExecutionServiceImpl.
- * Design notes:
- *  - triggerWorkflow() registers a TransactionSynchronization callback. We cannot trigger
- *    afterCommit() without a real transaction manager, so we verify the synchronous
- *    pre-commit behavior (validate workflow, create instance, persist NodeInstances).
- *  - continueExecution() is pure in-memory orchestration and is fully testable.
- *  - resumeAfterApproval() submits to an ExecutorService; we verify the submission happens
- *    by spying on a partial mock or inspecting side effects through txHelper.
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("WorkflowExecutionServiceImpl")
@@ -68,23 +58,16 @@ class WorkflowExecutionServiceImplTest {
     @Mock
     private ExecutionTransactionHelper txHelper;
 
-    /**
-     * We inject a hand-crafted list so that @PostConstruct / init() can be called
-     * explicitly after construction to populate the handlerRegistry.
-     */
+
     private NodeHandler emailHandler;
     private NodeHandler approvalHandler;
 
     @InjectMocks
     private WorkflowExecutionServiceImpl service;
 
-    // ─────────────────────────────────────────────────────────────────
-    // Setup
-    // ─────────────────────────────────────────────────────────────────
 
     @BeforeEach
     void setUp() {
-        // Build concrete handler stubs so we control getType()
         emailHandler = mock(NodeHandler.class);
         when(emailHandler.getType()).thenReturn(NodeType.EMAIL);
 
@@ -92,10 +75,7 @@ class WorkflowExecutionServiceImplTest {
         when(approvalHandler.getType()).thenReturn(NodeType.APPROVAL);
     }
 
-    /**
-     * Creates a service instance with a given set of handlers and calls init().
-     * Needed because @InjectMocks cannot inject a List<NodeHandler> built in @BeforeEach.
-     */
+
     private WorkflowExecutionServiceImpl serviceWithHandlers(List<NodeHandler> handlers) {
         WorkflowExecutionServiceImpl svc = new WorkflowExecutionServiceImpl(
                 workflowInstanceService,
@@ -109,9 +89,7 @@ class WorkflowExecutionServiceImplTest {
         return svc;
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // Shared builders
-    // ─────────────────────────────────────────────────────────────────
+
 
     private Workflow activeWorkflow(Long id) {
         Workflow wf = new Workflow();
@@ -183,9 +161,6 @@ class WorkflowExecutionServiceImplTest {
         return u;
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // init() / @PostConstruct
-    // ─────────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("init()")
@@ -194,11 +169,9 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("happy path — all handlers are registered by type")
         void init_registersAllHandlers() {
-            // Arrange + Act
             WorkflowExecutionServiceImpl svc =
                     serviceWithHandlers(List.of(emailHandler, approvalHandler));
 
-            // Assert — verify indirectly: resolving a known type should not throw
             Node emailNode = makeNode(1L, NodeType.EMAIL, 0);
             WorkflowInstance wi = runningInstance(1L, activeWorkflow(10L));
             NodeInstance completedNi = completedNodeInstance(1L, "out");
@@ -214,7 +187,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — duplicate handler types: last registration wins")
         void init_duplicateHandlerType_lastWins() {
-            // Arrange
             NodeHandler emailHandler2 = mock(NodeHandler.class);
             when(emailHandler2.getType()).thenReturn(NodeType.EMAIL);
 
@@ -226,18 +198,14 @@ class WorkflowExecutionServiceImplTest {
 
             when(txHelper.getWorkflowNodes(1L)).thenReturn(List.of(emailNode));
             when(txHelper.getInstanceInputData(1L)).thenReturn("{}");
-            // Accept either handler — just confirm no NPE/exception
             when(txHelper.executeNode(eq(1L), eq(1L), anyString(), any()))
                     .thenReturn(completedNi);
 
-            // Act & Assert
             assertDoesNotThrow(() -> svc.continueExecution(1L));
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // triggerWorkflow()
-    // ─────────────────────────────────────────────────────────────────
+
 
     @Nested
     @DisplayName("triggerWorkflow()")
@@ -246,7 +214,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("happy path — validates workflow, creates instance, saves node instances")
         void triggerWorkflow_happyPath() {
-            // Arrange
             Workflow wf = activeWorkflow(10L);
             WorkflowInstance wi = runningInstance(20L, wf);
             wi.setInputData("{}");
@@ -268,12 +235,9 @@ class WorkflowExecutionServiceImplTest {
                         .registerSynchronization(any(TransactionSynchronization.class)))
                         .thenAnswer(inv -> null);
 
-                // Act
                 WorkflowInstance result = service.triggerWorkflow(dto, user);
 
-                // Assert
                 assertThat(result).isEqualTo(wi);
-                // Two NodeInstances should have been persisted (one per node)
                 verify(nodeInstanceRepository, times(2)).save(any(NodeInstance.class));
             }
         }
@@ -281,7 +245,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — first node gets inputData, subsequent nodes get null")
         void triggerWorkflow_firstNodeGetsInput_restGetNull() {
-            // Arrange
             Workflow wf = activeWorkflow(10L);
             WorkflowInstance wi = runningInstance(20L, wf);
             wi.setInputData("START");
@@ -303,10 +266,8 @@ class WorkflowExecutionServiceImplTest {
                         .registerSynchronization(any(TransactionSynchronization.class)))
                         .thenAnswer(inv -> null);
 
-                // Act
                 service.triggerWorkflow(dto, user);
 
-                // Assert — capture both saves
                 ArgumentCaptor<NodeInstance> captor = ArgumentCaptor.forClass(NodeInstance.class);
                 verify(nodeInstanceRepository, times(2)).save(captor.capture());
                 List<NodeInstance> captured = captor.getAllValues();
@@ -318,11 +279,9 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("exception — workflow not found throws RuntimeException")
         void triggerWorkflow_workflowNotFound_throws() {
-            // Arrange
             TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(999L, "{}");
             when(workflowRepository.findById(999L)).thenReturn(Optional.empty());
 
-            // Act & Assert
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.triggerWorkflow(dto, dummyUser()));
             assertThat(ex.getMessage()).contains("Workflow not found");
@@ -332,12 +291,10 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("exception — non-ACTIVE workflow throws IllegalStateException")
         void triggerWorkflow_notActiveWorkflow_throws() {
-            // Arrange
             Workflow wf = draftWorkflow(10L);
             TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(10L, "{}");
             when(workflowRepository.findById(10L)).thenReturn(Optional.of(wf));
 
-            // Act & Assert
             IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.triggerWorkflow(dto, dummyUser()));
             assertThat(ex.getMessage()).contains("not active");
@@ -345,9 +302,7 @@ class WorkflowExecutionServiceImplTest {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // continueExecution()
-    // ─────────────────────────────────────────────────────────────────
+
 
     @Nested
     @DisplayName("continueExecution()")
@@ -356,7 +311,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("happy path — all nodes COMPLETE, instance marked completed")
         void continueExecution_allNodesComplete_instanceCompleted() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
             Node n1 = makeNode(1L, NodeType.EMAIL, 0);
@@ -369,10 +323,8 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(1L, 1L, "initial", emailHandler)).thenReturn(completed1);
             when(txHelper.executeNode(1L, 2L, "out1", emailHandler)).thenReturn(completed2);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).startInstance(1L);
             verify(txHelper).completeInstance(1L, "out2");
             verify(txHelper, never()).failInstance(anyLong(), anyString(), anyString());
@@ -381,7 +333,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — FAILED node stops execution and fails the instance")
         void continueExecution_failedNode_instanceFailed() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
             Node n1 = makeNode(1L, NodeType.EMAIL, 0);
@@ -392,10 +343,8 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(eq(1L), eq(1L), anyString(), eq(emailHandler)))
                     .thenReturn(failedNi);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).failInstance(eq(1L), contains("EMAIL"), anyString());
             verify(txHelper, never()).completeInstance(anyLong(), anyString());
         }
@@ -403,7 +352,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — WAITING_APPROVAL node pauses execution")
         void continueExecution_waitingApproval_instancePaused() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(approvalHandler));
 
             Node approvalNode = makeNode(1L, NodeType.APPROVAL, 0);
@@ -414,10 +362,8 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(eq(1L), eq(1L), anyString(), eq(approvalHandler)))
                     .thenReturn(waitingNi);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).pauseInstance(1L);
             verify(txHelper, never()).completeInstance(anyLong(), anyString());
             verify(txHelper, never()).failInstance(anyLong(), anyString(), anyString());
@@ -426,7 +372,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — REJECTED node stops execution and fails the instance")
         void continueExecution_rejectedNode_instanceFailed() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(approvalHandler));
 
             Node approvalNode = makeNode(1L, NodeType.APPROVAL, 0);
@@ -437,10 +382,8 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(eq(1L), eq(1L), anyString(), eq(approvalHandler)))
                     .thenReturn(rejectedNi);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).failInstance(eq(1L), contains("APPROVAL"), eq("Manager rejected"));
             verify(txHelper, never()).completeInstance(anyLong(), anyString());
         }
@@ -448,38 +391,31 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("exception — empty node list throws RuntimeException and fails instance")
         void continueExecution_noNodes_failsInstance() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
             when(txHelper.getWorkflowNodes(1L)).thenReturn(List.of());
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert — continueExecution catches the exception and calls failInstance
             verify(txHelper).failInstance(eq(1L), contains("Workflow has no nodes"), anyString());
         }
 
         @Test
         @DisplayName("exception — no handler registered for node type fails instance")
         void continueExecution_noHandlerForType_failsInstance() {
-            // Arrange — service initialized with only EMAIL handler, but node is GPT
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
             Node gptNode = makeNode(1L, NodeType.GPT, 0);
             when(txHelper.getWorkflowNodes(1L)).thenReturn(List.of(gptNode));
             when(txHelper.getInstanceInputData(1L)).thenReturn("{}");
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).failInstance(eq(1L), contains("No handler registered for node type"), anyString());
         }
 
         @Test
         @DisplayName("edge case — output flows correctly from node to node")
         void continueExecution_outputChaining_correct() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
             Node n1 = makeNode(1L, NodeType.EMAIL, 0);
@@ -495,17 +431,14 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(1L, 2L, "step1-out",  emailHandler)).thenReturn(r2);
             when(txHelper.executeNode(1L, 3L, "step2-out",  emailHandler)).thenReturn(r3);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert — final output is last node's output
             verify(txHelper).completeInstance(1L, "step3-out");
         }
 
         @Test
         @DisplayName("edge case — updateCurrentNode called for each node before status check")
         void continueExecution_updateCurrentNodeCalledPerNode() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
             Node n1 = makeNode(1L, NodeType.EMAIL, 0);
@@ -518,18 +451,14 @@ class WorkflowExecutionServiceImplTest {
             when(txHelper.executeNode(1L, 1L, "{}", emailHandler)).thenReturn(r1);
             when(txHelper.executeNode(1L, 2L, "out1", emailHandler)).thenReturn(r2);
 
-            // Act
             svc.continueExecution(1L);
 
-            // Assert
             verify(txHelper).updateCurrentNode(1L, 1L);
             verify(txHelper).updateCurrentNode(1L, 2L);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // retryFromNode()
-    // ─────────────────────────────────────────────────────────────────
+
 
     @Nested
     @DisplayName("retryFromNode()")
@@ -544,18 +473,14 @@ class WorkflowExecutionServiceImplTest {
                         .registerSynchronization(any(TransactionSynchronization.class)))
                         .thenAnswer(inv -> null);
 
-                // Arrange + Act
                 service.retryFromNode(1L, 2L);
 
-                // Assert — resetForRetry must be called; the async submit is best-effort
                 verify(txHelper).resetForRetry(1L, 2L);
             }
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // resumeAfterApproval()
-    // ─────────────────────────────────────────────────────────────────
+
 
     @Nested
     @DisplayName("resumeAfterApproval()")
@@ -564,17 +489,12 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("happy path — submits continueExecution to executor without throwing")
         void resumeAfterApproval_submitsWithoutThrowing() {
-            // Arrange
             WorkflowExecutionServiceImpl svc = serviceWithHandlers(List.of(emailHandler));
 
-            // Act — just verify no synchronous exception is thrown
             assertDoesNotThrow(() -> svc.resumeAfterApproval(1L));
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // shutdown() / @PreDestroy
-    // ─────────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("shutdown()")
@@ -583,7 +503,6 @@ class WorkflowExecutionServiceImplTest {
         @Test
         @DisplayName("edge case — shutdown() can be called without exceptions")
         void shutdown_noException() {
-            // Arrange + Act + Assert
             assertDoesNotThrow(() -> service.shutdown());
         }
     }

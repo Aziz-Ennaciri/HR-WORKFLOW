@@ -39,7 +39,6 @@ class DriveNodeHandlerTest {
     @Test
     @DisplayName("execute() delegates to driveService.saveFile with configJson and inputData")
     void execute_delegatesCorrectArguments() throws Exception {
-        // Arrange
         Node node = new Node();
         node.setConfigJson("{\"action\":\"write\",\"folderId\":\"cv_uploads\"}");
 
@@ -48,10 +47,8 @@ class DriveNodeHandlerTest {
 
         when(driveService.saveFile(any(), any())).thenReturn("{\"fileId\":\"abc\"}");
 
-        // Act
         String result = handler.execute(node, ni);
 
-        // Assert
         assertThat(result).isEqualTo("{\"fileId\":\"abc\"}");
         verify(driveService).saveFile(
                 "{\"action\":\"write\",\"folderId\":\"cv_uploads\"}",

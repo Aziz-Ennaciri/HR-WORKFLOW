@@ -38,7 +38,6 @@ class RealDriveServiceImplTest {
     @Test
     @DisplayName("getDriveService throws when credentialsPath is null")
     void getDriveService_nullPath_throwsDriveServiceException() {
-        // credentialsPath is null (default after @InjectMocks without Spring)
         assertThatThrownBy(service::getDriveService)
                 .isInstanceOf(DriveServiceException.class)
                 .hasMessage("Google credentials path not configured");

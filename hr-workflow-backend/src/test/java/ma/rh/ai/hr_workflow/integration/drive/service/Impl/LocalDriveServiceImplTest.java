@@ -44,7 +44,6 @@ class LocalDriveServiceImplTest {
         ReflectionTestUtils.setField(service, "storagePath", tempDir.toString());
     }
 
-    // ─── helpers ─────────────────────────────────────────────────────────────────
 
     private String writeConfig(String action, String folderId, String fileName) {
         return String.format(
@@ -104,7 +103,6 @@ class LocalDriveServiceImplTest {
         return (List<Map<String, Object>>) fileData.get("files");
     }
 
-    // ─── action = "write" ─────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveFile() — action=write")
@@ -181,7 +179,6 @@ class LocalDriveServiceImplTest {
         }
     }
 
-    // ─── action = "read" — text files ─────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveFile() — action=read (text files)")
@@ -297,7 +294,6 @@ class LocalDriveServiceImplTest {
         }
     }
 
-    // ─── action = "read" — PDF files ──────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveFile() — action=read (PDF files)")
@@ -332,7 +328,6 @@ class LocalDriveServiceImplTest {
         }
     }
 
-    // ─── action case insensitivity ───────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveFile() — action case insensitivity")
