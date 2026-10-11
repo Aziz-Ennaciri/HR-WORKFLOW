@@ -1,6 +1,5 @@
 package ma.rh.ai.hr_workflow.execution.DTOs;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ApproveNodeDTO {
 
-    @NotBlank(message = "Actor is required")
+    /** Ignored on input: the server sets it to the authenticated user. */
     private String actor;
 
     private String comment;

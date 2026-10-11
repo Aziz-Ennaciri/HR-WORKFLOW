@@ -43,18 +43,17 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("registering with a duplicate email throws (unhandled RuntimeException)")
+        @DisplayName("registering with a duplicate email returns 409")
         void register_duplicate_email_returns_error() throws Exception {
             String body = objectMapper.writeValueAsString(buildDTO("dup@test.com", "pass", "ROLE_RH"));
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isCreated());
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(post("/api/v1/users/register")
+            mockMvc.perform(post("/api/v1/users/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)))
-                    .hasCauseInstanceOf(RuntimeException.class);
+                        .content(body))
+                .andExpect(status().isConflict());
         }
     }
 
@@ -81,7 +80,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("login with wrong password throws (unhandled RuntimeException)")
+        @DisplayName("login with wrong password returns 401")
         void login_wrong_password_returns_error() throws Exception {
              
             mockMvc.perform(post("/api/v1/users/register")
@@ -91,11 +90,10 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String loginBody = "{\"email\":\"badpwd@test.com\",\"password\":\"wrong\"}";
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(post("/api/v1/users/login")
+            mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody)))
-                    .hasCauseInstanceOf(RuntimeException.class);
+                        .content(loginBody))
+                .andExpect(status().isUnauthorized());
         }
     }
 
@@ -104,11 +102,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
     class GetAllUsers {
 
         @Test
-        @DisplayName("authenticated user can list all users")
-        void getAllUsers_authenticated_returns_200() throws Exception {
+        @DisplayName("admin can list all users")
+        void getAllUsers_admin_returns_200() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("list@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("list@test.com", "pass", "ROLE_ADMIN"))))
                     .andExpect(status().isCreated());
 
             String token = getAuthToken("list@test.com", "pass");
@@ -120,10 +118,25 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("unauthenticated request returns 200 (security is permitAll)")
-        void getAllUsers_unauthenticated_returns_200() throws Exception {
+        @DisplayName("non-admin user gets 403")
+        void getAllUsers_rhUser_returns_403() throws Exception {
+            mockMvc.perform(post("/api/v1/users/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(buildDTO("list-rh@test.com", "pass", "ROLE_RH"))))
+                    .andExpect(status().isCreated());
+
+            String token = getAuthToken("list-rh@test.com", "pass");
+
+            mockMvc.perform(get("/api/v1/users")
+                            .header("Authorization", token))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("unauthenticated request returns 401")
+        void getAllUsers_unauthenticated_returns_401() throws Exception {
             mockMvc.perform(get("/api/v1/users"))
-                    .andExpect(status().is2xxSuccessful());
+                    .andExpect(status().isUnauthorized());
         }
     }
 
@@ -132,7 +145,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
     class DisableUser {
 
         @Test
-        @DisplayName("authenticated user can disable another user — returns 204")
+        @DisplayName("admin can disable another user — returns 204")
         void disableUser_returns_204() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -176,11 +189,10 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("unauthenticated request resolves to 'anonymousUser' which is not in DB — throws RuntimeException")
-        void getMe_anonymousUser_throws() {
-            assertThatThrownBy(() ->
-                mockMvc.perform(get("/api/v1/users/me")))
-                    .hasCauseInstanceOf(RuntimeException.class);
+        @DisplayName("unauthenticated request returns 401")
+        void getMe_anonymousUser_returns_401() throws Exception {
+            mockMvc.perform(get("/api/v1/users/me"))
+                .andExpect(status().isUnauthorized());
         }
     }
 
@@ -235,7 +247,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("wrong current password throws IllegalArgumentException")
+        @DisplayName("wrong current password returns 400")
         void changeEmail_wrongPassword_throws() throws Exception {
              
             mockMvc.perform(post("/api/v1/users/register")
@@ -246,16 +258,15 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"newEmail\":\"other@test.com\",\"currentPassword\":\"wrongpwd\"}";
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(put("/api/v1/users/me/email")
+            mockMvc.perform(put("/api/v1/users/me/email")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)))
-                    .hasCauseInstanceOf(IllegalArgumentException.class);
+                        .content(body))
+                .andExpect(status().isBadRequest());
         }
 
         @Test
-        @DisplayName("new email already taken throws IllegalArgumentException")
+        @DisplayName("new email already taken returns 400")
         void changeEmail_emailAlreadyInUse_throws() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -269,12 +280,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"newEmail\":\"emailuser2@test.com\",\"currentPassword\":\"pass\"}";
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(put("/api/v1/users/me/email")
+            mockMvc.perform(put("/api/v1/users/me/email")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)))
-                    .hasCauseInstanceOf(IllegalArgumentException.class);
+                        .content(body))
+                .andExpect(status().isBadRequest());
         }
     }
 
@@ -302,7 +312,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("wrong current password throws IllegalArgumentException")
+        @DisplayName("wrong current password returns 400")
         void changePassword_wrongPassword_throws() throws Exception {
              
             mockMvc.perform(post("/api/v1/users/register")
@@ -313,12 +323,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
 
             String body = "{\"currentPassword\":\"wrongpwd\",\"newPassword\":\"newpass12\"}";
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(put("/api/v1/users/me/password")
+            mockMvc.perform(put("/api/v1/users/me/password")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)))
-                    .hasCauseInstanceOf(IllegalArgumentException.class);
+                        .content(body))
+                .andExpect(status().isBadRequest());
         }
     }
 

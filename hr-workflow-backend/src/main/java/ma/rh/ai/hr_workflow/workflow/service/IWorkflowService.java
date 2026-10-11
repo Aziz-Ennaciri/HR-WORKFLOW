@@ -14,6 +14,8 @@ import java.util.List;
 public interface IWorkflowService {
     WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId);
 
+    WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, String creatorEmail);
+
     WorkflowResponseDTO getWorkflowById(Long id);
 
     WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id);

@@ -1,9 +1,12 @@
 package ma.rh.ai.hr_workflow.execution.controllers;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import ma.rh.ai.hr_workflow.config.SecurityUtils;
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import ma.rh.ai.hr_workflow.execution.DTOs.*;
 import ma.rh.ai.hr_workflow.execution.mappers.*;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
@@ -13,8 +16,7 @@ import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,13 +35,13 @@ public class WorkflowExecutionController {
     private final NodeInstanceMapper nodeMapper;
 
     @PostMapping("/trigger")
-    @Operation(summary = "Trigger workflow execution")
+    @PreAuthorize("@access.canAccessWorkflow(#dto.workflowId)")
+    @Operation(summary = "Trigger workflow execution as the current user")
     public ResponseEntity<WorkflowInstanceResponseDTO> trigger(
-            @Valid @RequestBody TriggerWorkflowInstanceDTO dto,
-            @RequestParam Long userId) {
-        
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+            @Valid @RequestBody TriggerWorkflowInstanceDTO dto) {
+
+        User user = userRepository.findByEmail(SecurityUtils.currentUserEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         WorkflowInstance instance = executionService.triggerWorkflow(dto, user);
         
@@ -48,17 +50,19 @@ public class WorkflowExecutionController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.canAccessExecution(#id)")
     @Operation(summary = "Get workflow instance")
     public ResponseEntity<WorkflowInstanceResponseDTO> getInstance(
             @PathVariable Long id) {
         
         WorkflowInstance instance = instanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Execution not found"));
         
         return ResponseEntity.ok(instanceMapper.toResponseDTO(instance));
     }
 
     @GetMapping("/{id}/detail")
+    @PreAuthorize("@access.canAccessExecution(#id)")
     @Transactional(readOnly = true)
     @Operation(summary = "Get instance with node results")
     public ResponseEntity<?> getDetail(@PathVariable Long id) {
@@ -73,6 +77,7 @@ public class WorkflowExecutionController {
     }
 
     @GetMapping("/workflow/{workflowId}")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Transactional(readOnly = true)
     @Operation(summary = "Get all instances for workflow")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getByWorkflow(
@@ -88,27 +93,14 @@ public class WorkflowExecutionController {
     @Transactional(readOnly = true)
     @Operation(summary = "Get workflow instances — ADMIN sees all, others see only their own workflows' executions.")
     public ResponseEntity<List<WorkflowInstanceResponseDTO>> getAllExecutions() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        List<WorkflowInstance> instances;
-        if (isAdmin(auth)) {
-            instances = instanceRepository.findAll();
-        } else {
-            String email = auth.getName();
-            instances = instanceRepository.findByWorkflow_CreatedBy_Email(email);
-        }
+        List<WorkflowInstance> instances = SecurityUtils.isAdmin()
+                ? instanceRepository.findAll()
+                : instanceRepository.findByWorkflow_CreatedBy_Email(SecurityUtils.currentUserEmail());
         return ResponseEntity.ok(instanceMapper.toResponseDTO(instances));
     }
 
-    private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
     @PostMapping("/{id}/continue")
+    @PreAuthorize("@access.canAccessExecution(#id)")
     @Operation(summary = "Continue/resume execution")
     public ResponseEntity<Void> continueExecution(@PathVariable Long id) {
         executionService.continueExecution(id);
@@ -116,6 +108,7 @@ public class WorkflowExecutionController {
     }
 
     @PostMapping("/{executionId}/retry-from/{nodeId}")
+    @PreAuthorize("@access.canAccessExecution(#executionId)")
     @Operation(summary = "Retry execution starting from a failed node")
     public ResponseEntity<Void> retryFromNode(
             @PathVariable Long executionId,
@@ -125,11 +118,12 @@ public class WorkflowExecutionController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@access.canAccessExecution(#id)")
     @Transactional
     @Operation(summary = "Delete a workflow execution")
     public ResponseEntity<Void> deleteExecution(@PathVariable Long id) {
         WorkflowInstance instance = instanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Execution not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Execution not found"));
         instanceRepository.delete(instance);
         return ResponseEntity.noContent().build();
     }

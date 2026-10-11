@@ -1,16 +1,17 @@
+# Secrets
+.env
 google-credentials.json
 hr-workflow-backend/src/main/resources/google-credentials.json
 
-.env
-
+# IDE
 .idea/
-*.xml
+.vscode/
+*.iml
 
-mvnw
-
-node_modules/
-
+# Build output
 target/
 dist/
+node_modules/
 
+# Logs
 *.log

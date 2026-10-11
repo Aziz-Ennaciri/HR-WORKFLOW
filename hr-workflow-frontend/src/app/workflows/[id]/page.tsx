@@ -7,7 +7,7 @@ import { nodeTypes } from "@/components/workflow/nodes";
 import { DeletableEdge } from "@/components/workflow/edges/DeletableEdge";
 
 const edgeTypes = { deletable: DeletableEdge };
-import { useAuthGuard, getUser } from "@/lib/auth";
+import { useAuthGuard } from "@/lib/auth";
 import api from "@/lib/api";
 import ReactFlow, {
   Node,
@@ -321,8 +321,7 @@ export default function WorkflowDesignerPage() {
     if (executing) return;
     setExecuting(true);
     try {
-      const user = getUser();
-      await api.post(`/executions/trigger?userId=${user.id}`, {
+      await api.post("/executions/trigger", {
         workflowId: parseInt(params.id as string),
         inputData: "{}",
       });

@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import java.util.List;
 
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -33,7 +34,7 @@ public class ExecutionTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void startInstance(Long workflowInstanceId) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         if (instance.getStatus() == WorkflowInstanceStatus.PENDING) {
             instance.start();
             workflowInstanceRepository.save(instance);
@@ -43,14 +44,14 @@ public class ExecutionTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public List<Node> getWorkflowNodes(Long workflowInstanceId) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         return nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(instance.getWorkflow().getId());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public String getInstanceInputData(Long workflowInstanceId) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         return instance.getInputData();
     }
 
@@ -58,9 +59,9 @@ public class ExecutionTransactionHelper {
     public void updateCurrentNode(Long workflowInstanceId, Long nodeId) {
         try {
             WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                    .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
             Node node = nodeRepository.findById(nodeId)
-                    .orElseThrow(() -> new RuntimeException("Node not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Node not found"));
             instance.setCurrentNode(node);
             workflowInstanceRepository.save(instance);
         } catch (ObjectOptimisticLockingFailureException ex) {
@@ -80,9 +81,9 @@ public class ExecutionTransactionHelper {
     public NodeInstance executeNode(Long workflowInstanceId, Long nodeId, String inputData,
                                     NodeHandler handler) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         Node node = nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new RuntimeException("Node not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node not found"));
 
         instance.getWorkflow().getName();
 
@@ -137,7 +138,7 @@ public class ExecutionTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void pauseInstance(Long workflowInstanceId) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         instance.setStatus(WorkflowInstanceStatus.PAUSED);
         workflowInstanceRepository.save(instance);
         log.info("⏸️  Workflow instance {} PAUSED for approval", workflowInstanceId);
@@ -146,7 +147,7 @@ public class ExecutionTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void completeInstance(Long workflowInstanceId, String outputData) {
         WorkflowInstance instance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElseThrow(() -> new RuntimeException("Workflow instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow instance not found"));
         instance.setStatus(WorkflowInstanceStatus.COMPLETED);
         instance.setOutputData(outputData);
         instance.complete();
@@ -156,11 +157,11 @@ public class ExecutionTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void resetForRetry(Long executionId, Long nodeId) {
         WorkflowInstance instance = workflowInstanceRepository.findById(executionId)
-                .orElseThrow(() -> new RuntimeException("Execution not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Execution not found"));
 
         NodeInstance nodeInstance = nodeInstanceRepository
                 .findByWorkflowInstanceIdAndNodeId(executionId, nodeId)
-                .orElseThrow(() -> new RuntimeException("Node instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
 
         if (nodeInstance.getStatus() != NodeInstanceStatus.FAILED) {
             throw new IllegalStateException("Node is not in FAILED state");

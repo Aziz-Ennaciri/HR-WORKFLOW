@@ -25,7 +25,7 @@ export default function ApprovalsPage() {
     if (!user?.id) return;
     try {
       const [appRes, wfRes] = await Promise.all([
-        api.get(`/executions/nodes/my-approvals?userId=${user.id}`),
+        api.get("/executions/nodes/my-approvals"),
         api.get(getWorkflowsUrl()),
       ]);
       setApprovals(appRes.data || []);

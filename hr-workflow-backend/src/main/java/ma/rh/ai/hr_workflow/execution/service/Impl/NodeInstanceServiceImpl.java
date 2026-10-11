@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -24,12 +25,12 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
     @Override
     public NodeInstance approveNode(Long nodeInstanceId, ApproveNodeDTO dto) {
         NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId)
-                .orElseThrow(() -> new RuntimeException("Node Instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node Instance not found"));
 
         if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING &&
                 nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS &&
                 nodeInstance.getStatus() != NodeInstanceStatus.WAITING_APPROVAL) {
-            throw new RuntimeException("can only approve pending, in progress, or waiting approval nodes");
+            throw new IllegalStateException("can only approve pending, in progress, or waiting approval nodes");
         }
 
         nodeInstance.markCompleted(null);
@@ -40,9 +41,9 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
 
     @Override
     public NodeInstance rejectNode(Long nodeInstanceId, ApproveNodeDTO dto) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new RuntimeException("Node Instance not found"));
+        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
         if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING && nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS) {
-            throw new RuntimeException("can only approve pending and in progress nodes");
+            throw new IllegalStateException("can only approve pending and in progress nodes");
         }
         nodeInstance.markRejected(dto.getActor(),dto.getComment());
         return nodeInstance;
@@ -50,9 +51,9 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
 
     @Override
     public NodeInstance failNode(Long nodeInstanceId, String errorMessage) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new RuntimeException("Node Instance not found"));
+        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
         if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING && nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS) {
-            throw new RuntimeException("can only approve pending and in progress nodes");
+            throw new IllegalStateException("can only approve pending and in progress nodes");
         }
         nodeInstance.markFailed(errorMessage);
         return nodeInstance;
@@ -60,9 +61,9 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
 
     @Override
     public NodeInstance retryNode(Long nodeInstanceId) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new RuntimeException("Node Instance not found"));
+        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
         if (nodeInstance.getStatus() != NodeInstanceStatus.FAILED) {
-            throw new RuntimeException("can only retry failed nodes");
+            throw new IllegalStateException("can only retry failed nodes");
         }
         NodeInstance retryNodeInstance = new NodeInstance();
         retryNodeInstance.setWorkflowInstance(nodeInstance.getWorkflowInstance());

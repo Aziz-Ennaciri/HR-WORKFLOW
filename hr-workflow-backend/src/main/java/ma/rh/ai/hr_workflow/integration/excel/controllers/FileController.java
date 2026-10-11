@@ -26,7 +26,11 @@ public class FileController {
             File webDir = new File(System.getProperty("java.io.tmpdir"), "hr-workflow-files");
             File file = new File(webDir, fileName);
 
-            if (!file.exists()) {
+            // Reject path traversal such as "../../etc/passwd"
+            if (!file.getCanonicalFile().toPath().startsWith(webDir.getCanonicalFile().toPath())) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (!file.isFile()) {
                 log.warn("Excel file not found: {}", file.getAbsolutePath());
                 return ResponseEntity.notFound().build();
             }
@@ -34,7 +38,7 @@ public class FileController {
             InputStreamResource resource = new InputStreamResource(new FileInputStream(file));
 
             HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + fileName);
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"");
             headers.add(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate");
             headers.add(HttpHeaders.PRAGMA, "no-cache");
             headers.add(HttpHeaders.EXPIRES, "0");

@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.workflow.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateNodeDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.NodeOrderDTO;
@@ -31,9 +32,9 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public NodeResponseDTO createNode(CreateNodeDTO createNodeDTO, Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be added to DRAFT workflows");
+            throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
         validateNodeType(createNodeDTO.getType());
         Node node = nodeMapper.toEntity(createNodeDTO, workflow);
@@ -45,9 +46,9 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public List<NodeResponseDTO> createNodes(List<CreateNodeDTO> dtos, Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be added to DRAFT workflows");
+            throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
         List<Node> nodes = dtos.stream().map(dto -> 
             {validateNodeType(dto.getType());
@@ -60,14 +61,14 @@ public class NodeServiceImpl implements INodeService {
 
     @Override
     public NodeResponseDTO getNodeById(Long id) {
-        Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found"));
+        Node node = nodeRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Node not found"));
         return nodeMapper.toResponseDTO(node);
     }
 
     @Override
     public List<NodeResponseDTO> getNodesByWorkflowId(Long workflowId) {
         if (!workflowRepository.existsById(workflowId)) {
-            throw new RuntimeException("Workflow not found");
+            throw new ResourceNotFoundException("Workflow not found");
         }
         List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId);
         return nodes.stream().map(nodeMapper::toResponseDTO).toList();
@@ -88,7 +89,7 @@ public class NodeServiceImpl implements INodeService {
     @Transactional
     public NodeResponseDTO updateNode(Long id, UpdateNodeDTO dto) {
         Node node = nodeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Node not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node not found"));
 
         if (!node.getWorkflow().getStatus().equals(WorkflowStatus.DRAFT)) {
             throw new IllegalStateException("Nodes can only be updated in DRAFT workflows");
@@ -98,7 +99,7 @@ public class NodeServiceImpl implements INodeService {
             NodeType nodeType = NodeType.valueOf(dto.getType());
             node.setType(nodeType);
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid node type: " + dto.getType());
+            throw new IllegalArgumentException("Invalid node type: " + dto.getType());
         }
 
         node.setOrderIndex(dto.getOrder());
@@ -110,17 +111,17 @@ public class NodeServiceImpl implements INodeService {
 
     @Override
     public List<NodeResponseDTO> reorderNodes(Long workflowId, List<NodeOrderDTO> nodeOrders) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be added to DRAFT workflows");
+            throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
 
         for (NodeOrderDTO orderDto : nodeOrders) {
             Node node = nodeRepository.findById(orderDto.getNodeId())
-                    .orElseThrow(() -> new RuntimeException("Node not found with id: " + orderDto.getNodeId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Node not found with id: " + orderDto.getNodeId()));
             
             if (!node.getWorkflow().getId().equals(workflowId)) {
-                throw new RuntimeException("Node " + orderDto.getNodeId() + " does not belong to workflow " + workflowId);
+                throw new IllegalArgumentException("Node " + orderDto.getNodeId() + " does not belong to workflow " + workflowId);
             }
             
             node.setOrderIndex(orderDto.getNewOrder());
@@ -136,9 +137,9 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public void deleteNode(Long id) {
-        Node node = nodeRepository.findById(id).orElseThrow(() -> new RuntimeException("Node not found"));
+        Node node = nodeRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Node not found"));
         if (node.getWorkflow().getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be updated in DRAFT workflows");
+            throw new IllegalStateException("Nodes can only be updated in DRAFT workflows");
         }
         nodeRepository.deleteById(id);
     }
@@ -146,9 +147,9 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public void deleteNodesByWorkflowId(Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new RuntimeException("Workflow not found"));
+        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
-            throw new RuntimeException("Nodes can only be added to DRAFT workflows");
+            throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
         nodeRepository.deleteByWorkflowId(workflowId);
     }

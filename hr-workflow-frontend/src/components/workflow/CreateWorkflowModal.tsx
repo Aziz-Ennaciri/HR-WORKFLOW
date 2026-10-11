@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import api from "@/lib/api";
-import { getUser } from "@/lib/auth";
 
 interface CreateWorkflowModalProps {
   isOpen: boolean;
@@ -31,8 +30,7 @@ export default function CreateWorkflowModal({
     setLoading(true);
 
     try {
-      const user = getUser();
-      await api.post(`/workflows?creatorId=${user.id}`, {
+      await api.post("/workflows", {
         name: formData.name,
         description: formData.description,
       });

@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,13 +48,14 @@ class WorkflowControllerTest {
 
 
     @Test
-    @DisplayName("createWorkflow delegates to service and returns 201 CREATED")
+    @DisplayName("createWorkflow creates the workflow for the authenticated user and returns 201 CREATED")
     void createWorkflow_returns201() {
+        setAuth("user@test.com", "ROLE_RH");
         CreateWorkflowDTO dto = new CreateWorkflowDTO("WF", "desc");
         WorkflowResponseDTO response = new WorkflowResponseDTO();
-        when(workflowService.createWorkflow(dto, 1L)).thenReturn(response);
+        when(workflowService.createWorkflow(dto, "user@test.com")).thenReturn(response);
 
-        ResponseEntity<WorkflowResponseDTO> result = controller.createWorkflow(dto, 1L);
+        ResponseEntity<WorkflowResponseDTO> result = controller.createWorkflow(dto);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(result.getBody()).isSameAs(response);
@@ -74,11 +77,10 @@ class WorkflowControllerTest {
 
 
     @Test
-    @DisplayName("getWorkflows returns 401 when SecurityContext has no authentication")
-    void getWorkflows_nullAuth_returns401() {
-        ResponseEntity<List<WorkflowResponseDTO>> result = controller.getWorkflows();
-
-        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    @DisplayName("getWorkflows throws when SecurityContext has no authentication")
+    void getWorkflows_nullAuth_throws() {
+        assertThatThrownBy(() -> controller.getWorkflows())
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
     }
 
     @Test
@@ -133,11 +135,10 @@ class WorkflowControllerTest {
 
 
     @Test
-    @DisplayName("duplicateWorkflow returns 401 when SecurityContext has no authentication")
-    void duplicateWorkflow_nullAuth_returns401() {
-        ResponseEntity<WorkflowResponseDTO> result = controller.duplicateWorkflow(1L);
-
-        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    @DisplayName("duplicateWorkflow throws when SecurityContext has no authentication")
+    void duplicateWorkflow_nullAuth_throws() {
+        assertThatThrownBy(() -> controller.duplicateWorkflow(1L))
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
     }
 
     @Test

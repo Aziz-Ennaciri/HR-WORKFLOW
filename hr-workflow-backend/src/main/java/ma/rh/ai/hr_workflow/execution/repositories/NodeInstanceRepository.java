@@ -19,4 +19,8 @@ public interface NodeInstanceRepository extends JpaRepository<NodeInstance,Long>
     List<NodeInstance> findByAssignedToIdAndStatusOrderByCreatedAtDesc(Long userId, NodeInstanceStatus status);
 
     long countByAssignedToIdAndStatus(Long userId, NodeInstanceStatus status);
+
+    List<NodeInstance> findByAssignedToEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(String email, NodeInstanceStatus status);
+
+    long countByAssignedToEmailIgnoreCaseAndStatus(String email, NodeInstanceStatus status);
 }

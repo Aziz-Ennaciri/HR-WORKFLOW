@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +113,7 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
 
             List<Node> nodes = txHelper.getWorkflowNodes(workflowInstanceId);
             if (nodes.isEmpty()) {
-                throw new RuntimeException("Workflow has no nodes");
+                throw new IllegalStateException("Workflow has no nodes");
             }
 
             log.info("📋 Executing {} nodes", nodes.size());
@@ -208,7 +209,7 @@ public class WorkflowExecutionServiceImpl implements IWorkflowExecutionService {
 
     private Workflow validateWorkflow(Long workflowId) {
         Workflow workflow = workflowRepository.findById(workflowId)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.ACTIVE) {
             throw new IllegalStateException("Workflow is not active");
         }

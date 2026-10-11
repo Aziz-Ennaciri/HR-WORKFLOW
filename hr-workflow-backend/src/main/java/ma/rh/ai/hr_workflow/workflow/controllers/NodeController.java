@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +24,7 @@ public class NodeController {
     private final INodeService nodeService;
 
     @PostMapping("/workflow/{workflowId}")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Create a new node", description = "Creates a new node for a workflow (only allowed in DRAFT workflows)")
     public ResponseEntity<NodeResponseDTO> createNode(
             @PathVariable @Parameter(description = "Workflow ID") Long workflowId,
@@ -32,6 +34,7 @@ public class NodeController {
     }
 
     @PostMapping("/workflow/{workflowId}/batch")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Create multiple nodes", description = "Batch creates multiple nodes for a workflow")
     public ResponseEntity<List<NodeResponseDTO>> createNodes(
             @Valid @RequestBody List<CreateNodeDTO> createNodeDTOList,
@@ -41,6 +44,7 @@ public class NodeController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.canAccessNode(#id)")
     @Operation(summary = "Get node by ID", description = "Retrieves a node by its ID")
     public ResponseEntity<NodeResponseDTO> getNodeId(@PathVariable @Parameter(description = "Node ID")Long id){
         NodeResponseDTO nodeResponseDTO = nodeService.getNodeById(id);
@@ -48,6 +52,7 @@ public class NodeController {
     }
 
     @GetMapping("/workflow/{workflowId}")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Get all nodes for a workflow", description = "Retrieves all nodes for a workflow, ordered by execution order (orderIndex)")
     public ResponseEntity<List<NodeResponseDTO>> getNodesByWorkflowId(@PathVariable @Parameter(description = "Workflow ID")Long workflowId){
         List<NodeResponseDTO> responseDTOs = nodeService.getNodesByWorkflowId(workflowId);
@@ -55,6 +60,7 @@ public class NodeController {
     }
 
     @GetMapping("/workflow/{workflowId}/type/{type}")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Get nodes by type", description = "Retrieves nodes of a specific type for a workflow (GPT, DRIVE, EMAIL, EXCEL)")
     public ResponseEntity<List<NodeResponseDTO>> getNodesByWorkflowIdAndType(
         @PathVariable @Parameter(description = "Workflow ID")Long workflowId,
@@ -64,6 +70,7 @@ public class NodeController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@access.canAccessNode(#id)")
     @Operation(summary = "Update a node", description = "Updates a node's type, order, or configuration (only allowed in DRAFT workflows)")
     public ResponseEntity<NodeResponseDTO> updateNode(
         @PathVariable @Parameter(description = "Node ID")Long id,
@@ -73,6 +80,7 @@ public class NodeController {
     }
 
     @PatchMapping("/workflow/{workflowId}/reorder")
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Reorder nodes", description = "Changes the execution order of nodes in a workflow")
     public ResponseEntity<List<NodeResponseDTO>> reorderNodes(
         @PathVariable @Parameter(description = "Workflow ID") Long workflowId,
@@ -82,6 +90,7 @@ public class NodeController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@access.canAccessNode(#nodeId)")
     @Operation(summary = "Delete a node", description = "Deletes a node (only allowed in DRAFT workflows)")
     public ResponseEntity<Void> deleteNode(@PathVariable("id") @Parameter(description = "Node ID") Long nodeId){
         nodeService.deleteNode(nodeId);
@@ -89,6 +98,7 @@ public class NodeController {
     }
 
     @DeleteMapping("/workflow/{workflowId}")  // Remove trailing slash
+    @PreAuthorize("@access.canAccessWorkflow(#workflowId)")
     @Operation(summary = "Delete all nodes for a workflow", description = "Deletes all nodes in a workflow (only allowed in DRAFT workflows)")
     public ResponseEntity<Void> deleteNodesByWorkflowId(@PathVariable @Parameter(description = "Workflow ID") Long workflowId){
         nodeService.deleteNodesByWorkflowId(workflowId);

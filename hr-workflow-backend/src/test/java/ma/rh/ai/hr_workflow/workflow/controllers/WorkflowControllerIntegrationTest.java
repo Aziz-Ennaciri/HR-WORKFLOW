@@ -78,7 +78,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
             String body = createWorkflowBody("Recruitment WF");
 
             mockMvc.perform(post("/api/v1/workflows")
-                            .param("creatorId", adminUser.getId().toString())
                             .header("Authorization", adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -88,13 +87,68 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("create workflow without auth still returns 201 (security is permitAll)")
-        void create_workflow_no_auth_returns_201() throws Exception {
+        @DisplayName("create workflow without a token returns 401")
+        void create_workflow_no_auth_returns_401() throws Exception {
             mockMvc.perform(post("/api/v1/workflows")
-                            .param("creatorId", adminUser.getId().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(createWorkflowBody("NoAuth")))
-                    .andExpect(status().is2xxSuccessful());
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("workflow is owned by the authenticated user, not a client-supplied id")
+        void create_workflow_owner_comes_from_token() throws Exception {
+            MvcResult created = mockMvc.perform(post("/api/v1/workflows")
+                            .param("creatorId", adminUser.getId().toString())
+                            .header("Authorization", rhToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createWorkflowBody("Mine")))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+            // The RH user can read it, so it was created for them (and not for the admin passed as creatorId)
+            mockMvc.perform(get("/api/v1/workflows/" + id).header("Authorization", rhToken))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Nested
+    @DisplayName("Ownership checks")
+    class Ownership {
+
+        private Long createAsAdmin(String name) throws Exception {
+            MvcResult created = mockMvc.perform(post("/api/v1/workflows")
+                            .header("Authorization", adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(createWorkflowBody(name)))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            return objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+        }
+
+        @Test
+        @DisplayName("RH user gets 403 reading someone else's workflow")
+        void rh_user_cannot_read_other_users_workflow() throws Exception {
+            Long id = createAsAdmin("Private");
+            mockMvc.perform(get("/api/v1/workflows/" + id).header("Authorization", rhToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("RH user gets 403 deleting someone else's workflow")
+        void rh_user_cannot_delete_other_users_workflow() throws Exception {
+            Long id = createAsAdmin("Private");
+            mockMvc.perform(delete("/api/v1/workflows/" + id).header("Authorization", rhToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("RH user gets 403 listing nodes of someone else's workflow")
+        void rh_user_cannot_list_nodes_of_other_users_workflow() throws Exception {
+            Long id = createAsAdmin("Private");
+            mockMvc.perform(get("/api/v1/nodes/workflow/" + id).header("Authorization", rhToken))
+                    .andExpect(status().isForbidden());
         }
     }
 
@@ -106,7 +160,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("admin sees all workflows regardless of creator")
         void admin_sees_all_workflows() throws Exception {
             mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("RH-WF")))
@@ -127,14 +180,12 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         void rh_user_sees_only_own_workflows() throws Exception {
              
             mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", rhUser.getId().toString())
                     .header("Authorization", rhToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("MY-WF")))
                     .andExpect(status().isCreated());
 
             mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("ADMIN-WF")))
@@ -163,7 +214,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         void getById_existing_returns_200() throws Exception {
              
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("FindMe")))
@@ -178,12 +228,11 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("throws for a non-existent workflow (unhandled RuntimeException)")
-        void getById_nonExistent_throws() {
-            assertThatThrownBy(() ->
-                mockMvc.perform(get("/api/v1/workflows/99999")
-                        .header("Authorization", adminToken)))
-                    .hasCauseInstanceOf(RuntimeException.class);
+        @DisplayName("returns 404 for a non-existent workflow")
+        void getById_nonExistent_returns_404() throws Exception {
+            mockMvc.perform(get("/api/v1/workflows/99999")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isNotFound());
         }
     }
 
@@ -195,7 +244,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("update workflow returns 200 with updated name")
         void update_workflow_returns_200() throws Exception {
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("OldName")))
@@ -224,7 +272,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         void delete_workflow_returns_204() throws Exception {
              
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("ToDelete")))
@@ -247,7 +294,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         void duplicate_workflow_returns_201() throws Exception {
              
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("OriginalDup")))
@@ -274,7 +320,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("DRAFT workflow name patched — returns 200 with updated name")
         void patch_draft_workflow_returns_200() throws Exception {
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("BeforePatch")))
@@ -296,7 +341,6 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("patching a non-DRAFT workflow throws IllegalStateException")
         void patch_non_draft_workflow_throws() throws Exception {
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
-                    .param("creatorId", adminUser.getId().toString())
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(createWorkflowBody("ToActivate")))
@@ -315,12 +359,11 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
 
             PatchWorkflowDTO patchDTO = new PatchWorkflowDTO("ShouldFail", null);
 
-            assertThatThrownBy(() ->
-                mockMvc.perform(patch("/api/v1/workflows/" + id)
+            mockMvc.perform(patch("/api/v1/workflows/" + id)
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(patchDTO))))
-                    .hasCauseInstanceOf(IllegalStateException.class);
+                        .content(objectMapper.writeValueAsString(patchDTO)))
+                .andExpect(status().isBadRequest());
         }
     }
 }

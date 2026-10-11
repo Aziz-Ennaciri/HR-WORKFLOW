@@ -19,6 +19,7 @@ import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.user.service.IUserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -46,6 +47,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponseDTO> updateUser(@PathVariable @Parameter(description = "User ID") Long id,
                                                       @Valid @RequestBody CreateUserDTO createUserDTO) {
         UserResponseDTO userResponseDTO = userService.updateUser(id, createUserDTO);
@@ -53,12 +55,14 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @access.isCurrentUser(#id)")
     public ResponseEntity<UserResponseDTO> getUserId(@PathVariable @Parameter(description = "User ID") Long id) {
         UserResponseDTO userResponseDTO = userService.getUserById(id);
         return ResponseEntity.ok(userResponseDTO);
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
         List<UserResponseDTO> userResponseDTO = userService.getAllUsers();
         return ResponseEntity.ok(userResponseDTO);
@@ -79,6 +83,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponseDTO> disableUser(@PathVariable @Parameter(description = "User ID") Long id) {
         userService.disableUser(id);
         return ResponseEntity.noContent().build();

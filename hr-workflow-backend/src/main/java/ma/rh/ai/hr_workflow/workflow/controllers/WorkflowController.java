@@ -6,15 +6,15 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
@@ -27,14 +27,13 @@ public class WorkflowController {
 
     @PostMapping
     @Operation(summary = "Create a new workflow")
-    public ResponseEntity<WorkflowResponseDTO> createWorkflow(
-            @Valid @RequestBody CreateWorkflowDTO dto,
-            @RequestParam @Parameter(description = "ID of the user creating the workflow") Long creatorId) {
-        WorkflowResponseDTO response = workflowService.createWorkflow(dto, creatorId);
+    public ResponseEntity<WorkflowResponseDTO> createWorkflow(@Valid @RequestBody CreateWorkflowDTO dto) {
+        WorkflowResponseDTO response = workflowService.createWorkflow(dto, SecurityUtils.currentUserEmail());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
     @Operation(summary = "Get workflow by ID")
     public ResponseEntity<WorkflowResponseDTO> getWorkflowId(
             @PathVariable @Parameter(description = "workflowId") Long id) {
@@ -45,27 +44,14 @@ public class WorkflowController {
     @GetMapping
     @Operation(summary = "Get workflows — ADMIN sees all, other users see only their own.")
     public ResponseEntity<List<WorkflowResponseDTO>> getWorkflows() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        List<WorkflowResponseDTO> workflows;
-        if (isAdmin(auth)) {
-            workflows = workflowService.getAllWorkflows();
-        } else {
-            String email = auth.getName();
-            workflows = workflowService.getWorkflowsByCreatorEmail(email);
-        }
+        List<WorkflowResponseDTO> workflows = SecurityUtils.isAdmin()
+                ? workflowService.getAllWorkflows()
+                : workflowService.getWorkflowsByCreatorEmail(SecurityUtils.currentUserEmail());
         return ResponseEntity.ok(workflows);
     }
 
-    private boolean isAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
     @PutMapping("/{id}")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
     @Operation(summary = "Update workflow")
     public ResponseEntity<WorkflowResponseDTO> updateWorkflow(
             @PathVariable Long id,
@@ -75,6 +61,7 @@ public class WorkflowController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
     @Operation(summary = "Patch workflow name/description (DRAFT only)")
     public ResponseEntity<WorkflowResponseDTO> patchWorkflow(
             @PathVariable Long id,
@@ -84,6 +71,7 @@ public class WorkflowController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
     @Operation(summary = "Delete a workflow")
     public ResponseEntity<Void> deleteWorkflow(
             @PathVariable @Parameter(description = "Workflow ID") Long id) {
@@ -92,14 +80,10 @@ public class WorkflowController {
     }
 
     @PostMapping("/{id}/duplicate")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
     @Operation(summary = "Duplicate a workflow with all its nodes")
     public ResponseEntity<WorkflowResponseDTO> duplicateWorkflow(@PathVariable Long id) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        String email = auth.getName();
-        WorkflowResponseDTO copy = workflowService.duplicateWorkflow(id, email);
+        WorkflowResponseDTO copy = workflowService.duplicateWorkflow(id, SecurityUtils.currentUserEmail());
         return new ResponseEntity<>(copy, HttpStatus.CREATED);
     }
 }

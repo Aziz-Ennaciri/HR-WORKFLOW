@@ -40,7 +40,7 @@ export default function Sidebar({
       if (!user?.id) return;
       try {
         const res = await api.get(
-          `/executions/nodes/my-approvals/count?userId=${user.id}`,
+          "/executions/nodes/my-approvals/count",
         );
         setApprovalCount(res.data || 0);
       } catch {

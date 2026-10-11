@@ -30,9 +30,12 @@ public class DriveController {
             @PathVariable String fileName) {
 
         try {
-            Path filePath = Paths.get(storagePath, folder, fileName);
+            Path filePath = resolveInsideStorage(folder, fileName);
 
-            if (!Files.exists(filePath)) {
+            if (filePath == null) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (!Files.isRegularFile(filePath)) {
                 return ResponseEntity.notFound().build();
             }
 
@@ -53,29 +56,43 @@ public class DriveController {
     @GetMapping("/list/{folder}")
     public ResponseEntity<?> listFiles(@PathVariable String folder) {
         try {
-            Path folderPath = Paths.get(storagePath, folder);
+            Path folderPath = resolveInsideStorage(folder);
 
-            if (!Files.exists(folderPath)) {
+            if (folderPath == null) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (!Files.isDirectory(folderPath)) {
                 return ResponseEntity.notFound().build();
             }
 
-            var files = Files.list(folderPath)
-                    .map(path -> {
-                        var file = path.toFile();
-                        return new FileInfo(
-                                file.getName(),
-                                file.length(),
-                                Files.isDirectory(path)
-                        );
-                    })
-                    .toList();
-
-            return ResponseEntity.ok(files);
+            try (var paths = Files.list(folderPath)) {
+                var files = paths
+                        .map(path -> {
+                            var file = path.toFile();
+                            return new FileInfo(
+                                    file.getName(),
+                                    file.length(),
+                                    Files.isDirectory(path)
+                            );
+                        })
+                        .toList();
+                return ResponseEntity.ok(files);
+            }
 
         } catch (Exception e) {
             log.error("Failed to list files", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    /**
+     * Resolves the path under the storage root, or returns null if the segments try to
+     * escape it (e.g. "../../etc/passwd").
+     */
+    private Path resolveInsideStorage(String... segments) {
+        Path root = Paths.get(storagePath).toAbsolutePath().normalize();
+        Path resolved = Paths.get(root.toString(), segments).normalize();
+        return resolved.startsWith(root) && !resolved.equals(root) ? resolved : null;
     }
 
     record FileInfo(String name, long size, boolean isDirectory) {}

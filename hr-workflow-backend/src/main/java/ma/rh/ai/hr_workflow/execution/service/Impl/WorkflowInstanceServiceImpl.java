@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ public class WorkflowInstanceServiceImpl implements IWorkflowInstanceService{
 
     @Override
     public WorkflowInstance createInstance(TriggerWorkflowInstanceDTO dto, User user) {
-        Workflow workflow = workflowRepository.findById(dto.getWorkflowId()).orElseThrow(() -> new RuntimeException("Workflow not found") );
+        Workflow workflow = workflowRepository.findById(dto.getWorkflowId()).orElseThrow(() -> new ResourceNotFoundException("Workflow not found") );
 
         WorkflowInstance workflowInstance = new WorkflowInstance();
         workflowInstance.setWorkflow(workflow);
@@ -37,14 +38,14 @@ public class WorkflowInstanceServiceImpl implements IWorkflowInstanceService{
 
     @Override
     public WorkflowInstance startInstance(Long workflowInstanceId) {
-        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new RuntimeException("WorkflowInstance not found"));
+        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new ResourceNotFoundException("WorkflowInstance not found"));
         workflowInstance.start();
         return workflowInstance ;
     }
 
     @Override
     public WorkflowInstance completeInstance(Long workflowInstanceId, String outputData) {
-        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new RuntimeException("WorkflowInstance not found"));
+        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new ResourceNotFoundException("WorkflowInstance not found"));
         workflowInstance.setStatus(WorkflowInstanceStatus.COMPLETED);
         workflowInstance.setOutputData(outputData);
         workflowInstance.complete();
@@ -53,7 +54,7 @@ public class WorkflowInstanceServiceImpl implements IWorkflowInstanceService{
 
     @Override
     public WorkflowInstance failInstance(Long workflowInstanceId, String errorMessage, String stackTrace) {
-        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new RuntimeException("WorkflowInstance not found"));
+        WorkflowInstance workflowInstance = workflowInstancerepository.findById(workflowInstanceId).orElseThrow(()->new ResourceNotFoundException("WorkflowInstance not found"));
         workflowInstance.setStatus(WorkflowInstanceStatus.FAILED);
         workflowInstance.setErrorMessage(errorMessage);
         workflowInstance.setErrorStackTrace(stackTrace);

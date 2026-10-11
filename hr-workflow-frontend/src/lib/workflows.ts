@@ -1,9 +1,4 @@
-import { getUser } from "@/lib/auth";
-
+// The backend decides what the caller can see from the JWT (admins see all, others their own).
 export function getWorkflowsUrl(): string {
-  const user = getUser();
-  if (!user?.id) return "/workflows?userId=0&role=ROLE_RH";
-  const role = user.roles?.includes("ROLE_ADMIN") ? "ROLE_ADMIN" : "ROLE_RH";
-  return `/workflows?userId=${user.id}&role=${role}`;
+  return "/workflows";
 }
-

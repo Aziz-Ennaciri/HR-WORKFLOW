@@ -1,9 +1,13 @@
 package ma.rh.ai.hr_workflow.execution.controllers;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import ma.rh.ai.hr_workflow.config.AccessGuard;
+import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.execution.DTOs.*;
 import ma.rh.ai.hr_workflow.execution.mappers.NodeInstanceMapper;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
@@ -17,6 +21,8 @@ import ma.rh.ai.hr_workflow.execution.service.Impl.ExecutionTransactionHelper;
 import ma.rh.ai.hr_workflow.execution.service.Impl.WorkflowExecutionServiceImpl;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,6 +31,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/executions/nodes")
 @RequiredArgsConstructor
@@ -38,16 +45,19 @@ public class NodeInstanceController {
     private final WorkflowInstancerepository workflowInstanceRepository;
     private final ExecutionTransactionHelper txHelper;
     private final ObjectMapper objectMapper;
+    private final AccessGuard accessGuard;
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.canAccessNodeInstance(#id)")
     @Operation(summary = "Get node instance")
     public ResponseEntity<NodeInstanceResponseDTO> getNode(@PathVariable Long id) {
         NodeInstance node = nodeInstanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
         return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(node));
     }
 
     @GetMapping("/workflow-instance/{instanceId}")
+    @PreAuthorize("@access.canAccessExecution(#instanceId)")
     @Operation(summary = "Get all nodes for instance")
     public ResponseEntity<List<NodeInstanceResponseDTO>> getNodes(
             @PathVariable Long instanceId) {
@@ -58,11 +68,11 @@ public class NodeInstanceController {
 
     @GetMapping("/my-approvals")
     @Operation(summary = "Get pending approvals for the current user")
-    public ResponseEntity<List<PendingApprovalDTO>> getMyApprovals(
-            @RequestParam Long userId) {
+    public ResponseEntity<List<PendingApprovalDTO>> getMyApprovals() {
 
         List<NodeInstance> pendingNodes = nodeInstanceRepository
-                .findByAssignedToIdAndStatusOrderByCreatedAtDesc(userId, NodeInstanceStatus.WAITING_APPROVAL);
+                .findByAssignedToEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
+                        SecurityUtils.currentUserEmail(), NodeInstanceStatus.WAITING_APPROVAL);
 
         List<PendingApprovalDTO> approvals = new ArrayList<>();
         for (NodeInstance ni : pendingNodes) {
@@ -81,7 +91,9 @@ public class NodeInstanceController {
                         dto.setInstructions(config.get("instructions").asText());
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.warn("Could not read approval instructions for node instance {}: {}", ni.getId(), e.getMessage());
+            }
 
             WorkflowInstance wi = ni.getWorkflowInstance();
             dto.setWorkflowInstanceId(wi.getId());
@@ -102,8 +114,9 @@ public class NodeInstanceController {
 
     @GetMapping("/my-approvals/count")
     @Operation(summary = "Count pending approvals for the current user")
-    public ResponseEntity<Long> getMyApprovalsCount(@RequestParam Long userId) {
-        long count = nodeInstanceRepository.countByAssignedToIdAndStatus(userId, NodeInstanceStatus.WAITING_APPROVAL);
+    public ResponseEntity<Long> getMyApprovalsCount() {
+        long count = nodeInstanceRepository.countByAssignedToEmailIgnoreCaseAndStatus(
+                SecurityUtils.currentUserEmail(), NodeInstanceStatus.WAITING_APPROVAL);
         return ResponseEntity.ok(count);
     }
 
@@ -115,10 +128,11 @@ public class NodeInstanceController {
             @Valid @RequestBody ApproveNodeDTO dto) {
 
         NodeInstance nodeInstance = nodeInstanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Node instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
 
-        // Enforce: only the assigned approver (or any admin if unassigned) can approve
-        validateApprover(nodeInstance, dto.getActor());
+        validateApprover(nodeInstance);
+        // The actor is always the authenticated user, never a value supplied by the client
+        dto.setActor(SecurityUtils.currentUserEmail());
 
         NodeInstance node = nodeInstanceService.approveNode(id, dto);
 
@@ -140,10 +154,10 @@ public class NodeInstanceController {
             @Valid @RequestBody ApproveNodeDTO dto) {
 
         NodeInstance nodeInstance = nodeInstanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Node instance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
 
-        // Enforce: only the assigned approver (or any admin if unassigned) can reject
-        validateApprover(nodeInstance, dto.getActor());
+        validateApprover(nodeInstance);
+        dto.setActor(SecurityUtils.currentUserEmail());
 
         NodeInstance node = nodeInstanceService.rejectNode(id, dto);
         Long workflowInstanceId = node.getWorkflowInstance().getId();
@@ -155,21 +169,20 @@ public class NodeInstanceController {
     }
 
     @PostMapping("/{id}/retry")
+    @PreAuthorize("@access.canAccessNodeInstance(#id)")
     @Operation(summary = "Retry failed node")
     public ResponseEntity<NodeInstanceResponseDTO> retry(@PathVariable Long id) {
         NodeInstance node = nodeInstanceService.retryNode(id);
         return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(node));
     }
 
-    private void validateApprover(NodeInstance nodeInstance, String actorEmail) {
-        if (nodeInstance.getAssignedTo() == null) {
-            return;
-        }
-
-        String assignedEmail = nodeInstance.getAssignedTo().getEmail();
-        if (!assignedEmail.equalsIgnoreCase(actorEmail)) {
-            throw new RuntimeException(
-                    "Only the assigned approver (" + assignedEmail + ") can approve/reject this node");
+    /** Only the assigned approver may decide; if nobody is assigned, an admin or the workflow owner may. */
+    private void validateApprover(NodeInstance nodeInstance) {
+        if (!accessGuard.canDecide(nodeInstance)) {
+            String who = nodeInstance.getAssignedTo() != null
+                    ? "the assigned approver (" + nodeInstance.getAssignedTo().getEmail() + ")"
+                    : "an admin or the workflow owner";
+            throw new AccessDeniedException("Only " + who + " can approve/reject this step");
         }
     }
 }

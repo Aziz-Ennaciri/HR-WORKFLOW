@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.execution.controllers;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import ma.rh.ai.hr_workflow.execution.DTOs.TriggerWorkflowInstanceDTO;
 import ma.rh.ai.hr_workflow.execution.DTOs.WorkflowInstanceDetailDTO;
 import ma.rh.ai.hr_workflow.execution.DTOs.WorkflowInstanceResponseDTO;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -59,18 +61,19 @@ class WorkflowExecutionControllerTest {
     // ── trigger ─────────────────────────────────────
 
     @Test
-    @DisplayName("trigger returns 201 CREATED with mapped response when user is found")
+    @DisplayName("trigger returns 201 CREATED, triggered by the authenticated user")
     void trigger_userFound_returns201() {
+        setAuth("user@test.com", "ROLE_RH");
         TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(1L, "{}");
         User user = new User();
         WorkflowInstance instance = new WorkflowInstance();
         WorkflowInstanceResponseDTO responseDTO = new WorkflowInstanceResponseDTO();
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
         when(executionService.triggerWorkflow(dto, user)).thenReturn(instance);
         when(instanceMapper.toResponseDTO(instance)).thenReturn(responseDTO);
 
-        ResponseEntity<WorkflowInstanceResponseDTO> result = controller.trigger(dto, 1L);
+        ResponseEntity<WorkflowInstanceResponseDTO> result = controller.trigger(dto);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(result.getBody()).isSameAs(responseDTO);
@@ -79,10 +82,11 @@ class WorkflowExecutionControllerTest {
     @Test
     @DisplayName("trigger throws RuntimeException when user is not found")
     void trigger_userNotFound_throwsRuntimeException() {
+        setAuth("ghost@test.com", "ROLE_RH");
         TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(1L, "{}");
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> controller.trigger(dto, 99L))
+        assertThatThrownBy(() -> controller.trigger(dto))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("User not found");
     }
@@ -110,8 +114,8 @@ class WorkflowExecutionControllerTest {
         when(instanceRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller.getInstance(99L))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Not found");
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Execution not found");
     }
 
     // ── getDetail ───────────────────────────────────
@@ -162,11 +166,10 @@ class WorkflowExecutionControllerTest {
     // ── getAllExecutions (auth branches) ─────────────
 
     @Test
-    @DisplayName("getAllExecutions returns 401 when SecurityContext has no authentication")
-    void getAllExecutions_nullAuth_returns401() {
-        ResponseEntity<List<WorkflowInstanceResponseDTO>> result = controller.getAllExecutions();
-
-        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    @DisplayName("getAllExecutions throws when SecurityContext has no authentication")
+    void getAllExecutions_nullAuth_throws() {
+        assertThatThrownBy(() -> controller.getAllExecutions())
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
     }
 
     @Test

@@ -20,7 +20,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('hr-workflow-backend') {
-                    sh './mvnw verify -Dmaven.test.failure.ignore=true -B'
+                    sh './mvnw verify -B'
                 }
             }
             post {
@@ -46,22 +46,30 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh 'docker-compose build'
+                // Secrets live in a Jenkins "Secret file" credential (id: hr-workflow-env) holding the .env contents
+                withCredentials([file(credentialsId: 'hr-workflow-env', variable: 'ENV_FILE')]) {
+                    sh 'cp "$ENV_FILE" .env'
+                    sh 'docker-compose build'
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                sh 'docker-compose -p hr-app down || true'
-                sh """
-                    docker ps -a | grep "hr-workflow-" | awk '{print \$1}' | xargs -r docker rm -f || true
-                """
-                sh 'docker-compose -p hr-app up -d'
+                withCredentials([file(credentialsId: 'hr-workflow-env', variable: 'ENV_FILE')]) {
+                    sh 'cp "$ENV_FILE" .env'
+                    sh 'docker-compose -p hr-app down || true'
+                    sh """
+                        docker ps -a | grep "hr-workflow-" | awk '{print \$1}' | xargs -r docker rm -f || true
+                    """
+                    sh 'docker-compose -p hr-app up -d'
+                }
             }
         }
     }
 
     post {
+        always { sh 'rm -f .env' }
         success { echo 'Pipeline succeeded. Running at http://localhost:3000' }
         unstable { echo 'Pipeline completed with warnings (e.g. SonarQube). Check stage results.' }
         failure { echo 'Pipeline failed.' }

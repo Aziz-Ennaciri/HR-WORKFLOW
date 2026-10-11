@@ -1,5 +1,9 @@
 package ma.rh.ai.hr_workflow.user.service.Impl;
 
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.BadCredentialsException;
+import ma.rh.ai.hr_workflow.exceptions.DuplicateResourceException;
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
@@ -41,7 +45,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO register(CreateUserDTO dto) {
         if (userRepository.existsByEmail(dto.getEmail())){
-            throw new RuntimeException("Email already exists: " + dto.getEmail());
+            throw new DuplicateResourceException("Email already exists: " + dto.getEmail());
         }
 
         User user = new User();
@@ -55,7 +59,7 @@ public class UserServiceImpl implements IUserService {
         final RoleName roleName = determineRole(dto.getRole());
 
         Role userRole = roleRepository.findByName(roleName)
-                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                .orElseThrow(() -> new IllegalStateException("Role not found: " + roleName));
 
         Set<Role> roles = new HashSet<>();
         roles.add(userRole);
@@ -67,13 +71,13 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public LoginResponseDTO login(LoginRequestDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new RuntimeException("Invalid email or password"));
+        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
         if (!user.isEnabled()){
-            throw new RuntimeException("Account is disabled");
+            throw new DisabledException("Account is disabled");
         }
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new BadCredentialsException("Invalid email or password");
         }
 
         user.setLastLoginAt(LocalDateTime.now());
@@ -91,10 +95,10 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public UserResponseDTO updateUser(Long id ,CreateUserDTO dto){
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
+        User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with Id"+id));
         if (!user.getEmail().equals(dto.getEmail())) {
             if (userRepository.existsByEmail(dto.getEmail())){
-                throw new RuntimeException("Email already exists: " + dto.getEmail());
+                throw new DuplicateResourceException("Email already exists: " + dto.getEmail());
             }
             user.setEmail(dto.getEmail());
         }
@@ -108,7 +112,7 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public UserResponseDTO getUserById(Long id) {
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
+        User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with Id"+id));
 
         return userMapper.toResponseDTO(user);
     }
@@ -121,14 +125,14 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public void disableUser(Long id){
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found with Id"+id));
+        User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with Id"+id));
         user.setEnabled(false);
     }
 
     @Override
     public UserResponseDTO getMe(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         return userMapper.toResponseDTO(user);
     }
 
@@ -136,7 +140,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO updateProfile(String email, UpdateProfileDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         user.setFirstName(dto.getFirstName());
         user.setLastName(dto.getLastName());
         return userMapper.toResponseDTO(userRepository.save(user));
@@ -146,7 +150,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO changeEmail(String email, ChangeEmailDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Current password is incorrect");
         }
@@ -161,7 +165,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public void changePassword(String email, ChangePasswordDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Current password is incorrect");
         }
@@ -173,7 +177,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public UserResponseDTO updatePreferences(String email, UpdatePreferencesDTO dto) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         if (dto.getTheme() != null) user.setTheme(dto.getTheme());
         if (dto.getLanguage() != null) user.setLanguage(dto.getLanguage());
         if (dto.getEmailNotificationsEnabled() != null) {
@@ -186,7 +190,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public void deleteMe(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(USER_NOT_FOUND));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         user.setEnabled(false);
         userRepository.save(user);
     }

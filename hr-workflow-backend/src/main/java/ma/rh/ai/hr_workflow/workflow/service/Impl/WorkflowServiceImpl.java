@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.workflow.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
@@ -44,8 +45,19 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
         User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return create(dto, creator);
+    }
 
+    @Transactional
+    @Override
+    public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, String creatorEmail) {
+        User creator = userRepository.findByEmail(creatorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return create(dto, creator);
+    }
+
+    private WorkflowResponseDTO create(CreateWorkflowDTO dto, User creator) {
         Workflow workflow = workflowMapper.toEntity(dto, creator);
         Workflow savedWorkflow = workflowRepository.save(workflow);
         return workflowMapper.toResponseDTO(savedWorkflow);
@@ -54,7 +66,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO getWorkflowById(Long id) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         return workflowMapper.toResponseDTO(workflow);
     }
 
@@ -62,7 +74,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     public WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id) {
         Workflow workflow = workflowRepository.findWorkflowWithNodes(id);
         if (workflow == null) {
-            throw new RuntimeException("Workflow not found with id: " + id);
+            throw new ResourceNotFoundException("Workflow not found with id: " + id);
         }
         return workflowWithNodesMapper.toDTO(workflow, workflow.getNodes());
     }
@@ -101,7 +113,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
 
         workflow.setName(dto.getName());
         workflow.setDescription(dto.getDescription());
@@ -126,7 +138,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO patchWorkflow(Long id, PatchWorkflowDTO dto) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be renamed or described");
         }
@@ -141,7 +153,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO activateWorkflow(Long id) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be activated");
         }
@@ -156,7 +168,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public void deleteWorkflow(Long id) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
 
         workflowInstanceRepository
                 .findByWorkflowIdAndStatusIn(id, List.of(WorkflowInstanceStatus.RUNNING, WorkflowInstanceStatus.PENDING))
@@ -173,10 +185,10 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO duplicateWorkflow(Long workflowId, String currentUserEmail) {
         Workflow original = workflowRepository.findById(workflowId)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
 
         User user = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Workflow copy = new Workflow();
         copy.setName("Copy of " + original.getName());
@@ -205,7 +217,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Override
     public WorkflowResponseDTO archiveWorkflow(Long id) {
         Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
 
         if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
             throw new IllegalStateException("the workflow still activated, you should deactivate if you wanna archive it");

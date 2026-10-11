@@ -110,7 +110,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         void trigger_active_workflow_returns_201() throws Exception {
             // Act
             MvcResult result = mockMvc.perform(post("/api/v1/executions/trigger")
-                            .param("userId", user.getId().toString())
                             .header("Authorization", userToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(triggerBody(activeWorkflow.getId())))
@@ -132,7 +131,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @DisplayName("returns existing workflow instance")
         void getById_existing_returns_200() throws Exception {
             MvcResult triggered = mockMvc.perform(post("/api/v1/executions/trigger")
-                    .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(triggerBody(activeWorkflow.getId())))
@@ -148,12 +146,11 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         }
 
         @Test
-        @DisplayName("throws for unknown ID (unhandled RuntimeException in Spring 6 MockMvc)")
-        void getById_unknown_throws(){
-            assertThatThrownBy(() ->
-                mockMvc.perform(get("/api/v1/executions/99999")
-                        .header("Authorization", userToken)))
-                    .hasCauseInstanceOf(RuntimeException.class);
+        @DisplayName("returns 404 for unknown ID")
+        void getById_unknown_returns_404() throws Exception {
+            mockMvc.perform(get("/api/v1/executions/99999")
+                        .header("Authorization", userToken))
+                .andExpect(status().isNotFound());
         }
     }
 
@@ -165,7 +162,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @DisplayName("retry from failed node returns 200")
         void retryFromNode_returns_200() throws Exception {
             MvcResult triggered = mockMvc.perform(post("/api/v1/executions/trigger")
-                    .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(triggerBody(activeWorkflow.getId())))
@@ -200,7 +196,6 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
         @DisplayName("authenticated user sees their own workflow executions")
         void getAllExecutions_returns_own_instances() throws Exception {
             mockMvc.perform(post("/api/v1/executions/trigger")
-                    .param("userId", user.getId().toString())
                     .header("Authorization", userToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(triggerBody(activeWorkflow.getId())))
