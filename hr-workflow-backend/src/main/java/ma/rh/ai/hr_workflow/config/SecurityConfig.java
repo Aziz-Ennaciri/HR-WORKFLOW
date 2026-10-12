@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/users/register",
                                 "/api/v1/users/login",
+                                "/api/v1/users/refresh",
+                                "/api/v1/users/logout",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
@@ -72,8 +74,9 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        // Bearer tokens are sent explicitly, so cookies/credentials are not needed cross-origin
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

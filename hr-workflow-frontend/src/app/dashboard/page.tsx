@@ -59,38 +59,29 @@ export default function DashboardPage() {
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const fetchStats = useCallback(async () => {
     try {
-      const [wfRes, exRes] = await Promise.all([
+      // Counts come from the server; the dashboard no longer downloads every execution.
+      const [wfRes, statsRes] = await Promise.all([
         api.get(getWorkflowsUrl()),
-        api.get("/executions"),
+        api.get("/executions/stats"),
       ]);
       const wfs = wfRes.data;
-      const exs = exRes.data;
+      const executionStats = statsRes.data;
       setWorkflows(wfs);
       setStats({
         totalWorkflows: wfs.length,
         activeWorkflows: wfs.filter((w: any) => w.status === "ACTIVE").length,
-        totalExecutions: exs.length,
-        successRate: exs.length
-          ? Math.round(
-              (exs.filter((e: any) => e.status === "COMPLETED").length /
-                exs.length) *
-                100,
-            )
+        totalExecutions: executionStats.total,
+        successRate: executionStats.total
+          ? Math.round((executionStats.byStatus.COMPLETED / executionStats.total) * 100)
           : 0,
       });
-      const counts: Record<string, number> = {};
-      exs.forEach((e: any) => {
-        const wf = wfs.find((w: any) => w.id === e.workflowId);
-        const name = wf ? wf.name : `#${e.workflowId}`;
-        counts[name] = (counts[name] || 0) + 1;
-      });
       setExecutionData(
-        Object.entries(counts).map(([name, executions]) => ({
-          name,
-          executions,
+        executionStats.byWorkflow.map((row: any) => ({
+          name: row.workflowName,
+          executions: row.total,
         })),
       );
-      return { wfs, exs };
+      return { wfs, executionStats };
     } catch {
       toast.error("Unable to load dashboard stats");
       return null;
@@ -101,26 +92,16 @@ export default function DashboardPage() {
 
   const buildBanners = useCallback(async () => {
     try {
-      const [exRes, wfRes] = await Promise.all([
-        api.get("/executions"),
-        api.get(getWorkflowsUrl()),
-      ]);
-      const wfs: any[] = wfRes.data;
-      const exs: any[] = exRes.data;
+      // The server returns executions newest first; only the latest five are needed.
+      const exRes = await api.get("/executions", { params: { page: 0, size: 5 } });
+      const exs: any[] = exRes.data.content;
 
-      const recent = [...exs]
-        .sort(
-          (a, b) =>
-            new Date(b.startedAt || b.createdAt || 0).getTime() -
-            new Date(a.startedAt || a.createdAt || 0).getTime(),
-        )
-        .slice(0, 5)
+      const recent = exs
         .map((ex) => {
-          const wf = wfs.find((w) => w.id === ex.workflowId);
           return {
             id: ex.id,
             workflowId: ex.workflowId,
-            workflowName: wf?.name || `Workflow #${ex.workflowId}`,
+            workflowName: ex.workflowName || `Workflow #${ex.workflowId}`,
             startedAt: ex.startedAt || ex.createdAt,
             status: ex.status as TrackedExecution["status"],
           };

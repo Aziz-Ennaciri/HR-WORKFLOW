@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private NodeInstanceRepository nodeInstanceRepository;
-    @Autowired private WorkflowInstancerepository workflowInstanceRepository;
+    @Autowired private WorkflowInstanceRepository workflowInstanceRepository;
     @Autowired private NodeRepository nodeRepository;
     @Autowired private WorkflowRepository workflowRepository;
 

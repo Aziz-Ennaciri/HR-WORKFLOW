@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthGuard, getUser, setAuth, clearAuth } from "@/lib/auth";
-import api from "@/lib/api";
+import { useAuthGuard, getUser, setUser as storeUser, clearAuth } from "@/lib/auth";
+import api, { logout } from "@/lib/api";
 import Sidebar from "@/components/layouts/sidebar";
 import { getWorkflowsUrl } from "@/lib/workflows";
 
@@ -112,10 +112,10 @@ export default function SettingsPage() {
       setUser((u: any) => ({ ...u, firstName: res.data.firstName, lastName: res.data.lastName }));
       // update sessionStorage user
       const stored = getUser();
-      if (stored) setAuth(sessionStorage.getItem("token")!, { ...stored, firstName: res.data.firstName, lastName: res.data.lastName });
+      if (stored) storeUser({ ...stored, firstName: res.data.firstName, lastName: res.data.lastName });
       flash(setNameMsg, "ok", "Name updated successfully.");
     } catch (e: any) {
-      flash(setNameMsg, "err", e.response?.data?.message || "Failed to update name.");
+      flash(setNameMsg, "err", e.response?.data?.detail || "Failed to update name.");
     } finally {
       setNameSaving(false);
     }
@@ -129,10 +129,12 @@ export default function SettingsPage() {
       setUser((u: any) => ({ ...u, email: res.data.email }));
       setNewEmail("");
       setEmailPassword("");
-      flash(setEmailMsg, "ok", "Email updated. Please log in again.");
-      setTimeout(() => { clearAuth(); router.push("/login"); }, 2000);
+      // The session is tied to the account, not the email, so it stays valid.
+      const stored = getUser();
+      if (stored) storeUser({ ...stored, email: res.data.email });
+      flash(setEmailMsg, "ok", "Email updated.");
     } catch (e: any) {
-      flash(setEmailMsg, "err", e.response?.data?.message || "Failed to update email.");
+      flash(setEmailMsg, "err", e.response?.data?.detail || "Failed to update email.");
     } finally {
       setEmailSaving(false);
     }
@@ -148,7 +150,7 @@ export default function SettingsPage() {
       setCurrentPw(""); setNewPw(""); setConfirmPw("");
       flash(setPwMsg, "ok", "Password changed successfully.");
     } catch (e: any) {
-      flash(setPwMsg, "err", e.response?.data?.message || "Failed to change password.");
+      flash(setPwMsg, "err", e.response?.data?.detail || "Failed to change password.");
     } finally {
       setPwSaving(false);
     }
@@ -161,7 +163,7 @@ export default function SettingsPage() {
       setUser((u: any) => ({ ...u, theme: res.data.theme, language: res.data.language, emailNotificationsEnabled: res.data.emailNotificationsEnabled }));
       flash(setPrefMsg, "ok", "Preferences saved.");
     } catch (e: any) {
-      flash(setPrefMsg, "err", e.response?.data?.message || "Failed to save preferences.");
+      flash(setPrefMsg, "err", e.response?.data?.detail || "Failed to save preferences.");
     } finally {
       setPrefSaving(false);
     }
@@ -175,7 +177,7 @@ export default function SettingsPage() {
       clearAuth();
       router.push("/login");
     } catch (e: any) {
-      alert(e.response?.data?.message || "Failed to delete account.");
+      alert(e.response?.data?.detail || "Failed to delete account.");
       setDeleting(false);
     }
   };
@@ -393,7 +395,7 @@ export default function SettingsPage() {
 
                   <Section title="Sign Out" description="End your current session or all active sessions.">
                     <button
-                      onClick={() => { clearAuth(); router.push("/login"); }}
+                      onClick={async () => { await logout(); router.push("/login"); }}
                       className="px-5 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
                     >
                       Sign out

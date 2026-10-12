@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.integration.drive.service.Impl;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -27,6 +28,7 @@ import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "drive.provider", havingValue = "google")
 @RequiredArgsConstructor
 public class RealDriveServiceImpl implements DriveService {
 
@@ -71,7 +73,7 @@ public class RealDriveServiceImpl implements DriveService {
                 log.warn("Failed to delete temporary file: {}", tempFile.getAbsolutePath());
             }
 
-            log.info("✅ File uploaded to Drive: {}", fileId);
+            log.info("File uploaded to Drive: {}", fileId);
 
             DriveResponseDTO response = new DriveResponseDTO();
             response.setFileId(fileId);
@@ -84,8 +86,8 @@ public class RealDriveServiceImpl implements DriveService {
             return objectMapper.writeValueAsString(response);
 
         } catch (Exception e) {
-            log.error("❌ Failed to upload to Drive", e);
-            throw new RuntimeException("Drive upload failed: " + e.getMessage());
+            log.error("Failed to upload to Drive", e);
+            throw new DriveServiceException("Drive upload failed: " + e.getMessage());
         }
     }
 

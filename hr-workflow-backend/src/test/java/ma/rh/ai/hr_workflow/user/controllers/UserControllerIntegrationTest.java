@@ -34,7 +34,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("register a new user returns 201 with user body")
         void register_returns_201() throws Exception {
              
-            String body = objectMapper.writeValueAsString(buildDTO("reg@test.com", "pass123", "ROLE_RH"));
+            String body = objectMapper.writeValueAsString(buildDTO("reg@test.com", "password123", "ROLE_RH"));
 
             mockMvc.perform(post("/api/v1/users/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -46,7 +46,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("registering with a duplicate email returns 409")
         void register_duplicate_email_returns_error() throws Exception {
-            String body = objectMapper.writeValueAsString(buildDTO("dup@test.com", "pass", "ROLE_RH"));
+            String body = objectMapper.writeValueAsString(buildDTO("dup@test.com", "password1", "ROLE_RH"));
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isCreated());
@@ -60,7 +60,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("anonymous self-registration cannot grant ROLE_ADMIN")
         void register_anonymous_cannotBecomeAdmin() throws Exception {
-            String body = objectMapper.writeValueAsString(buildDTO("sneaky@test.com", "pass123", "ROLE_ADMIN"));
+            String body = objectMapper.writeValueAsString(buildDTO("sneaky@test.com", "password123", "ROLE_ADMIN"));
 
             mockMvc.perform(post("/api/v1/users/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -73,13 +73,13 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("an authenticated admin can register another admin")
         void register_byAdmin_canGrantAdmin() throws Exception {
-            createUser("root@test.com", "pass", RoleName.ROLE_ADMIN);
-            String token = getAuthToken("root@test.com", "pass");
+            createUser("root@test.com", "password1", RoleName.ROLE_ADMIN);
+            String token = getAuthToken("root@test.com", "password1");
 
             mockMvc.perform(post("/api/v1/users/register")
                             .header("Authorization", token)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(buildDTO("second-admin@test.com", "pass123", "ROLE_ADMIN"))))
+                            .content(objectMapper.writeValueAsString(buildDTO("second-admin@test.com", "password123", "ROLE_ADMIN"))))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.roles[0]").value("ROLE_ADMIN"));
         }
@@ -94,10 +94,10 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         void login_valid_credentials_returns_token() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("login@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("login@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
 
-            String loginBody = "{\"email\":\"login@test.com\",\"password\":\"pass\"}";
+            String loginBody = "{\"email\":\"login@test.com\",\"password\":\"password1\"}";
 
             mockMvc.perform(post("/api/v1/users/login")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -113,7 +113,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("badpwd@test.com", "correct", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("badpwd@test.com", "correct-password", "ROLE_RH"))))
                     .andExpect(status().isCreated());
 
             String loginBody = "{\"email\":\"badpwd@test.com\",\"password\":\"wrong\"}";
@@ -132,14 +132,15 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("admin can list all users")
         void getAllUsers_admin_returns_200() throws Exception {
-            createUser("list@test.com", "pass", RoleName.ROLE_ADMIN);
+            createUser("list@test.com", "password1", RoleName.ROLE_ADMIN);
 
-            String token = getAuthToken("list@test.com", "pass");
+            String token = getAuthToken("list@test.com", "password1");
 
             mockMvc.perform(get("/api/v1/users")
                             .header("Authorization", token))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$").isArray());
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.totalElements").isNumber());
         }
 
         @Test
@@ -147,10 +148,10 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         void getAllUsers_rhUser_returns_403() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("list-rh@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("list-rh@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
 
-            String token = getAuthToken("list-rh@test.com", "pass");
+            String token = getAuthToken("list-rh@test.com", "password1");
 
             mockMvc.perform(get("/api/v1/users")
                             .header("Authorization", token))
@@ -172,16 +173,16 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("admin can disable another user — returns 204")
         void disableUser_returns_204() throws Exception {
-            createUser("admin-dis@test.com", "pass", RoleName.ROLE_ADMIN);
+            createUser("admin-dis@test.com", "password1", RoleName.ROLE_ADMIN);
 
             String registerResponse = mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("target-dis@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("target-dis@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated())
                     .andReturn().getResponse().getContentAsString();
 
             Long targetId = objectMapper.readTree(registerResponse).get("id").asLong();
-            String token = getAuthToken("admin-dis@test.com", "pass");
+            String token = getAuthToken("admin-dis@test.com", "password1");
 
             mockMvc.perform(delete("/api/v1/users/" + targetId)
                             .header("Authorization", token))
@@ -200,9 +201,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("me@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("me@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("me@test.com", "pass");
+            String token = getAuthToken("me@test.com", "password1");
 
             mockMvc.perform(get("/api/v1/users/me")
                             .header("Authorization", token))
@@ -228,9 +229,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("profile@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("profile@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("profile@test.com", "pass");
+            String token = getAuthToken("profile@test.com", "password1");
 
             String body = "{\"firstName\":\"Updated\",\"lastName\":\"Name\"}";
 
@@ -254,11 +255,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("oldemail@test.com", "pass123", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("oldemail@test.com", "password123", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("oldemail@test.com", "pass123");
+            String token = getAuthToken("oldemail@test.com", "password123");
 
-            String body = "{\"newEmail\":\"newemail@test.com\",\"currentPassword\":\"pass123\"}";
+            String body = "{\"newEmail\":\"newemail@test.com\",\"currentPassword\":\"password123\"}";
 
             mockMvc.perform(put("/api/v1/users/me/email")
                             .header("Authorization", token)
@@ -274,9 +275,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("emailwrong@test.com", "correct", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("emailwrong@test.com", "correct-password", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("emailwrong@test.com", "correct");
+            String token = getAuthToken("emailwrong@test.com", "correct-password");
 
             String body = "{\"newEmail\":\"other@test.com\",\"currentPassword\":\"wrongpwd\"}";
 
@@ -292,15 +293,15 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         void changeEmail_emailAlreadyInUse_throws() throws Exception {
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("emailuser1@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("emailuser1@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("emailuser2@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("emailuser2@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("emailuser1@test.com", "pass");
+            String token = getAuthToken("emailuser1@test.com", "password1");
 
-            String body = "{\"newEmail\":\"emailuser2@test.com\",\"currentPassword\":\"pass\"}";
+            String body = "{\"newEmail\":\"emailuser2@test.com\",\"currentPassword\":\"password1\"}";
 
             mockMvc.perform(put("/api/v1/users/me/email")
                         .header("Authorization", token)
@@ -320,11 +321,11 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("changepwd@test.com", "oldpass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("changepwd@test.com", "old-password", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("changepwd@test.com", "oldpass");
+            String token = getAuthToken("changepwd@test.com", "old-password");
 
-            String body = "{\"currentPassword\":\"oldpass\",\"newPassword\":\"newpass12\"}";
+            String body = "{\"currentPassword\":\"old-password\",\"newPassword\":\"newpass12\"}";
 
             mockMvc.perform(put("/api/v1/users/me/password")
                             .header("Authorization", token)
@@ -339,9 +340,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("pwdwrong@test.com", "correct", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("pwdwrong@test.com", "correct-password", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("pwdwrong@test.com", "correct");
+            String token = getAuthToken("pwdwrong@test.com", "correct-password");
 
             String body = "{\"currentPassword\":\"wrongpwd\",\"newPassword\":\"newpass12\"}";
 
@@ -363,9 +364,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("prefs@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("prefs@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("prefs@test.com", "pass");
+            String token = getAuthToken("prefs@test.com", "password1");
 
             String body = "{\"theme\":\"dark\",\"language\":\"fr\",\"emailNotificationsEnabled\":false}";
 
@@ -387,9 +388,9 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
              
             mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("deleteme@test.com", "pass", "ROLE_RH"))))
+                    .content(objectMapper.writeValueAsString(buildDTO("deleteme@test.com", "password1", "ROLE_RH"))))
                     .andExpect(status().isCreated());
-            String token = getAuthToken("deleteme@test.com", "pass");
+            String token = getAuthToken("deleteme@test.com", "password1");
 
             mockMvc.perform(delete("/api/v1/users/me")
                             .header("Authorization", token))

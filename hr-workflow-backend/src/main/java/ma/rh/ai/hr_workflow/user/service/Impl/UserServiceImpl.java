@@ -6,6 +6,7 @@ import ma.rh.ai.hr_workflow.exceptions.DuplicateResourceException;
 import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
+import ma.rh.ai.hr_workflow.common.PageResponse;
 import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangeEmailDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangePasswordDTO;
@@ -23,6 +24,7 @@ import ma.rh.ai.hr_workflow.user.repositories.RoleRepository;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.user.service.IUserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserServiceImpl implements IUserService {
     private static final String USER_NOT_FOUND = "User not found";
 
@@ -41,6 +44,8 @@ public class UserServiceImpl implements IUserService {
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
+    private final LoginAttemptService loginAttemptService;
 
     @Override
     @Transactional
@@ -72,25 +77,43 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Transactional
     public LoginResponseDTO login(LoginRequestDTO dto) {
-        User user = userRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+        loginAttemptService.checkAllowed(dto.getEmail());
 
-        if (!user.isEnabled()){
-            throw new DisabledException("Account is disabled");
-        }
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+        User user = userRepository.findByEmail(dto.getEmail()).orElse(null);
+        // Same answer for unknown email and wrong password, so accounts cannot be enumerated
+        if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            loginAttemptService.recordFailure(dto.getEmail());
             throw new BadCredentialsException("Invalid email or password");
         }
+        if (!user.isEnabled()) {
+            throw new DisabledException("Account is disabled");
+        }
+        loginAttemptService.recordSuccess(dto.getEmail());
 
         user.setLastLoginAt(LocalDateTime.now());
-        userRepository.save(user);
+        return issueTokens(user);
+    }
 
-        String token = jwtTokenProvider.generateToken(user);
+    @Override
+    @Transactional(noRollbackFor = BadCredentialsException.class)
+    public LoginResponseDTO refresh(String refreshToken) {
+        return issueTokens(refreshTokenService.consume(refreshToken));
+    }
 
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revoke(refreshToken);
+    }
+
+    private LoginResponseDTO issueTokens(User user) {
         LoginResponseDTO response = new LoginResponseDTO();
-        response.setToken(token);
+        response.setToken(jwtTokenProvider.generateToken(user));
+        response.setRefreshToken(refreshTokenService.issue(user));
+        response.setExpiresIn(jwtTokenProvider.getExpirationSeconds());
         response.setUser(userMapper.toResponseDTO(user));
-
         return response;
     }
 
@@ -120,9 +143,13 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public List<UserResponseDTO> getAllUsers() {
-        List<User> users = userRepository.findAll();
-        return users.stream().map(userMapper::toResponseDTO).toList();
+    public PageResponse<UserResponseDTO> getAllUsers(Pageable pageable) {
+        return PageResponse.of(userRepository.findAll(pageable), userMapper::toResponseDTO);
+    }
+
+    @Override
+    public List<UserResponseDTO> getUsersByRole(RoleName role) {
+        return userRepository.findByRoleName(role).stream().map(userMapper::toResponseDTO).toList();
     }
 
     @Override
@@ -131,6 +158,7 @@ public class UserServiceImpl implements IUserService {
         User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with Id"+id));
         user.setEnabled(false);
         userRepository.save(user);
+        refreshTokenService.revokeAll(user);
     }
 
     @Override
@@ -175,6 +203,8 @@ public class UserServiceImpl implements IUserService {
         }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userRepository.save(user);
+        // Other devices must sign in again with the new password
+        refreshTokenService.revokeAll(user);
     }
 
     @Override
@@ -197,6 +227,7 @@ public class UserServiceImpl implements IUserService {
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         user.setEnabled(false);
         userRepository.save(user);
+        refreshTokenService.revokeAll(user);
     }
 
     private RoleName determineRole(String roleStr) {

@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.integration.excel.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.service.ExcelServiceException;
 import ma.rh.ai.hr_workflow.integration.StoragePaths;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -8,7 +9,6 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +23,6 @@ import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -37,11 +36,13 @@ import ma.rh.ai.hr_workflow.integration.excel.service.ExcelService;
 
 @Slf4j
 @Service
-@Primary
 @RequiredArgsConstructor
 public class RealExcelServiceImpl implements ExcelService {
 
     private final ObjectMapper objectMapper;
+
+    /** Folder (under drive.storage.path) where generated reports are kept and served from. */
+    public static final String REPORTS_FOLDER = "reports";
 
     @Value("${drive.storage.path:/tmp/hr-workflow-files}")
     private String storagePath;
@@ -49,7 +50,7 @@ public class RealExcelServiceImpl implements ExcelService {
     @Override
     public String processData(String configJson, String inputData) throws Exception {
         try {
-            log.info("📊 Excel: Processing data...");
+            log.info("Excel: Processing data...");
 
             ExcelConfigDTO config = objectMapper.readValue(configJson, ExcelConfigDTO.class);
 
@@ -75,7 +76,7 @@ public class RealExcelServiceImpl implements ExcelService {
                 if (dataNode.has("jsonData") && dataNode.get("jsonData").isArray()
                         && dataNode.get("jsonData").size() > 0) {
                     JsonNode jsonDataNode = dataNode.get("jsonData");
-                    log.info("📊 Excel: Detected jsonData array ({} items) — professional table formatter",
+                    log.info("Excel: Detected jsonData array ({} items) — professional table formatter",
                             jsonDataNode.size());
                     rowNum = createJsonArraySheet(workbook, sheet, jsonDataNode, rowNum);
                     columnsProcessed = jsonDataNode.get(0).size();
@@ -85,13 +86,13 @@ public class RealExcelServiceImpl implements ExcelService {
 
                     JsonNode analysisJson = tryParseJsonArray(analysisText);
                     if (analysisJson != null) {
-                        log.info("📊 Excel: analysis field contains JSON array ({} items) — professional table",
+                        log.info("Excel: analysis field contains JSON array ({} items) — professional table",
                                 analysisJson.size());
                         rowNum = createJsonArraySheet(workbook, sheet, analysisJson, rowNum);
                         columnsProcessed = analysisJson.size() > 0 ? analysisJson.get(0).size() : 1;
                         dataList = objectMapper.convertValue(analysisJson, List.class);
                     } else {
-                        log.info("📊 Excel: analysis is plain text — dispatching adaptive formatter");
+                        log.info("Excel: analysis is plain text — dispatching adaptive formatter");
                         rowNum = createAdaptiveTextSheet(workbook, sheet, analysisText, rowNum);
                     }
                 } else {
@@ -100,53 +101,41 @@ public class RealExcelServiceImpl implements ExcelService {
                     dataList = objectMapper.convertValue(dataNode, List.class);
                 }
             } else if (textData != null) {
-                log.info("📊 Excel: Raw text input, dispatching adaptive formatter");
+                log.info("Excel: Raw text input, dispatching adaptive formatter");
                 rowNum = createAdaptiveTextSheet(workbook, sheet, textData, rowNum);
             }
 
-            File tempFile = File.createTempFile("workflow-", ".xlsx");
-            try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+            // Reports live on the storage volume (survives restarts); the name is unguessable because
+            // the download link in notification emails works without a login.
+            String webFileName = "workflow-" + java.util.UUID.randomUUID() + ".xlsx";
+            Path reportPath = StoragePaths.resolveInside(storagePath, REPORTS_FOLDER, webFileName);
+            Files.createDirectories(reportPath.getParent());
+            try (FileOutputStream outputStream = new FileOutputStream(reportPath.toFile())) {
                 workbook.write(outputStream);
             }
             workbook.close();
 
-            long fileSize = tempFile.length();
-            String filePath = tempFile.getAbsolutePath();
-
-            String webFileName = "workflow-" + System.currentTimeMillis() + "-"
-                    + java.util.UUID.randomUUID().toString().substring(0, 8) + ".xlsx";
-            File webDir = new File(System.getProperty("java.io.tmpdir"), "hr-workflow-files");
-            if (!webDir.exists()) {
-                webDir.mkdirs();
-            }
-            File webFile = new File(webDir, webFileName);
-
-            Files.copy(tempFile.toPath(), webFile.toPath());
-
+            long fileSize = Files.size(reportPath);
             String webFileUrl = "/api/v1/files/excel/" + webFileName;
 
-            byte[] fileBytes = Files.readAllBytes(tempFile.toPath());
-            String fileContent = Base64.getEncoder().encodeToString(fileBytes);
-
-            log.info("✅ Excel: File created - {} ({} bytes)", filePath, fileSize);
+            log.info("Excel: report created - {} ({} bytes)", webFileName, fileSize);
 
             ExcelResponseDTO response = new ExcelResponseDTO();
             response.setRowsProcessed(rowNum);
             response.setColumnsProcessed(columnsProcessed);
-            response.setOutputFileUrl(filePath);
+            response.setOutputFileUrl(webFileUrl);
             response.setWebFileUrl(webFileUrl);
             response.setFileSize(fileSize);
             response.setSheetName(sheetName);
             response.setOperation(operation);
             response.setCreatedAt(LocalDateTime.now());
             response.setData(dataList);
-            response.setFileContent(fileContent);
 
             return objectMapper.writeValueAsString(response);
 
         } catch (Exception e) {
-            log.error("❌ Excel service failed", e);
-            throw new RuntimeException("Excel processing failed: " + e.getMessage(), e);
+            log.error("Excel service failed", e);
+            throw new ExcelServiceException("Excel processing failed: " + e.getMessage(), e);
         }
     }
 
@@ -160,15 +149,15 @@ public class RealExcelServiceImpl implements ExcelService {
             String folderId = config.getFolderId() != null ? config.getFolderId() : "";
             String fileName = config.getFileName();
             if (fileName == null || fileName.isBlank()) {
-                throw new RuntimeException("fileName is required for READ operation");
+                throw new ExcelServiceException("fileName is required for READ operation");
             }
 
             Path filePath = StoragePaths.resolveInside(storagePath, folderId, fileName);
 
-            log.info("📖 Excel READ: reading file {}", filePath);
+            log.info("Excel READ: reading file {}", filePath);
 
             if (!Files.exists(filePath)) {
-                throw new RuntimeException("File not found: " + filePath);
+                throw new ExcelServiceException("File not found: " + filePath);
             }
 
             String lowerName = fileName.toLowerCase();
@@ -179,12 +168,12 @@ public class RealExcelServiceImpl implements ExcelService {
                 result = readXlsxFile(filePath);
             }
 
-            log.info("✅ Excel READ: parsed {} — returning JSON array", fileName);
+            log.info("Excel READ: parsed {} — returning JSON array", fileName);
             return result;
 
         } catch (Exception e) {
-            log.error("❌ Excel READ failed", e);
-            throw new RuntimeException("Excel read failed: " + e.getMessage(), e);
+            log.error("Excel READ failed", e);
+            throw new ExcelServiceException("Excel read failed: " + e.getMessage(), e);
         }
     }
 
@@ -271,14 +260,14 @@ public class RealExcelServiceImpl implements ExcelService {
 
     private int createAdaptiveTextSheet(Workbook workbook, Sheet sheet, String text, int rowNum) {
         if (isMarkdownTable(text)) {
-            log.info("📊 Excel: Markdown table format detected");
+            log.info("Excel: Markdown table format detected");
             return createMarkdownTableSheet(workbook, sheet, text, rowNum);
         }
         if (isBlockSections(text)) {
-            log.info("📊 Excel: Block/section format detected");
+            log.info("Excel: Block/section format detected");
             return createBlockSectionsSheet(workbook, sheet, text, rowNum);
         }
-        log.info("📊 Excel: Plain text format — writing line by line");
+        log.info("Excel: Plain text format — writing line by line");
         return createPlainTextSheet(workbook, sheet, text, rowNum);
     }
 

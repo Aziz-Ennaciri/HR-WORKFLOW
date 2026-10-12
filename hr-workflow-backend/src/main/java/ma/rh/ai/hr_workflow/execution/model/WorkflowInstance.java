@@ -19,22 +19,28 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.Hibernate;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 
-@Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
+@Getter
+@Setter
+@ToString(onlyExplicitlyIncluded = true)
 @Table(name = "workflow_instances")
 public class WorkflowInstance {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @ToString.Include
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,6 +57,7 @@ public class WorkflowInstance {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @ToString.Include
     private WorkflowInstanceStatus status = WorkflowInstanceStatus.PENDING;
 
     @OneToMany(mappedBy = "workflowInstance", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -100,5 +107,18 @@ public class WorkflowInstance {
     public void start() {
         this.startedAt = LocalDateTime.now();
         this.status = WorkflowInstanceStatus.RUNNING;
+    }
+
+    /** Identity is the database id; proxies compare equal to the entity they stand for. */
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (other == null || Hibernate.getClass(this) != Hibernate.getClass(other)) return false;
+        return id != null && id.equals(((WorkflowInstance) other).getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Hibernate.getClass(this).hashCode();
     }
 }

@@ -66,4 +66,34 @@ class DriveToGptContractTest {
                     .contains("--- bob.txt ---", "Bob has 2 years of Python");
         }
     }
+
+    @Test
+    @DisplayName("the GPT node's own prompt is the instruction, even when the run was triggered with empty input")
+    void gptNodePromptIsUsed() throws Exception {
+        Files.createDirectories(storage.resolve("cvs"));
+        Files.writeString(storage.resolve("cvs/alice.txt"), "Alice has 5 years of Java");
+
+        LocalDriveServiceImpl drive = new LocalDriveServiceImpl(objectMapper);
+        ReflectionTestUtils.setField(drive, "storagePath", storage.toString());
+        // The editor's "Execute" button triggers with "{}"
+        String driveOutput = drive.saveFile("{\"action\":\"read\",\"folderId\":\"cvs\"}", "{}");
+
+        try (MockedConstruction<RestTemplate> mocked = mockConstruction(RestTemplate.class,
+                (mock, ctx) -> when(mock.postForObject(anyString(), any(), eq(String.class)))
+                        .thenReturn("{\"response\":\"[]\",\"eval_count\":1}"))) {
+
+            RealGptServiceImpl gpt = new RealGptServiceImpl(objectMapper);
+            ReflectionTestUtils.setField(gpt, "ollamaUrl", "http://localhost:11434/api/generate");
+            ReflectionTestUtils.setField(gpt, "defaultOllamaModel", "llama3.2:3b");
+            gpt.analyze("{\"provider\":\"ollama\",\"prompt\":\"Rank Java developers\"}", driveOutput);
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<HttpEntity<String>> request = ArgumentCaptor.forClass(HttpEntity.class);
+            verify(mocked.constructed().get(0)).postForObject(anyString(), request.capture(), eq(String.class));
+
+            assertThat(objectMapper.readTree(request.getValue().getBody()).get("prompt").asText())
+                    .startsWith("Rank Java developers")
+                    .contains("--- alice.txt ---", "Alice has 5 years of Java");
+        }
+    }
 }

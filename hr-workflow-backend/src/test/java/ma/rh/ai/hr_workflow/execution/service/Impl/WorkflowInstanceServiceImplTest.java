@@ -3,7 +3,7 @@ package ma.rh.ai.hr_workflow.execution.service.Impl;
 import ma.rh.ai.hr_workflow.execution.DTOs.TriggerWorkflowInstanceDTO;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 class WorkflowInstanceServiceImplTest {
 
     @Mock
-    private WorkflowInstancerepository workflowInstancerepository;
+    private WorkflowInstanceRepository workflowInstanceRepository;
 
     @Mock
     private WorkflowRepository workflowRepository;
@@ -38,7 +38,7 @@ class WorkflowInstanceServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new WorkflowInstanceServiceImpl(workflowInstancerepository, workflowRepository);
+        service = new WorkflowInstanceServiceImpl(workflowInstanceRepository, workflowRepository);
     }
 
 
@@ -67,7 +67,7 @@ class WorkflowInstanceServiceImplTest {
             ArgumentCaptor<WorkflowInstance> captor = ArgumentCaptor.forClass(WorkflowInstance.class);
             WorkflowInstance saved = new WorkflowInstance();
             saved.setId(100L);
-            when(workflowInstancerepository.save(captor.capture())).thenReturn(saved);
+            when(workflowInstanceRepository.save(captor.capture())).thenReturn(saved);
 
             WorkflowInstance result = service.createInstance(dto, user);
 
@@ -87,12 +87,12 @@ class WorkflowInstanceServiceImplTest {
             wf.setId(1L);
             TriggerWorkflowInstanceDTO dto = new TriggerWorkflowInstanceDTO(1L, null);
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(wf));
-            when(workflowInstancerepository.save(any())).thenReturn(new WorkflowInstance());
+            when(workflowInstanceRepository.save(any())).thenReturn(new WorkflowInstance());
 
             service.createInstance(dto, new User());
 
             ArgumentCaptor<WorkflowInstance> captor = ArgumentCaptor.forClass(WorkflowInstance.class);
-            verify(workflowInstancerepository).save(captor.capture());
+            verify(workflowInstanceRepository).save(captor.capture());
             assertThat(captor.getValue().getInputData()).isNull();
         }
 
@@ -105,136 +105,6 @@ class WorkflowInstanceServiceImplTest {
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.createInstance(dto, new User()));
             assertThat(ex.getMessage()).contains("Workflow not found");
-        }
-    }
-
-
-    @Nested
-    @DisplayName("startInstance()")
-    class StartInstance {
-
-        @Test
-        @DisplayName("happy path — sets status to RUNNING, sets startedAt, does NOT save")
-        void startInstance_setsRunningWithoutSave() {
-            WorkflowInstance wi = instanceWithStatus(WorkflowInstanceStatus.PENDING);
-            when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.startInstance(1L);
-
-            assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
-            assertThat(result.getStartedAt()).isNotNull();
-            verify(workflowInstancerepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void startInstance_notFound_throws() {
-            when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
-
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.startInstance(99L));
-            assertThat(ex.getMessage()).contains("WorkflowInstance not found");
-        }
-    }
-
-
-    @Nested
-    @DisplayName("completeInstance()")
-    class CompleteInstance {
-
-        @Test
-        @DisplayName("happy path — sets COMPLETED, outputData, finishedAt, durationMs; does NOT save")
-        void completeInstance_setsCompletedWithoutSave() {
-            WorkflowInstance wi = new WorkflowInstance();
-            wi.setStartedAt(LocalDateTime.now().minusSeconds(5));
-            when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.completeInstance(1L, "{\"result\":\"done\"}");
-
-            assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
-            assertThat(result.getOutputData()).isEqualTo("{\"result\":\"done\"}");
-            assertThat(result.getFinishedAt()).isNotNull();
-            assertThat(result.getDurationMs()).isNotNull().isPositive();
-            verify(workflowInstancerepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("happy path — null outputData is stored as null")
-        void completeInstance_nullOutput_storedAsNull() {
-            WorkflowInstance wi = new WorkflowInstance();
-            when(workflowInstancerepository.findById(2L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.completeInstance(2L, null);
-
-            assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
-            assertThat(result.getOutputData()).isNull();
-        }
-
-        @Test
-        @DisplayName("edge case — no startedAt means durationMs is null (complete() skips calculation)")
-        void completeInstance_noStartedAt_durationMsIsNull() {
-            WorkflowInstance wi = new WorkflowInstance(); // startedAt = null
-            when(workflowInstancerepository.findById(3L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.completeInstance(3L, "out");
-
-            assertThat(result.getDurationMs()).isNull();
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void completeInstance_notFound_throws() {
-            when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
-
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.completeInstance(99L, null));
-            assertThat(ex.getMessage()).contains("WorkflowInstance not found");
-        }
-    }
-
-
-    @Nested
-    @DisplayName("failInstance()")
-    class FailInstance {
-
-        @Test
-        @DisplayName("happy path — sets FAILED, errorMessage, stackTrace, finishedAt; does NOT save")
-        void failInstance_setsFailedWithoutSave() {
-            WorkflowInstance wi = new WorkflowInstance();
-            wi.setStartedAt(LocalDateTime.now().minusSeconds(2));
-            when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.failInstance(1L, "NPE thrown", "java.lang.NullPointerException...");
-
-            assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
-            assertThat(result.getErrorMessage()).isEqualTo("NPE thrown");
-            assertThat(result.getErrorStackTrace()).isEqualTo("java.lang.NullPointerException...");
-            assertThat(result.getFinishedAt()).isNotNull();
-            assertThat(result.getDurationMs()).isNotNull().isPositive();
-            verify(workflowInstancerepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("happy path — null errorMessage and stackTrace are stored as null")
-        void failInstance_nullErrorAndTrace_storedAsNull() {
-            WorkflowInstance wi = new WorkflowInstance();
-            when(workflowInstancerepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            WorkflowInstance result = service.failInstance(1L, null, null);
-
-            assertThat(result.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
-            assertThat(result.getErrorMessage()).isNull();
-            assertThat(result.getErrorStackTrace()).isNull();
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void failInstance_notFound_throws() {
-            when(workflowInstancerepository.findById(99L)).thenReturn(Optional.empty());
-
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.failInstance(99L, "error", "trace"));
-            assertThat(ex.getMessage()).contains("WorkflowInstance not found");
         }
     }
 }

@@ -15,6 +15,7 @@ import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
 import ma.rh.ai.hr_workflow.workflow.service.INodeService;
 import org.springframework.stereotype.Service;
+import ma.rh.ai.hr_workflow.workflow.secrets.ConfigSecrets;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class NodeServiceImpl implements INodeService {
 
     private final NodeRepository nodeRepository;
@@ -32,7 +34,7 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public NodeResponseDTO createNode(CreateNodeDTO createNodeDTO, Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(workflowId);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
@@ -46,7 +48,7 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public List<NodeResponseDTO> createNodes(List<CreateNodeDTO> dtos, Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(workflowId);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
@@ -103,7 +105,7 @@ public class NodeServiceImpl implements INodeService {
         }
 
         node.setOrderIndex(dto.getOrder());
-        node.setConfigJson(dto.getConfigJson());
+        node.setConfigJson(ConfigSecrets.keepMaskedSecrets(dto.getConfigJson(), node.getConfigJson()));
 
         Node updated = nodeRepository.save(node);
         return nodeMapper.toResponseDTO(updated);
@@ -112,7 +114,7 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public List<NodeResponseDTO> reorderNodes(Long workflowId, List<NodeOrderDTO> nodeOrders) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(workflowId);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
@@ -148,7 +150,7 @@ public class NodeServiceImpl implements INodeService {
     @Override
     @Transactional
     public void deleteNodesByWorkflowId(Long workflowId) {
-        Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(workflowId);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Nodes can only be added to DRAFT workflows");
         }
@@ -167,5 +169,11 @@ public class NodeServiceImpl implements INodeService {
         return List.of(NodeType.values()).stream()
                 .map(Enum::name)
                 .collect(Collectors.toList());
+    }
+
+    private Workflow findWorkflow(Long workflowId) {
+        return workflowRepository.findById(workflowId)
+                .filter(workflow -> !workflow.isDeleted())
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
     }
 }

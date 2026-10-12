@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import ma.rh.ai.hr_workflow.workflow.graph.WorkflowGraph;
+import ma.rh.ai.hr_workflow.workflow.validation.NodeConfigValidator;
 
 import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import ma.rh.ai.hr_workflow.user.model.User;
@@ -12,20 +13,16 @@ import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
-import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowMapper;
-import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowWithNodesMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -37,22 +34,15 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class WorkflowServiceImpl implements IWorkflowService {
 
     private final WorkflowRepository workflowRepository;
     private final NodeRepository nodeRepository;
     private final UserRepository userRepository;
     private final WorkflowMapper workflowMapper;
-    private final WorkflowWithNodesMapper workflowWithNodesMapper;
-    private final WorkflowInstancerepository workflowInstanceRepository;
-
-    @Transactional
-    @Override
-    public WorkflowResponseDTO createWorkflow(CreateWorkflowDTO dto, Long creatorId) {
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return create(dto, creator);
-    }
+    private final WorkflowInstanceRepository workflowInstanceRepository;
+    private final NodeConfigValidator nodeConfigValidator;
 
     @Transactional
     @Override
@@ -70,37 +60,13 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public WorkflowResponseDTO getWorkflowById(Long id) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
         return workflowMapper.toResponseDTO(workflow);
     }
 
     @Override
-    public WorkflowWithNodesResponseDTO getWorkflowWithNodes(Long id) {
-        Workflow workflow = workflowRepository.findWorkflowWithNodes(id);
-        if (workflow == null) {
-            throw new ResourceNotFoundException("Workflow not found with id: " + id);
-        }
-        return workflowWithNodesMapper.toDTO(workflow, workflow.getNodes());
-    }
-
-    @Override
     public List<WorkflowResponseDTO> getAllWorkflows() {
-        List<Workflow> workflows = workflowRepository.findByDeletedFalse();
-        return workflows.stream()
-                .map(workflowMapper::toResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Page<WorkflowResponseDTO> getAllWorkflowsPageable(Pageable pageable) {
-        Page<Workflow> workflowsPage = workflowRepository.findByDeletedFalse(pageable);
-        return workflowsPage.map(workflowMapper::toResponseDTO);
-    }
-
-    @Override
-    public List<WorkflowResponseDTO> getWorkflowsByCreator(Long creatorId) {
-        List<Workflow> workflows = workflowRepository.findByCreatedByIdAndDeletedFalse(creatorId);
+        List<Workflow> workflows = workflowRepository.findByDeletedFalseOrderByCreatedAtDesc();
         return workflows.stream()
                 .map(workflowMapper::toResponseDTO)
                 .collect(Collectors.toList());
@@ -108,7 +74,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
     @Override
     public List<WorkflowResponseDTO> getWorkflowsByCreatorEmail(String email) {
-        List<Workflow> workflows = workflowRepository.findByCreatedByEmailAndDeletedFalse(email);
+        List<Workflow> workflows = workflowRepository.findByCreatedByEmailIgnoreCaseAndDeletedFalseOrderByCreatedAtDesc(email);
         return workflows.stream()
                 .map(workflowMapper::toResponseDTO)
                 .collect(Collectors.toList());
@@ -117,8 +83,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO updateWorkflow(Long id, UpdateWorkflowDTO dto) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
 
         workflow.setName(dto.getName());
         workflow.setDescription(dto.getDescription());
@@ -149,8 +114,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO patchWorkflow(Long id, PatchWorkflowDTO dto) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be renamed or described");
         }
@@ -164,8 +128,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO activateWorkflow(Long id) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be activated");
         }
@@ -177,8 +140,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public void deleteWorkflow(Long id) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
 
         workflowInstanceRepository
                 .findByWorkflowIdAndStatusIn(id, List.of(
@@ -195,8 +157,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO duplicateWorkflow(Long workflowId, String currentUserEmail) {
-        Workflow original = workflowRepository.findById(workflowId)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow original = findWorkflow(workflowId);
 
         User user = userRepository.findByEmail(currentUserEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -233,8 +194,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     @Transactional
     @Override
     public WorkflowResponseDTO archiveWorkflow(Long id) {
-        Workflow workflow = workflowRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
+        Workflow workflow = findWorkflow(id);
 
         if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
             throw new IllegalStateException("the workflow still activated, you should deactivate if you wanna archive it");
@@ -245,7 +205,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
         return workflowMapper.toResponseDTO(workflow);
     }
 
-    /** A workflow can only be activated if it has nodes and its connections form a single chain. */
+    /** A workflow can only be activated if it has nodes, its connections form a single chain, and every node is configured. */
     private void validateRunnable(Workflow workflow) {
         List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId());
         if (nodes.isEmpty()) {
@@ -255,5 +215,16 @@ public class WorkflowServiceImpl implements IWorkflowService {
         if (!edges.isEmpty()) {
             WorkflowGraph.executionOrder(nodes.stream().map(node -> node.getId().toString()).toList(), edges);
         }
+        List<String> configErrors = nodes.stream().flatMap(node -> nodeConfigValidator.validate(node).stream()).toList();
+        if (!configErrors.isEmpty()) {
+            throw new IllegalArgumentException("The workflow cannot be activated: " + String.join("; ", configErrors));
+        }
+    }
+
+    /** Deleted workflows are soft-deleted: they stay in the database for execution history but are gone for the API. */
+    private Workflow findWorkflow(Long id) {
+        return workflowRepository.findById(id)
+                .filter(workflow -> !workflow.isDeleted())
+                .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
     }
 }

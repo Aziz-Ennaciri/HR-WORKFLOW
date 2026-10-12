@@ -15,11 +15,13 @@ public interface NodeMapper {
     @Mapping(target = "workflow", source = "workflow")
     @Mapping(target = "type", source = "dto.type")
     @Mapping(target = "orderIndex", source = "dto.order")
-    @Mapping(target = "configJson", source = "dto.configJson")
+    @Mapping(target = "configJson",
+            expression = "java(ma.rh.ai.hr_workflow.workflow.secrets.ConfigSecrets.keepMaskedSecrets(dto.getConfigJson(), null))")
     Node toEntity(CreateNodeDTO dto, Workflow workflow);
 
     @Mapping(target = "type", expression = "java(node.getType().name())")
     @Mapping(target = "order", source = "orderIndex")
+    @Mapping(target = "configJson", expression = "java(ma.rh.ai.hr_workflow.workflow.secrets.ConfigSecrets.mask(node.getConfigJson()))")
     NodeResponseDTO toResponseDTO(Node node);
 
     default NodeType map(String type) {

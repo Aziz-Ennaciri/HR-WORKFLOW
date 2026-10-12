@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.rh.ai.hr_workflow.execution.config.ExecutionProperties;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 
 /**
  * Keeps executions moving when the in-memory queue loses them: on startup it fails executions
@@ -24,7 +24,7 @@ import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 @Slf4j
 public class ExecutionRecovery {
 
-    private final WorkflowInstancerepository workflowInstanceRepository;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
     private final ExecutionTransactionHelper txHelper;
     private final WorkflowExecutionServiceImpl executionService;
     private final ExecutionProperties properties;

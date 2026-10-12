@@ -1,17 +1,18 @@
 package ma.rh.ai.hr_workflow.workflow.service.Impl;
 
+import ma.rh.ai.hr_workflow.workflow.validation.NodeConfigValidator;
+import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
+
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
-import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowWithNodesResponseDTO;
 import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowMapper;
-import ma.rh.ai.hr_workflow.workflow.mappers.WorkflowWithNodesMapper;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
@@ -50,8 +51,8 @@ class WorkflowServiceImplTest {
     @Mock private NodeRepository nodeRepository;
     @Mock private UserRepository userRepository;
     @Mock private WorkflowMapper workflowMapper;
-    @Mock private WorkflowWithNodesMapper workflowWithNodesMapper;
-    @Mock private WorkflowInstancerepository workflowInstanceRepository;
+    @Mock private WorkflowInstanceRepository workflowInstanceRepository;
+    @Mock private NodeConfigValidator nodeConfigValidator;
 
     @InjectMocks
     private WorkflowServiceImpl service;
@@ -97,13 +98,13 @@ class WorkflowServiceImplTest {
             Workflow saved  = buildWorkflow(10L,  "My Workflow", WorkflowStatus.DRAFT);
             WorkflowResponseDTO expected = buildResponseDTO(10L, "My Workflow");
 
-            when(userRepository.findById(1L)).thenReturn(Optional.of(creator));
+            when(userRepository.findByEmail("hr@test.com")).thenReturn(Optional.of(creator));
             when(workflowMapper.toEntity(dto, creator)).thenReturn(entity);
             when(workflowRepository.save(entity)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
              
-            WorkflowResponseDTO result = service.createWorkflow(dto, 1L);
+            WorkflowResponseDTO result = service.createWorkflow(dto, "hr@test.com");
 
              
             assertThat(result).isEqualTo(expected);
@@ -115,11 +116,11 @@ class WorkflowServiceImplTest {
         void createWorkflow_userNotFound_throws() {
              
             CreateWorkflowDTO dto = new CreateWorkflowDTO("W", "d");
-            when(userRepository.findById(99L)).thenReturn(Optional.empty());
+            when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
 
              
             RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.createWorkflow(dto, 99L));
+                    () -> service.createWorkflow(dto, "ghost@test.com"));
             assertThat(ex.getMessage()).contains("User not found");
             verify(workflowRepository, never()).save(any());
         }
@@ -161,45 +162,6 @@ class WorkflowServiceImplTest {
 
 
     @Nested
-    @DisplayName("getWorkflowWithNodes()")
-    class GetWorkflowWithNodes {
-
-        @Test
-        @DisplayName("happy path — delegates to mapper with workflow and its nodes")
-        void getWorkflowWithNodes_happyPath() {
-             
-            Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
-            Node n = new Node();
-            n.setId(100L);
-            w.setNodes(List.of(n));
-            WorkflowWithNodesResponseDTO expected = new WorkflowWithNodesResponseDTO();
-
-            when(workflowRepository.findWorkflowWithNodes(1L)).thenReturn(w);
-            when(workflowWithNodesMapper.toDTO(w, w.getNodes())).thenReturn(expected);
-
-             
-            WorkflowWithNodesResponseDTO result = service.getWorkflowWithNodes(1L);
-
-             
-            assertThat(result).isEqualTo(expected);
-            verify(workflowWithNodesMapper).toDTO(w, w.getNodes());
-        }
-
-        @Test
-        @DisplayName("exception — null from repo throws RuntimeException with id in message")
-        void getWorkflowWithNodes_nullResult_throws() {
-             
-            when(workflowRepository.findWorkflowWithNodes(99L)).thenReturn(null);
-
-             
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.getWorkflowWithNodes(99L));
-            assertThat(ex.getMessage()).contains("99");
-        }
-    }
-
-
-    @Nested
     @DisplayName("getAllWorkflows()")
     class GetAllWorkflows {
 
@@ -212,7 +174,7 @@ class WorkflowServiceImplTest {
             WorkflowResponseDTO r1 = buildResponseDTO(1L, "A");
             WorkflowResponseDTO r2 = buildResponseDTO(2L, "B");
 
-            when(workflowRepository.findByDeletedFalse()).thenReturn(List.of(w1, w2));
+            when(workflowRepository.findByDeletedFalseOrderByCreatedAtDesc()).thenReturn(List.of(w1, w2));
             when(workflowMapper.toResponseDTO(w1)).thenReturn(r1);
             when(workflowMapper.toResponseDTO(w2)).thenReturn(r2);
 
@@ -227,88 +189,10 @@ class WorkflowServiceImplTest {
         @DisplayName("edge case — empty repository returns empty list")
         void getAllWorkflows_empty() {
              
-            when(workflowRepository.findByDeletedFalse()).thenReturn(List.of());
+            when(workflowRepository.findByDeletedFalseOrderByCreatedAtDesc()).thenReturn(List.of());
 
              
             List<WorkflowResponseDTO> result = service.getAllWorkflows();
-
-             
-            assertThat(result).isEmpty();
-        }
-    }
-
-
-    @Nested
-    @DisplayName("getAllWorkflowsPageable()")
-    class GetAllWorkflowsPageable {
-
-        @Test
-        @DisplayName("happy path — page content is mapped to DTOs")
-        void getAllWorkflowsPageable_happyPath() {
-             
-            Pageable pageable = PageRequest.of(0, 10);
-            Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
-            WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
-            Page<Workflow> page = new PageImpl<>(List.of(w), pageable, 1);
-
-            when(workflowRepository.findByDeletedFalse(pageable)).thenReturn(page);
-            when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
-
-             
-            Page<WorkflowResponseDTO> result = service.getAllWorkflowsPageable(pageable);
-
-             
-            assertThat(result.getContent()).containsExactly(dto);
-            assertThat(result.getTotalElements()).isEqualTo(1);
-        }
-
-        @Test
-        @DisplayName("edge case — empty page returns page with no content")
-        void getAllWorkflowsPageable_emptyPage() {
-             
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<Workflow> emptyPage = new PageImpl<>(List.of(), pageable, 0);
-            when(workflowRepository.findByDeletedFalse(pageable)).thenReturn(emptyPage);
-
-             
-            Page<WorkflowResponseDTO> result = service.getAllWorkflowsPageable(pageable);
-
-             
-            assertThat(result.getContent()).isEmpty();
-            assertThat(result.getTotalElements()).isZero();
-        }
-    }
-
-
-    @Nested
-    @DisplayName("getWorkflowsByCreator()")
-    class GetWorkflowsByCreator {
-
-        @Test
-        @DisplayName("happy path — returns list filtered by creator id")
-        void getWorkflowsByCreator_happyPath() {
-             
-            Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
-            WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
-
-            when(workflowRepository.findByCreatedByIdAndDeletedFalse(5L)).thenReturn(List.of(w));
-            when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
-
-             
-            List<WorkflowResponseDTO> result = service.getWorkflowsByCreator(5L);
-
-             
-            assertThat(result).containsExactly(dto);
-        }
-
-        @Test
-        @DisplayName("edge case — no workflows for creator id returns empty list")
-        void getWorkflowsByCreator_noWorkflows_returnsEmpty() {
-             
-            when(workflowRepository.findByCreatedByIdAndDeletedFalse(5L)).thenReturn(List.of());
-
-             
-            List<WorkflowResponseDTO> result = service.getWorkflowsByCreator(5L);
 
              
             assertThat(result).isEmpty();
@@ -327,7 +211,7 @@ class WorkflowServiceImplTest {
             Workflow w = buildWorkflow(1L, "W", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO dto = buildResponseDTO(1L, "W");
 
-            when(workflowRepository.findByCreatedByEmailAndDeletedFalse("hr@test.com"))
+            when(workflowRepository.findByCreatedByEmailIgnoreCaseAndDeletedFalseOrderByCreatedAtDesc("hr@test.com"))
                     .thenReturn(List.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(dto);
 
@@ -342,7 +226,7 @@ class WorkflowServiceImplTest {
         @DisplayName("edge case — no workflows for given email returns empty list")
         void getWorkflowsByCreatorEmail_noWorkflows_returnsEmpty() {
              
-            when(workflowRepository.findByCreatedByEmailAndDeletedFalse("nobody@test.com"))
+            when(workflowRepository.findByCreatedByEmailIgnoreCaseAndDeletedFalseOrderByCreatedAtDesc("nobody@test.com"))
                     .thenReturn(List.of());
 
              
@@ -490,6 +374,38 @@ class WorkflowServiceImplTest {
         }
     }
 
+
+    @Nested
+    @DisplayName("activation guards")
+    class ActivationGuards {
+
+        @Test
+        @DisplayName("activation is refused with every node configuration problem listed")
+        void activate_misconfiguredNodes_refused() {
+            Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
+            Node email = new Node();
+            email.setId(1L);
+            when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
+            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(email));
+            when(nodeConfigValidator.validate(email)).thenReturn(List.of("Step 1 (EMAIL): recipient is required",
+                    "Step 1 (EMAIL): subject is required"));
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.activateWorkflow(1L));
+
+            assertThat(ex.getMessage()).contains("recipient is required").contains("subject is required");
+            assertThat(w.getStatus()).isEqualTo(WorkflowStatus.DRAFT);
+        }
+
+        @Test
+        @DisplayName("a soft-deleted workflow is not found")
+        void deletedWorkflow_notFound() {
+            Workflow w = buildWorkflow(1L, "W", WorkflowStatus.DRAFT);
+            w.setDeleted(true);
+            when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
+
+            assertThrows(ResourceNotFoundException.class, () -> service.getWorkflowById(1L));
+        }
+    }
 
     @Nested
     @DisplayName("deleteWorkflow()")
@@ -662,10 +578,10 @@ class WorkflowServiceImplTest {
         }
 
         @Test
-        @DisplayName("happy path — UNACTIVATE workflow transitions to ARCHIVED")
+        @DisplayName("happy path — INACTIVE workflow transitions to ARCHIVED")
         void archiveWorkflow_fromUnactivate_happyPath() {
              
-            Workflow w = buildWorkflow(2L, "W", WorkflowStatus.UNACTIVATE);
+            Workflow w = buildWorkflow(2L, "W", WorkflowStatus.INACTIVE);
             WorkflowResponseDTO expected = buildResponseDTO(2L, "W");
             when(workflowRepository.findById(2L)).thenReturn(Optional.of(w));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);

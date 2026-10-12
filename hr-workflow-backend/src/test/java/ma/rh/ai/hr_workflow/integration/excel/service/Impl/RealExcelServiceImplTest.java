@@ -87,7 +87,8 @@ class RealExcelServiceImplTest {
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
             assertThat(response.getRowsProcessed()).isEqualTo(4);
             assertThat(response.getOutputFileUrl()).isNotBlank();
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
             assertThat(response.getFileSize()).isGreaterThan(0L);
             assertThat(response.getCreatedAt()).isNotNull();
         }
@@ -116,7 +117,7 @@ class RealExcelServiceImplTest {
             String result = service.processData(configJson, inputData);
 
             ExcelResponseDTO response = parseResponse(result);
-            File f = new File(response.getOutputFileUrl());
+            File f = tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length())).toFile();
             assertThat(f).exists();
             assertThat(f.getName()).endsWith(".xlsx");
         }
@@ -154,7 +155,8 @@ class RealExcelServiceImplTest {
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Candidates");
             assertThat(response.getRowsProcessed()).isEqualTo(4);
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
             assertThat(response.getFileSize()).isGreaterThan(0L);
         }
 
@@ -217,7 +219,8 @@ class RealExcelServiceImplTest {
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Analysis");
             assertThat(response.getRowsProcessed()).isGreaterThan(0);
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
         }
 
         @Test
@@ -290,7 +293,8 @@ class RealExcelServiceImplTest {
             assertThat(response.getSheetName()).isEqualTo("Rankings");
             assertThat(response.getRowsProcessed()).isEqualTo(3);
             assertThat(response.getColumnsProcessed()).isEqualTo(7);
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
             assertThat(response.getFileSize()).isPositive();
             assertThat(response.getOutputFileUrl()).isNotBlank();
         }
@@ -334,7 +338,7 @@ class RealExcelServiceImplTest {
             String result = service.processData(configJson, FULL_GPT_RESPONSE);
 
             ExcelResponseDTO response = parseResponse(result);
-            File f = new File(response.getOutputFileUrl());
+            File f = tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length())).toFile();
             assertThat(f).exists();
             assertThat(f.getName()).endsWith(".xlsx");
         }
@@ -376,7 +380,8 @@ class RealExcelServiceImplTest {
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getSheetName()).isEqualTo("Report");
             assertThat(response.getColumnsProcessed()).isEqualTo(3);
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
             assertThat(response.getFileSize()).isPositive();
         }
 
@@ -424,7 +429,8 @@ class RealExcelServiceImplTest {
             assertThat(response.getSheetName()).isEqualTo("Rankings");
             assertThat(response.getRowsProcessed()).isEqualTo(3);
             assertThat(response.getColumnsProcessed()).isEqualTo(4);
-            assertThat(response.getFileContent()).isNotBlank();
+            assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/workflow-");
+            assertThat(tempDir.resolve("reports").resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))).isRegularFile();
             assertThat(response.getFileSize()).isPositive();
         }
 
@@ -666,7 +672,6 @@ class RealExcelServiceImplTest {
             assertThat(response.getOutputFileUrl()).isNotNull();
             assertThat(response.getWebFileUrl()).startsWith("/api/v1/files/excel/");
             assertThat(response.getWebFileUrl()).endsWith(".xlsx");
-            assertThat(response.getFileContent()).isNotNull();
             assertThat(response.getFileSize()).isPositive();
             assertThat(response.getCreatedAt()).isNotNull();
         }
@@ -684,21 +689,20 @@ class RealExcelServiceImplTest {
               
             ExcelResponseDTO response = parseResponse(result);
             assertThat(response.getWebFileUrl())
-                    .matches("/api/v1/files/excel/workflow-\\d+-[a-f0-9]+\\.xlsx");
+                    .matches("/api/v1/files/excel/workflow-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.xlsx");
         }
 
         @Test
-        @DisplayName("fileContent is valid Base64-encoded bytes")
-        void processData_fileContentIsBase64() throws Exception {
-            String configJson = baseConfigJson("Sheet", "WRITE");
-            String inputData  = analysisInputJson("Some plain text result for encoding test");
+        @DisplayName("the output keeps only a link to the report, never the file bytes")
+        void processData_outputHasNoFileBytes() throws Exception {
+            String result = service.processData(baseConfigJson("Sheet", "WRITE"),
+                    analysisInputJson("Some plain text result"));
 
-            String result = service.processData(configJson, inputData);
-
+            assertThat(result).doesNotContain("fileContent");
             ExcelResponseDTO response = parseResponse(result);
-            assertDoesNotThrow(() -> java.util.Base64.getDecoder().decode(response.getFileContent()),
-                    "fileContent should be valid Base64");
-            assertThat(java.util.Base64.getDecoder().decode(response.getFileContent())).isNotEmpty();
+            assertThat(java.nio.file.Files.size(tempDir.resolve("reports")
+                    .resolve(response.getWebFileUrl().substring("/api/v1/files/excel/".length()))))
+                    .isEqualTo(response.getFileSize());
         }
     }
 }

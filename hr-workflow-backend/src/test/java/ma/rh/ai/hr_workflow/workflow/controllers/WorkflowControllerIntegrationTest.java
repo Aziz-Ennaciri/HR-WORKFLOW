@@ -336,7 +336,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("patching a non-DRAFT workflow throws IllegalStateException")
+        @DisplayName("patching a non-DRAFT workflow returns 409 Conflict")
         void patch_non_draft_workflow_throws() throws Exception {
             MvcResult created = mockMvc.perform(post("/api/v1/workflows")
                     .header("Authorization", adminToken)
@@ -348,7 +348,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
             mockMvc.perform(post("/api/v1/nodes/workflow/" + id)
                     .header("Authorization", adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"type\":\"EMAIL\",\"order\":1,\"configJson\":\"{}\"}"))
+                    .content("{\"type\":\"EMAIL\",\"order\":1,\"configJson\":\"{\\\"to\\\":\\\"hr@test.com\\\",\\\"subject\\\":\\\"Hi\\\"}\"}"))
                     .andExpect(status().isCreated());
 
             UpdateWorkflowDTO activateDTO = new UpdateWorkflowDTO();
@@ -366,7 +366,7 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(patchDTO)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
         }
     }
 }

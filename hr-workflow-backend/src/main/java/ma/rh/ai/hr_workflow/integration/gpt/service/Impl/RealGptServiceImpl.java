@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.service.GptServiceException;
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -9,7 +10,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,7 +29,6 @@ import ma.rh.ai.hr_workflow.integration.gpt.service.GptService;
 
 @Slf4j
 @Service
-@Primary
 public class RealGptServiceImpl implements GptService {
 
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(5);
@@ -71,10 +70,10 @@ public class RealGptServiceImpl implements GptService {
             String provider = config.getEffectiveProvider();
             String outputFormat = config.getOutputFormat();
 
-            log.info("🤖 GPT: provider={}, outputFormat={}", provider, outputFormat);
+            log.info("GPT: provider={}, outputFormat={}", provider, outputFormat);
 
-            String finalPrompt = buildPrompt(inputData, outputFormat);
-            log.info("📝 Prompt ({} chars). Preview: {}", finalPrompt.length(),
+            String finalPrompt = buildPrompt(config.getPrompt(), inputData, outputFormat);
+            log.debug("Prompt ({} chars). Preview: {}", finalPrompt.length(),
                     finalPrompt.substring(0, Math.min(200, finalPrompt.length())));
 
             String analysis;
@@ -104,8 +103,8 @@ public class RealGptServiceImpl implements GptService {
                     break;
             }
 
-            log.info("✅ {} done — {} tokens", provider, tokensUsed);
-            log.info("📤 Raw output: {}", analysis);
+            log.info("{} done — {} tokens", provider, tokensUsed);
+            log.debug("Raw output: {}", analysis);
 
             GptResponseDTO response = new GptResponseDTO();
             response.setAnalysis(analysis.trim());
@@ -121,19 +120,19 @@ public class RealGptServiceImpl implements GptService {
                     JsonNode arr = objectMapper.readTree(extracted);
                     response.setJsonData(objectMapper.convertValue(arr,
                             new TypeReference<List<Map<String, Object>>>() {}));
-                    log.info("✅ Extracted JSON array with {} items", arr.size());
+                    log.info("Extracted JSON array with {} items", arr.size());
                 } catch (Exception ex) {
-                    log.warn("⚠️ JSON array extraction parse failed: {}", ex.getMessage());
+                    log.warn("JSON array extraction parse failed: {}", ex.getMessage());
                 }
             } else {
-                log.warn("⚠️ AI did not return a parseable JSON array — Excel will fall back to text formatter");
+                log.warn("AI did not return a parseable JSON array — Excel will fall back to text formatter");
             }
 
             return objectMapper.writeValueAsString(response);
 
         } catch (Exception e) {
-            log.error("❌ GPT service failed", e);
-            throw new RuntimeException("GPT analysis failed: " + e.getMessage(), e);
+            log.error("GPT service failed", e);
+            throw new GptServiceException("GPT analysis failed: " + e.getMessage(), e);
         }
     }
 
@@ -143,7 +142,7 @@ public class RealGptServiceImpl implements GptService {
 
     private String[] callOllama(GptConfigDTO config, String prompt) {
         String model = config.getModel() != null ? config.getModel() : defaultOllamaModel;
-        log.info("🦙 Ollama: model={}", model);
+        log.info("Ollama: model={}", model);
 
         String systemPrompt = "You are an HR assistant. You MUST return ONLY a valid JSON array of objects. "
                 + "No markdown code blocks (```), no explanatory text, no preamble. Start with [ and end with ].";
@@ -169,7 +168,7 @@ public class RealGptServiceImpl implements GptService {
             int tokens = responseNode.has("eval_count") ? responseNode.get("eval_count").asInt() : 0;
             return new String[]{analysis, model, String.valueOf(tokens)};
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Ollama response", e);
+            throw new GptServiceException("Failed to parse Ollama response", e);
         }
     }
 
@@ -180,14 +179,14 @@ public class RealGptServiceImpl implements GptService {
     private String[] callOpenAI(GptConfigDTO config, String prompt) {
         String apiKey = config.getApiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            throw new RuntimeException("OpenAI API key is required. Set it in the GPT node config.");
+            throw new GptServiceException("OpenAI API key is required. Set it in the GPT node config.");
         }
 
         String model = config.getModel() != null ? config.getModel() : "gpt-4o-mini";
         double temperature = config.getTemperature() != null ? config.getTemperature() : 0.1;
         int maxTokens = config.getMaxTokens() != null ? config.getMaxTokens() : 2000;
 
-        log.info("🧠 OpenAI: model={}", model);
+        log.info("OpenAI: model={}", model);
 
         try {
             ObjectNode request = objectMapper.createObjectNode();
@@ -225,7 +224,7 @@ public class RealGptServiceImpl implements GptService {
             return new String[]{analysis, model, String.valueOf(tokens)};
 
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI call failed: " + e.getMessage(), e);
+            throw new GptServiceException("OpenAI call failed: " + e.getMessage(), e);
         }
     }
 
@@ -236,14 +235,14 @@ public class RealGptServiceImpl implements GptService {
     private String[] callAnthropic(GptConfigDTO config, String prompt) {
         String apiKey = config.getApiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            throw new RuntimeException("Anthropic API key is required. Set it in the GPT node config.");
+            throw new GptServiceException("Anthropic API key is required. Set it in the GPT node config.");
         }
 
         String model = config.getModel() != null ? config.getModel() : "claude-sonnet-4-20250514";
         double temperature = config.getTemperature() != null ? config.getTemperature() : 0.1;
         int maxTokens = config.getMaxTokens() != null ? config.getMaxTokens() : 2000;
 
-        log.info("🟣 Anthropic: model={}", model);
+        log.info("Anthropic: model={}", model);
 
         try {
             ObjectNode request = objectMapper.createObjectNode();
@@ -280,7 +279,7 @@ public class RealGptServiceImpl implements GptService {
             return new String[]{analysis, model, String.valueOf(tokens)};
 
         } catch (Exception e) {
-            throw new RuntimeException("Anthropic call failed: " + e.getMessage(), e);
+            throw new GptServiceException("Anthropic call failed: " + e.getMessage(), e);
         }
     }
 
@@ -288,8 +287,10 @@ public class RealGptServiceImpl implements GptService {
     //  PROMPT BUILDING (same as before — works for all providers)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private String buildPrompt(String inputData, String outputFormat) {
-        String base = buildBasePrompt(inputData);
+    private String buildPrompt(String instruction, String inputData, String outputFormat) {
+        String base = instruction != null && !instruction.isBlank()
+                ? withInstruction(instruction.trim(), inputData)
+                : buildBasePrompt(inputData);
         // Always force JSON — the Excel node parses it into a structured table,
         // and falls back to plain-text formatting if the AI doesn't comply.
         return base
@@ -314,7 +315,7 @@ public class RealGptServiceImpl implements GptService {
                 JsonNode fileData = root.get(DriveOutput.FILE_DATA);
 
                 if (originalInput != null && fileData != null) {
-                    log.info("✅ Mode: Combined DRIVE output");
+                    log.info("Mode: Combined DRIVE output");
                     return buildCombinedPrompt(originalInput, fileData);
                 }
 
@@ -323,7 +324,7 @@ public class RealGptServiceImpl implements GptService {
                 }
 
             } catch (Exception e) {
-                log.warn("⚠️ JSON parse failed: {}", e.getMessage());
+                log.warn("JSON parse failed: {}", e.getMessage());
             }
         }
 
@@ -331,7 +332,7 @@ public class RealGptServiceImpl implements GptService {
             return buildLegacyPrompt(inputData);
         }
 
-        log.info("⚙️ Mode: Fallback");
+        log.info("Mode: Fallback");
         return inputData;
     }
 
@@ -357,6 +358,38 @@ public class RealGptServiceImpl implements GptService {
         }
     }
 
+    /**
+     * The GPT node's own prompt is the instruction; whatever the previous step produced (files
+     * read by a DRIVE step, or the execution input) is appended as the data to work on.
+     */
+    private String withInstruction(String instruction, String inputData) {
+        String data = describeData(inputData);
+        return data == null ? instruction : instruction + "\n\nHere is the data:\n\n" + data;
+    }
+
+    /** Readable form of a step's input, or null when there is nothing useful (blank or "{}"). */
+    private String describeData(String inputData) {
+        if (inputData == null || inputData.isBlank()) {
+            return null;
+        }
+        String trimmed = inputData.trim();
+        if (trimmed.startsWith("{")) {
+            try {
+                JsonNode root = objectMapper.readTree(trimmed);
+                JsonNode fileData = root.get(DriveOutput.FILE_DATA);
+                if (fileData != null) {
+                    return formatFiles(fileData);
+                }
+                if (root.isEmpty()) {
+                    return null;
+                }
+            } catch (Exception e) {
+                // Not JSON after all: pass it on as text
+            }
+        }
+        return trimmed;
+    }
+
     private String buildCombinedPrompt(JsonNode originalInput, JsonNode fileData) {
         StringBuilder p = new StringBuilder();
 
@@ -369,6 +402,12 @@ public class RealGptServiceImpl implements GptService {
 
         // Data from previous node — formatted readably
         p.append("Here is the data:\n\n");
+        p.append(formatFiles(fileData));
+        return p.toString();
+    }
+
+    private String formatFiles(JsonNode fileData) {
+        StringBuilder p = new StringBuilder();
         JsonNode items = fileData.get(DriveOutput.FILES);
         if (items != null && items.isArray()) {
             for (int i = 0; i < items.size(); i++) {
@@ -428,7 +467,7 @@ public class RealGptServiceImpl implements GptService {
             return p.toString();
 
         } catch (Exception e) {
-            log.error("❌ Legacy prompt error", e);
+            log.error("Legacy prompt error", e);
             return "Analyze: " + inputData;
         }
     }

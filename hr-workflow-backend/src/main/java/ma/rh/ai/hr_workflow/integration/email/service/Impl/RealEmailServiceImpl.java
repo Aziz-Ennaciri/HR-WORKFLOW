@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.integration.email.service.Impl;
 
+import ma.rh.ai.hr_workflow.exceptions.service.EmailServiceException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -7,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -25,12 +26,15 @@ import ma.rh.ai.hr_workflow.integration.email.service.EmailService;
 
 @Slf4j
 @Service
-@Primary
 @RequiredArgsConstructor
 public class RealEmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final ObjectMapper objectMapper;
+
+    /** Base URL recipients use to reach this API (download links in emails). */
+    @Value("${app.public-api-url:http://localhost:8080}")
+    private String publicApiUrl = "http://localhost:8080";
 
     private static final Set<String> HIDDEN_FIELDS = Set.of(
         "fileContent", "outputFileUrl", "filePath", "fileSize",
@@ -46,7 +50,7 @@ public class RealEmailServiceImpl implements EmailService {
 
             String to = config.getTo();
             if (to == null || to.isEmpty()) {
-                throw new RuntimeException("Email recipient is required");
+                throw new EmailServiceException("Email recipient is required");
             }
 
             String name = workflowName != null ? workflowName : "Workflow";
@@ -72,7 +76,9 @@ public class RealEmailServiceImpl implements EmailService {
 
         } catch (Exception e) {
             log.error("Failed to send email", e);
-            throw new RuntimeException("Email sending failed: " + e.getMessage());
+            // No cause on purpose: the engine retries network errors, and a mail that failed mid-send
+            // may already have been delivered, so email failures are never retried automatically.
+            throw new EmailServiceException("Email sending failed: " + e.getMessage());
         }
     }
 
@@ -143,7 +149,7 @@ public class RealEmailServiceImpl implements EmailService {
     // ── File-output content (download button) ─────────────────────────────────────
 
     private String buildFileOutputContent(JsonNode node, String safeName) {
-        String downloadUrl = "http://localhost:8080" + node.get("webFileUrl").asText();
+        String downloadUrl = publicApiUrl + node.get("webFileUrl").asText();
 
         String countLine = "";
         if (node.has("rowsProcessed")) {

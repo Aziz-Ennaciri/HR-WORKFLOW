@@ -8,7 +8,7 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("ExecutionTransactionHelper")
 class ExecutionTransactionHelperTest {
 
-    @Mock private WorkflowInstancerepository workflowInstanceRepository;
+    @Mock private WorkflowInstanceRepository workflowInstanceRepository;
     @Mock private NodeInstanceRepository nodeInstanceRepository;
     @Mock private UserRepository userRepository;
 

@@ -3,7 +3,7 @@ package ma.rh.ai.hr_workflow.workflow.service;
 import ma.rh.ai.hr_workflow.config.AbstractIntegrationTest;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.model.Role;
 import ma.rh.ai.hr_workflow.user.model.RoleName;
 import ma.rh.ai.hr_workflow.user.model.User;
@@ -36,7 +36,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
     @Autowired private IWorkflowService workflowService;
     @Autowired private WorkflowRepository workflowRepository;
     @Autowired private NodeRepository nodeRepository;
-    @Autowired private WorkflowInstancerepository instanceRepository;
+    @Autowired private WorkflowInstanceRepository instanceRepository;
 
     private User userA;
     private User userB;
@@ -87,7 +87,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
             CreateWorkflowDTO dto = buildCreateDTO("New WF");
 
              
-            WorkflowResponseDTO result = workflowService.createWorkflow(dto, userA.getId());
+            WorkflowResponseDTO result = workflowService.createWorkflow(dto, userA.getEmail());
 
              
             assertThat(result.getId()).isNotNull();
@@ -102,17 +102,18 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
     class ActivateWorkflow {
 
         @Test
-        @DisplayName("activates a DRAFT workflow that has at least one node")
+        @DisplayName("activates a DRAFT workflow whose nodes are configured")
         void activateWorkflow_transitions_to_ACTIVE() {
              
             WorkflowResponseDTO created = workflowService.createWorkflow(
-                    buildCreateDTO("ToActivate"), userA.getId());
+                    buildCreateDTO("ToActivate"), userA.getEmail());
 
             Workflow wf = workflowRepository.findById(created.getId()).orElseThrow();
             Node node = new Node();
             node.setWorkflow(wf);
             node.setType(NodeType.EMAIL);
             node.setOrderIndex(1);
+            node.setConfigJson("{\"to\":\"hr@test.com\",\"subject\":\"New candidates\"}");
             node = nodeRepository.save(node);
             wf.getNodes().add(node);
 
@@ -128,7 +129,7 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         void activateWorkflow_without_nodes_throws() {
              
             WorkflowResponseDTO created = workflowService.createWorkflow(
-                    buildCreateDTO("EmptyWF"), userA.getId());
+                    buildCreateDTO("EmptyWF"), userA.getEmail());
 
             assertThatThrownBy(() -> workflowService.activateWorkflow(created.getId()))
                     .isInstanceOf(IllegalStateException.class)
@@ -223,8 +224,8 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
         @DisplayName("getWorkflowsByCreatorEmail returns only the calling user's workflows")
         void user_cannot_see_other_users_workflows() {
              
-            workflowService.createWorkflow(buildCreateDTO("WF-A"), userA.getId());
-            workflowService.createWorkflow(buildCreateDTO("WF-B"), userB.getId());
+            workflowService.createWorkflow(buildCreateDTO("WF-A"), userA.getEmail());
+            workflowService.createWorkflow(buildCreateDTO("WF-B"), userB.getEmail());
 
              
             List<WorkflowResponseDTO> userAResults = workflowService.getWorkflowsByCreatorEmail(userA.getEmail());

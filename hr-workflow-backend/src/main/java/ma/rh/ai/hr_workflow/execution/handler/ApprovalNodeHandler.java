@@ -36,14 +36,24 @@ public class ApprovalNodeHandler implements NodeHandler {
 
     /** The approver configured on an APPROVAL node, if any. */
     public Optional<String> approverEmail(String configJson) {
+        return textField(configJson, "approverEmail");
+    }
+
+    /** The instructions shown to the approver, if any. */
+    public Optional<String> instructions(String configJson) {
+        return textField(configJson, "instructions");
+    }
+
+    private Optional<String> textField(String configJson, String field) {
         if (configJson == null || configJson.isBlank()) {
             return Optional.empty();
         }
         try {
             JsonNode config = objectMapper.readTree(configJson);
-            return Optional.ofNullable(config.get("approverEmail"))
+            return Optional.ofNullable(config.get(field))
+                    .filter(JsonNode::isValueNode)
                     .map(JsonNode::asText)
-                    .filter(email -> !email.isBlank());
+                    .filter(value -> !value.isBlank());
         } catch (Exception e) {
             log.warn("Failed to parse approval config: {}", e.getMessage());
             return Optional.empty();

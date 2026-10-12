@@ -22,13 +22,26 @@ export function getUser(): any | null {
   }
 }
 
-export function setAuth(token: string, user: any) {
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem("refreshToken");
+}
+
+/** Stores a token pair after login or refresh. The access token is short-lived (minutes). */
+export function setAuth(token: string, user: any, refreshToken?: string) {
   sessionStorage.setItem("token", token);
+  sessionStorage.setItem("user", JSON.stringify(user));
+  if (refreshToken) sessionStorage.setItem("refreshToken", refreshToken);
+}
+
+/** Updates the cached profile without touching the tokens. */
+export function setUser(user: any) {
   sessionStorage.setItem("user", JSON.stringify(user));
 }
 
 export function clearAuth() {
   sessionStorage.removeItem("token");
+  sessionStorage.removeItem("refreshToken");
   sessionStorage.removeItem("user");
   sessionStorage.removeItem("runningExecutions");
 }
@@ -46,14 +59,16 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+/**
+ * True while the user has a usable session: a valid access token, or a refresh token the API
+ * client can exchange for a new one. The server has the final say on the next request.
+ */
 export function isAuthenticated(): boolean {
   const token = getToken();
-  if (!token) return false;
-  if (isTokenExpired(token)) {
-    clearAuth();
-    return false;
-  }
-  return true;
+  if (token && !isTokenExpired(token)) return true;
+  if (getRefreshToken()) return true;
+  clearAuth();
+  return false;
 }
 
 // ─── Auth guard hook ────────────────────────────────────────────

@@ -25,10 +25,10 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const response = await api.post("/users/login", { email, password });
-      setAuth(response.data.token, response.data.user);
+      setAuth(response.data.token, response.data.user, response.data.refreshToken);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid email or password");
+      setError(err.response?.data?.detail || "Invalid email or password");
     } finally {
       setLoading(false);
     }

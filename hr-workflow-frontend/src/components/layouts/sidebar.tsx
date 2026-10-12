@@ -2,9 +2,9 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { clearAuth, getUser } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import Button from "../ui/Button";
-import api from "@/lib/api";
+import api, { logout } from "@/lib/api";
 import toast from "react-hot-toast";
 
 interface SidebarProps {
@@ -53,8 +53,8 @@ export default function Sidebar({
     return () => clearInterval(interval);
   }, []);
 
-  const handleLogout = () => {
-    clearAuth();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 

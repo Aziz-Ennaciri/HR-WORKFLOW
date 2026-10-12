@@ -14,20 +14,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import lombok.extern.slf4j.Slf4j;
+import ma.rh.ai.hr_workflow.integration.StoragePaths;
+import ma.rh.ai.hr_workflow.integration.excel.service.Impl.RealExcelServiceImpl;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/v1/files")
 @Slf4j
 public class FileController {
 
+    @Value("${drive.storage.path:/tmp/hr-workflow-files}")
+    private String storagePath;
+
     @GetMapping("/excel/{fileName}")
     public ResponseEntity<InputStreamResource> downloadExcel(@PathVariable String fileName) {
         try {
-            File webDir = new File(System.getProperty("java.io.tmpdir"), "hr-workflow-files");
-            File file = new File(webDir, fileName);
-
-            // Reject path traversal such as "../../etc/passwd"
-            if (!file.getCanonicalFile().toPath().startsWith(webDir.getCanonicalFile().toPath())) {
+            File file;
+            try {
+                // Rejects path traversal such as "../../etc/passwd"
+                file = StoragePaths.resolveInside(storagePath, RealExcelServiceImpl.REPORTS_FOLDER, fileName).toFile();
+            } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().build();
             }
             if (!file.isFile()) {

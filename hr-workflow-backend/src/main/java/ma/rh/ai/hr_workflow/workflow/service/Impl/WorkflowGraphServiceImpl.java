@@ -27,6 +27,7 @@ import ma.rh.ai.hr_workflow.workflow.model.Workflow;
 import ma.rh.ai.hr_workflow.workflow.model.WorkflowStatus;
 import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
 import ma.rh.ai.hr_workflow.workflow.repositories.WorkflowRepository;
+import ma.rh.ai.hr_workflow.workflow.secrets.ConfigSecrets;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowGraphService;
 
 /**
@@ -72,7 +73,8 @@ public class WorkflowGraphServiceImpl implements IWorkflowGraphService {
             GraphNode graphNode = byClientId.get(clientId);
             Node node = resolve(existing, clientId, workflow);
             node.setType(parseType(graphNode.getType()));
-            node.setConfigJson(graphNode.getConfigJson() == null ? "{}" : graphNode.getConfigJson());
+            String config = graphNode.getConfigJson() == null ? "{}" : graphNode.getConfigJson();
+            node.setConfigJson(ConfigSecrets.keepMaskedSecrets(config, node.getConfigJson()));
             node.setOrderIndex(position++);
             idMap.put(clientId, nodeRepository.save(node).getId().toString());
         }

@@ -213,29 +213,44 @@ function ExecutionCard({
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function ExecutionsPage() {
   const router = useRouter();
   const [executions, setExecutions] = useState<any[]>([]);
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: "all", workflow: "all" });
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, running: 0 });
   const authReady = useAuthGuard();
+
+  // Filtering and paging happen on the server; only the current page is downloaded.
   const fetchData = async () => {
     try {
-      const [execRes, wfRes] = await Promise.all([
-        api.get("/executions"),
+      const params: Record<string, string | number> = { page, size: PAGE_SIZE };
+      if (filters.status !== "all") params.status = filters.status;
+      if (filters.workflow !== "all") params.workflowId = filters.workflow;
+
+      const [execRes, wfRes, statsRes] = await Promise.all([
+        api.get("/executions", { params }),
         api.get(getWorkflowsUrl()),
+        api.get("/executions/stats"),
       ]);
 
-      const data = execRes.data || [];
-      data.sort((a: any, b: any) => {
-        const da = new Date(a.startedAt || a.createdAt).getTime();
-        const db = new Date(b.startedAt || b.createdAt).getTime();
-        return db - da;
-      });
-
-      setExecutions(data);
+      setExecutions(execRes.data.content);
+      setTotalPages(execRes.data.totalPages);
+      setTotalElements(execRes.data.totalElements);
       setWorkflows(wfRes.data || []);
+      const byStatus = statsRes.data.byStatus;
+      setStats({
+        total: statsRes.data.total,
+        completed: byStatus.COMPLETED,
+        failed: byStatus.FAILED,
+        running: byStatus.RUNNING + byStatus.PENDING + byStatus.PAUSED,
+      });
     } catch (e: any) {
       console.error("Failed to fetch executions", e);
       toast.error("Unable to load executions");
@@ -247,39 +262,26 @@ export default function ExecutionsPage() {
   useEffect(() => {
     if (!authReady) return;
     fetchData();
-  }, [authReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, page, filters]);
 
   useEffect(() => {
     if (!authReady) return;
     const hasRunning = executions.some(
-      (e) =>
-        e.status === "IN_PROGRESS" ||
-        e.status === "RUNNING" ||
-        e.status === "PENDING",
+      (e) => e.status === "RUNNING" || e.status === "PENDING",
     );
     if (!hasRunning) return;
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [executions, authReady]);
 
-  if (!authReady) return null;
-
-  // Filters are applied at render time so changing them takes effect immediately,
-  // while polling keeps tracking every running execution, including hidden ones.
-  const visibleExecutions = executions.filter(
-    (e) =>
-      (filters.status === "all" || e.status === filters.status) &&
-      (filters.workflow === "all" || e.workflowId?.toString() === filters.workflow),
-  );
-
-  const stats = {
-    total: visibleExecutions.length,
-    completed: visibleExecutions.filter((e) => e.status === "COMPLETED").length,
-    failed: visibleExecutions.filter((e) => e.status === "FAILED").length,
-    running: visibleExecutions.filter(
-      (e) => e.status === "IN_PROGRESS" || e.status === "RUNNING",
-    ).length,
+  const changeFilter = (next: Partial<typeof filters>) => {
+    setFilters((current) => ({ ...current, ...next }));
+    setPage(0);
   };
+
+  if (!authReady) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
@@ -336,7 +338,7 @@ export default function ExecutionsPage() {
             <select
               value={filters.status}
               onChange={(e) =>
-                setFilters({ ...filters, status: e.target.value })
+                changeFilter({ status: e.target.value })
               }
               className="bg-white border border-gray-200 text-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 shadow-sm"
             >
@@ -350,7 +352,7 @@ export default function ExecutionsPage() {
             <select
               value={filters.workflow}
               onChange={(e) =>
-                setFilters({ ...filters, workflow: e.target.value })
+                changeFilter({ workflow: e.target.value })
               }
               className="bg-white border border-gray-200 text-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 shadow-sm"
             >
@@ -388,12 +390,12 @@ export default function ExecutionsPage() {
 
           {/* Execution List */}
           <div className="space-y-2">
-            {loading && visibleExecutions.length === 0 ? (
+            {loading && executions.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-8 h-8 border-[2.5px] border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-gray-400 text-sm">Loading executions…</p>
               </div>
-            ) : visibleExecutions.length === 0 ? (
+            ) : executions.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-gray-400 text-base mb-1">
                   No executions found
@@ -403,7 +405,7 @@ export default function ExecutionsPage() {
                 </p>
               </div>
             ) : (
-              visibleExecutions.map((execution) => (
+              executions.map((execution) => (
                 <ExecutionCard
                   key={execution.id}
                   execution={execution}
@@ -413,6 +415,30 @@ export default function ExecutionsPage() {
               ))
             )}
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 text-sm text-gray-500">
+              <span>
+                Page {page + 1} of {totalPages} · {totalElements} executions
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page + 1 >= totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

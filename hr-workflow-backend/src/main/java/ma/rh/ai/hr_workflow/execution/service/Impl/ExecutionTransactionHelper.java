@@ -19,7 +19,7 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 
 /**
@@ -36,7 +36,7 @@ public class ExecutionTransactionHelper {
     private static final Set<NodeInstanceStatus> DONE = EnumSet.of(NodeInstanceStatus.COMPLETED, NodeInstanceStatus.SKIPPED);
     private static final Set<NodeInstanceStatus> RUNNABLE = EnumSet.of(NodeInstanceStatus.PENDING, NodeInstanceStatus.RETRYING);
 
-    private final WorkflowInstancerepository workflowInstanceRepository;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
     private final NodeInstanceRepository nodeInstanceRepository;
     private final UserRepository userRepository;
     private final ApprovalNodeHandler approvalNodeHandler;

@@ -1,5 +1,7 @@
 package ma.rh.ai.hr_workflow.integration.drive.service.Impl;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import ma.rh.ai.hr_workflow.exceptions.service.DriveServiceException;
 import ma.rh.ai.hr_workflow.integration.StoragePaths;
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import java.io.File;
@@ -18,7 +20,6 @@ import java.util.stream.Stream;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -32,7 +33,7 @@ import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
 
 @Slf4j
 @Service
-@Primary
+@ConditionalOnProperty(name = "drive.provider", havingValue = "local", matchIfMissing = true)
 @RequiredArgsConstructor
 public class LocalDriveServiceImpl implements DriveService {
 
@@ -54,8 +55,8 @@ public class LocalDriveServiceImpl implements DriveService {
             }
 
         } catch (Exception e) {
-            log.error("❌ Local Drive service failed", e);
-            throw new RuntimeException("Local Drive operation failed: " + e.getMessage(), e);
+            log.error("Local Drive service failed", e);
+            throw new DriveServiceException("Local Drive operation failed: " + e.getMessage(), e);
         }
     }
 
@@ -72,13 +73,13 @@ public class LocalDriveServiceImpl implements DriveService {
      * (CVs, contracts, invoices, etc.). This node just reads and forwards them.
      */
     private String readFilesFromFolder(DriveConfigDTO config, String inputData) throws Exception {
-        log.info("📖 Local Drive: Reading files from folder...");
+        log.info("Local Drive: Reading files from folder...");
 
         String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
         Path folderPath = StoragePaths.resolveInside(storagePath, folderId);
 
         if (!Files.exists(folderPath)) {
-            log.warn("⚠️ Folder not found: {} — creating it and returning empty result", folderPath);
+            log.warn("Folder not found: {} — creating it and returning empty result", folderPath);
             Files.createDirectories(folderPath);
             return buildCombinedOutput(inputData, folderId, new ArrayList<>());
         }
@@ -95,14 +96,14 @@ public class LocalDriveServiceImpl implements DriveService {
                         file.put(DriveOutput.FILE_NAME, filePath.getFileName().toString());
                         file.put(DriveOutput.CONTENT, content);
                         files.add(file);
-                        log.info("✅ Read file: {} ({} characters)", filePath.getFileName(), content.length());
+                        log.debug("Read file: {} ({} characters)", filePath.getFileName(), content.length());
                     } catch (IOException e) {
                         log.error("Failed to read file: " + filePath, e);
                     }
                 });
         }
 
-        log.info("✅ Local Drive: Read {} files", files.size());
+        log.info("Local Drive: Read {} files", files.size());
         return buildCombinedOutput(inputData, folderId, files);
     }
 
@@ -112,9 +113,9 @@ public class LocalDriveServiceImpl implements DriveService {
         if (inputData != null && inputData.trim().startsWith("{")) {
             try {
                 originalInput = objectMapper.readTree(inputData.trim());
-                log.info("📦 Preserving original input: {}", inputData.trim());
+                log.debug("Preserving original input: {}", inputData.trim());
             } catch (Exception e) {
-                log.warn("⚠️ Could not parse inputData as JSON, storing as raw string");
+                log.warn("Could not parse inputData as JSON, storing as raw string");
             }
         }
 
@@ -132,7 +133,7 @@ public class LocalDriveServiceImpl implements DriveService {
         combined.put(DriveOutput.FILE_DATA, fileData);
 
         String output = objectMapper.writeValueAsString(combined);
-        log.info("📤 DRIVE output (combined) length: {} characters", output.length());
+        log.info("DRIVE output (combined) length: {} characters", output.length());
         return output;
     }
 
@@ -164,7 +165,7 @@ public class LocalDriveServiceImpl implements DriveService {
     }
 
     private String writeFileToFolder(DriveConfigDTO config, String inputData) throws Exception {
-        log.info("💾 Local Drive: Saving file...");
+        log.info("Local Drive: Saving file...");
 
         String fileName = config.getFileName() != null ? config.getFileName() : generateFileName();
         String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
@@ -178,7 +179,7 @@ public class LocalDriveServiceImpl implements DriveService {
 
         File file = filePath.toFile();
         long fileSize = file.length();
-        log.info("✅ Local Drive: File saved - {} ({} bytes)", fileName, fileSize);
+        log.info("Local Drive: File saved - {} ({} bytes)", fileName, fileSize);
 
         DriveResponseDTO response = new DriveResponseDTO();
         response.setFileId(file.getName());

@@ -91,9 +91,9 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
 
              
             List<Workflow> userAWorkflows = workflowRepository
-                    .findByCreatedByEmailAndDeletedFalse(userA.getEmail());
+                    .findByCreatedByEmailIgnoreCaseAndDeletedFalseOrderByCreatedAtDesc(userA.getEmail());
             List<Workflow> userBWorkflows = workflowRepository
-                    .findByCreatedByEmailAndDeletedFalse(userB.getEmail());
+                    .findByCreatedByEmailIgnoreCaseAndDeletedFalseOrderByCreatedAtDesc(userB.getEmail());
 
              
             assertThat(userAWorkflows).hasSize(2)
@@ -117,7 +117,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
             workflowRepository.save(deleted);
 
              
-            List<Workflow> result = workflowRepository.findByDeletedFalse();
+            List<Workflow> result = workflowRepository.findByDeletedFalseOrderByCreatedAtDesc();
 
              
             assertThat(result).extracting(Workflow::getName).contains("Active").doesNotContain("Deleted");
@@ -149,7 +149,7 @@ class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
              
             workflow.setDeleted(true);
             workflowRepository.save(workflow);
-            List<Workflow> visible = workflowRepository.findByDeletedFalse();
+            List<Workflow> visible = workflowRepository.findByDeletedFalseOrderByCreatedAtDesc();
 
              
             assertThat(visible).isNotEmpty();

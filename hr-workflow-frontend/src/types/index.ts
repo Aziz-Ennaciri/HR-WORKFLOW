@@ -11,7 +11,7 @@ export interface Workflow {
   name: string;
   description: string;
   version: number;
-  status: 'DRAFT' | 'ACTIVE' | 'UNACTIVATE' | 'ARCHIVED';
+  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   createdAt: string;
   createdById?: number;
   createdByEmail?: string;

@@ -4,24 +4,24 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import ma.rh.ai.hr_workflow.common.PageResponse;
+import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangeEmailDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangePasswordDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginRequestDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.LoginResponseDTO;
+import ma.rh.ai.hr_workflow.user.DTOs.RefreshTokenRequestDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.UpdatePreferencesDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.UpdateProfileDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.UserResponseDTO;
-import ma.rh.ai.hr_workflow.user.mappers.UserMapper;
 import ma.rh.ai.hr_workflow.user.model.RoleName;
-import ma.rh.ai.hr_workflow.user.model.User;
-import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.user.service.IUserService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,8 +31,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
     private final IUserService userService;
-    private final UserRepository userRepository;
-    private final UserMapper userMapper;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponseDTO> registerUser(@Valid @RequestBody CreateUserDTO createUserDTO) {
@@ -44,6 +42,19 @@ public class UserController {
     public ResponseEntity<LoginResponseDTO> loginUser(@Valid @RequestBody LoginRequestDTO dto) {
         LoginResponseDTO login = userService.login(dto);
         return ResponseEntity.ok(login);
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Exchange a refresh token for a new access token (the refresh token is rotated)")
+    public LoginResponseDTO refresh(@Valid @RequestBody RefreshTokenRequestDTO dto) {
+        return userService.refresh(dto.getRefreshToken());
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke a refresh token")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequestDTO dto) {
+        userService.logout(dto.getRefreshToken());
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}")
@@ -63,23 +74,23 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
-        List<UserResponseDTO> userResponseDTO = userService.getAllUsers();
-        return ResponseEntity.ok(userResponseDTO);
+    public PageResponse<UserResponseDTO> getAllUsers(
+            @PageableDefault(size = 20, sort = "email") Pageable pageable) {
+        return userService.getAllUsers(pageable);
     }
 
     @GetMapping("/by-role")
     @Operation(summary = "Get users by role", description = "Returns users with a specific role (e.g., ROLE_ADMIN, ROLE_RH)")
     public ResponseEntity<List<UserResponseDTO>> getUsersByRole(
             @RequestParam @Parameter(description = "Role name, e.g. ROLE_ADMIN") String role) {
+        String normalized = role.toUpperCase().startsWith("ROLE_") ? role.toUpperCase() : "ROLE_" + role.toUpperCase();
+        RoleName roleName;
         try {
-            RoleName roleName = RoleName.valueOf(role.toUpperCase());
-            List<User> users = userRepository.findByRoleName(roleName);
-            List<UserResponseDTO> dtos = users.stream().map(userMapper::toResponseDTO).toList();
-            return ResponseEntity.ok(dtos);
+            roleName = RoleName.valueOf(normalized);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            throw new IllegalArgumentException("Unknown role: " + role);
         }
+        return ResponseEntity.ok(userService.getUsersByRole(roleName));
     }
 
     @DeleteMapping("/{id}")
@@ -142,7 +153,6 @@ public class UserController {
     }
 
     private String currentUserEmail() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null ? auth.getName() : null;
+        return SecurityUtils.currentUserEmail();
     }
 }

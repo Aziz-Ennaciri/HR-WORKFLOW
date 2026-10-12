@@ -18,5 +18,4 @@ public class ExcelResponseDTO {
     private String operation;
     private LocalDateTime createdAt;
     private List<Object> data;
-    private String fileContent;
 }

@@ -33,10 +33,10 @@ public class GptNodeHandler implements NodeHandler {
         String inputForGpt;
 
         if (isDriveCombinedOutput(nodeInputData)) {
-            log.info("✅ GPT Handler: DRIVE already combined prompt + CVs — passing through");
+            log.info("GPT Handler: DRIVE already combined prompt + CVs — passing through");
             inputForGpt = nodeInputData;
         } else {
-            log.info("⚠️ GPT Handler: No combined DRIVE output — using legacy merge");
+            log.info("GPT Handler: No combined DRIVE output — using legacy merge");
             inputForGpt = legacyMerge(workflowInputData, nodeInputData);
         }
 

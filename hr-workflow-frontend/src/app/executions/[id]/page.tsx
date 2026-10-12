@@ -132,15 +132,11 @@ export default function ExecutionDetailPage() {
     try {
       if (nodeInstance.outputData) {
         const output = JSON.parse(nodeInstance.outputData);
-        if (output.fileContent) {
-          const byteChars = atob(output.fileContent);
-          const byteArr = new Uint8Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++)
-            byteArr[i] = byteChars.charCodeAt(i);
-          const blob = new Blob([byteArr], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          });
-          const url = window.URL.createObjectURL(blob);
+        if (output.webFileUrl) {
+          // The report is stored on the server; the output only carries its link.
+          const path = String(output.webFileUrl).replace(/^\/api\/v1/, "");
+          const res = await api.get(path, { responseType: "blob" });
+          const url = window.URL.createObjectURL(res.data);
           const a = document.createElement("a");
           a.href = url;
           a.download = output.fileName || `report-${nodeInstance.id}.xlsx`;

@@ -28,7 +28,6 @@ public interface WorkflowMapper {
     @Mapping(target = "nodes", ignore = true)
     @Mapping(target = "edgesJson", ignore = true)
     @Mapping(target = "layoutJson", ignore = true)
-    @Mapping(target = "instances", ignore = true)
     @Mapping(target = "deleted", ignore = true)
     Workflow toEntity(CreateWorkflowDTO dto, User creator);
 
@@ -40,7 +39,6 @@ public interface WorkflowMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "nodes", ignore = true)
-    @Mapping(target = "instances", ignore = true)
     @Mapping(target = "deleted", ignore = true)
     void updateEntity(UpdateWorkflowDTO dto, @MappingTarget Workflow workflow);
 

@@ -8,7 +8,7 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.execution.service.Impl.ExecutionRecovery;
 import ma.rh.ai.hr_workflow.execution.service.Impl.ExecutionTransactionHelper;
 import ma.rh.ai.hr_workflow.execution.service.Impl.WorkflowExecutionServiceImpl;
@@ -58,7 +58,7 @@ class WorkflowEngineEndToEndTest extends AbstractIntegrationTest {
     @Autowired private ExecutionTransactionHelper txHelper;
     @Autowired private WorkflowRepository workflowRepository;
     @Autowired private NodeRepository nodeRepository;
-    @Autowired private WorkflowInstancerepository instanceRepository;
+    @Autowired private WorkflowInstanceRepository instanceRepository;
     @Autowired private NodeInstanceRepository nodeInstanceRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 

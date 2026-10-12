@@ -9,6 +9,8 @@ spring:
     password: ${DB_PASSWORD}
 
   jpa:
+    # Entities are mapped to DTOs inside service transactions; no lazy loading during view rendering.
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: false
@@ -41,9 +43,23 @@ spring:
   sql:
     init:
       mode: never
+
+  data:
+    web:
+      pageable:
+        max-page-size: 100
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION_MS:86400000}
+  # Access tokens are short-lived; clients renew them with the refresh token
+  expiration: ${JWT_EXPIRATION_MS:900000}
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+security:
+  # AES-256 key (base64, 32 bytes) for secrets stored in node configs, e.g. GPT API keys
+  config-encryption-key: ${CONFIG_ENCRYPTION_KEY}
+  login:
+    max-failures: 5
+    lock-duration: PT15M
 server:
   port: 8080
 
@@ -60,8 +76,14 @@ google:
       model: llama3.2:3b
 
 drive:
+  # "local" stores files under drive.storage.path; "google" uses Google Drive (needs google.credentials.path)
+  provider: ${DRIVE_PROVIDER:local}
   storage:
     path: ${DRIVE_STORAGE_PATH:${user.home}/hr-workflow-files}
+
+app:
+  # How email recipients reach this API, e.g. https://hr.example.com (used for download links)
+  public-api-url: ${PUBLIC_API_URL:http://localhost:8080}
 
 # Workflow engine (see ExecutionProperties for all options and defaults)
 execution:

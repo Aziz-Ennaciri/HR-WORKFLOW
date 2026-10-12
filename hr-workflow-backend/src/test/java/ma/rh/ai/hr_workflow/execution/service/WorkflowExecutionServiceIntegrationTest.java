@@ -7,7 +7,7 @@ import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstanceRepository;
 import ma.rh.ai.hr_workflow.user.model.Role;
 import ma.rh.ai.hr_workflow.user.model.RoleName;
 import ma.rh.ai.hr_workflow.user.model.User;
@@ -42,7 +42,7 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
     @Autowired private IWorkflowExecutionService executionService;
     @Autowired private WorkflowRepository workflowRepository;
     @Autowired private NodeRepository nodeRepository;
-    @Autowired private WorkflowInstancerepository instanceRepository;
+    @Autowired private WorkflowInstanceRepository instanceRepository;
     @Autowired private NodeInstanceRepository nodeInstanceRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 

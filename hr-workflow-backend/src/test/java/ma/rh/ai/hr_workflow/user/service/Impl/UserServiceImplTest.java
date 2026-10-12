@@ -15,6 +15,7 @@ import ma.rh.ai.hr_workflow.user.model.RoleName;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.RoleRepository;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
+import ma.rh.ai.hr_workflow.exceptions.TooManyRequestsException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ma.rh.ai.hr_workflow.common.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,6 +58,12 @@ class UserServiceImplTest {
 
     @Mock
     private RoleRepository roleRepository;
+
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
+    @Mock
+    private LoginAttemptService loginAttemptService;
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
@@ -275,13 +287,12 @@ class UserServiceImplTest {
 
 
     @Nested
-    @DisplayName("login()")
+    @DisplayName("login() / refresh() / logout()")
     class Login {
 
         @Test
-        @DisplayName("happy path — valid credentials return JWT and user DTO")
+        @DisplayName("happy path — valid credentials return access token, refresh token and user")
         void login_happyPath() {
-             
             LoginRequestDTO dto = new LoginRequestDTO("alice@example.com", "rawPwd");
             User user = buildEnabledUser(1L, "alice@example.com", "encoded");
             UserResponseDTO userResponse = buildResponseDTO(1L, "alice@example.com");
@@ -289,56 +300,83 @@ class UserServiceImplTest {
             when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("rawPwd", "encoded")).thenReturn(true);
             when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
+            when(jwtTokenProvider.getExpirationSeconds()).thenReturn(900L);
+            when(refreshTokenService.issue(user)).thenReturn("refresh-token");
             when(userMapper.toResponseDTO(user)).thenReturn(userResponse);
 
-             
             LoginResponseDTO result = userService.login(dto);
 
-             
             assertThat(result.getToken()).isEqualTo("jwt-token");
+            assertThat(result.getRefreshToken()).isEqualTo("refresh-token");
+            assertThat(result.getExpiresIn()).isEqualTo(900L);
             assertThat(result.getUser()).isEqualTo(userResponse);
+            assertThat(user.getLastLoginAt()).isNotNull();
+            verify(loginAttemptService).recordSuccess("alice@example.com");
         }
 
         @Test
-        @DisplayName("exception — user not found throws RuntimeException")
-        void login_userNotFound_throws() {
-             
-            LoginRequestDTO dto = new LoginRequestDTO("nobody@example.com", "pw");
+        @DisplayName("unknown email and wrong password give the same error and count as a failed attempt")
+        void login_badCredentials_sameErrorAndRecorded() {
             when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+            User user = buildEnabledUser(1L, "alice@example.com", "encoded");
+            when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
 
-               
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.login(dto));
-            assertThat(ex.getMessage()).contains("Invalid email or password");
+            RuntimeException unknown = assertThrows(RuntimeException.class,
+                    () -> userService.login(new LoginRequestDTO("nobody@example.com", "pw")));
+            RuntimeException wrong = assertThrows(RuntimeException.class,
+                    () -> userService.login(new LoginRequestDTO("alice@example.com", "wrong")));
+
+            assertThat(unknown.getMessage()).isEqualTo(wrong.getMessage()).isEqualTo("Invalid email or password");
+            verify(loginAttemptService).recordFailure("nobody@example.com");
+            verify(loginAttemptService).recordFailure("alice@example.com");
+            verify(jwtTokenProvider, never()).generateToken(any());
         }
 
         @Test
-        @DisplayName("exception — account disabled throws RuntimeException")
+        @DisplayName("a disabled account is only reported after the correct password")
         void login_accountDisabled_throws() {
-             
-            LoginRequestDTO dto = new LoginRequestDTO("dis@example.com", "pw");
             User user = buildEnabledUser(2L, "dis@example.com", "enc");
             user.setEnabled(false);
             when(userRepository.findByEmail("dis@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("pw", "enc")).thenReturn(true);
 
-               
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.login(dto));
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> userService.login(new LoginRequestDTO("dis@example.com", "pw")));
             assertThat(ex.getMessage()).contains("Account is disabled");
             verify(jwtTokenProvider, never()).generateToken(any());
         }
 
         @Test
-        @DisplayName("exception — wrong password throws RuntimeException")
-        void login_wrongPassword_throws() {
-             
-            LoginRequestDTO dto = new LoginRequestDTO("alice@example.com", "wrong");
-            User user = buildEnabledUser(1L, "alice@example.com", "encoded");
-            when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
+        @DisplayName("a locked-out email is refused before the password is checked")
+        void login_lockedOut_refused() {
+            doThrow(new TooManyRequestsException("Too many failed login attempts"))
+                    .when(loginAttemptService).checkAllowed("alice@example.com");
 
-               
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.login(dto));
-            assertThat(ex.getMessage()).contains("Invalid email or password");
-            verify(jwtTokenProvider, never()).generateToken(any());
+            assertThrows(TooManyRequestsException.class,
+                    () -> userService.login(new LoginRequestDTO("alice@example.com", "rawPwd")));
+            verifyNoInteractions(userRepository, passwordEncoder);
+        }
+
+        @Test
+        @DisplayName("refresh consumes the refresh token and issues a new pair")
+        void refresh_rotates() {
+            User user = buildEnabledUser(1L, "alice@example.com", "encoded");
+            when(refreshTokenService.consume("old")).thenReturn(user);
+            when(jwtTokenProvider.generateToken(user)).thenReturn("new-jwt");
+            when(refreshTokenService.issue(user)).thenReturn("new-refresh");
+
+            LoginResponseDTO result = userService.refresh("old");
+
+            assertThat(result.getToken()).isEqualTo("new-jwt");
+            assertThat(result.getRefreshToken()).isEqualTo("new-refresh");
+        }
+
+        @Test
+        @DisplayName("logout revokes the refresh token")
+        void logout_revokes() {
+            userService.logout("token");
+            verify(refreshTokenService).revoke("token");
         }
     }
 
@@ -494,28 +532,29 @@ class UserServiceImplTest {
             UserResponseDTO r1 = buildResponseDTO(1L, "a@example.com");
             UserResponseDTO r2 = buildResponseDTO(2L, "b@example.com");
 
-            when(userRepository.findAll()).thenReturn(List.of(u1, u2));
+            Pageable pageable = PageRequest.of(0, 2);
+            when(userRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(u1, u2), pageable, 5));
             when(userMapper.toResponseDTO(u1)).thenReturn(r1);
             when(userMapper.toResponseDTO(u2)).thenReturn(r2);
 
-             
-            List<UserResponseDTO> result = userService.getAllUsers();
+            PageResponse<UserResponseDTO> result = userService.getAllUsers(pageable);
 
-             
-            assertThat(result).containsExactly(r1, r2);
+            assertThat(result.content()).containsExactly(r1, r2);
+            assertThat(result.totalElements()).isEqualTo(5);
+            assertThat(result.totalPages()).isEqualTo(3);
         }
 
         @Test
         @DisplayName("edge case — empty repository returns empty list")
         void getAllUsers_empty_returnsEmptyList() {
              
-            when(userRepository.findAll()).thenReturn(List.of());
+            Pageable pageable = PageRequest.of(0, 20);
+            when(userRepository.findAll(pageable)).thenReturn(Page.empty(pageable));
 
-             
-            List<UserResponseDTO> result = userService.getAllUsers();
+            PageResponse<UserResponseDTO> result = userService.getAllUsers(pageable);
 
-             
-            assertThat(result).isEmpty();
+            assertThat(result.content()).isEmpty();
+            assertThat(result.totalElements()).isZero();
         }
     }
 
@@ -533,6 +572,7 @@ class UserServiceImplTest {
 
              
             userService.disableUser(1L);
+            verify(refreshTokenService).revokeAll(user);
 
              
             assertThat(user.isEnabled()).isFalse();
@@ -740,6 +780,7 @@ class UserServiceImplTest {
 
              
             userService.changePassword("u@example.com", dto);
+            verify(refreshTokenService).revokeAll(user);
 
              
             assertThat(user.getPassword()).isEqualTo("newEncoded");
@@ -862,6 +903,7 @@ class UserServiceImplTest {
 
              
             userService.deleteMe("u@example.com");
+            verify(refreshTokenService).revokeAll(user);
 
              
             assertThat(user.isEnabled()).isFalse();

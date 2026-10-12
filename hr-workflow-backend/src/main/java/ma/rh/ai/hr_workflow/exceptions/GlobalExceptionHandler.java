@@ -35,16 +35,27 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ProblemDetail handleTooManyRequests(TooManyRequestsException ex) {
+        return problem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     /** Two requests changed the same execution at once (e.g. a double-clicked approve). */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ProblemDetail handleConcurrentUpdate(ObjectOptimisticLockingFailureException ex) {
         return problem(HttpStatus.CONFLICT, "This item was changed by another request. Refresh and try again.");
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class,
+    @ExceptionHandler({IllegalArgumentException.class,
             HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     public ProblemDetail handleBadRequest(Exception ex) {
         return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** The request is valid but conflicts with the resource's current state (e.g. editing an ACTIVE workflow's nodes). */
+    @ExceptionHandler(IllegalStateException.class)
+    public ProblemDetail handleConflict(IllegalStateException ex) {
+        return problem(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
