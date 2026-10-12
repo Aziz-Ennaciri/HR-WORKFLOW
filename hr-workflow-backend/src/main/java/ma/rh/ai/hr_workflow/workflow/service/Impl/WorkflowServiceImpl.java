@@ -23,7 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -128,6 +128,10 @@ public class WorkflowServiceImpl implements IWorkflowService {
 
         if (dto.getEdgesJson() != null) {
             workflow.setEdgesJson(dto.getEdgesJson());
+        }
+
+        if (dto.getLayoutJson() != null) {
+            workflow.setLayoutJson(dto.getLayoutJson());
         }
 
         Workflow updated = workflowRepository.save(workflow);

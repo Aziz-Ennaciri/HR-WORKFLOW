@@ -127,7 +127,7 @@ export default function DashboardPage() {
         });
 
       const stored: TrackedExecution[] = JSON.parse(
-        localStorage.getItem("runningExecutions") || "[]",
+        sessionStorage.getItem("runningExecutions") || "[]",
       );
       const pending = stored.filter((e) => !e.id || e.id === -1);
 
@@ -137,7 +137,7 @@ export default function DashboardPage() {
       ];
 
       setTrackedExecutions(merged);
-      localStorage.setItem("runningExecutions", JSON.stringify(pending));
+      sessionStorage.setItem("runningExecutions", JSON.stringify(pending));
     } catch (e) {
       console.warn("Could not build banners", e);
     }

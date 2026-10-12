@@ -23,6 +23,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -110,26 +113,46 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("happy path — explicit ADMIN role is parsed correctly")
-        void register_happyPath_adminRole() {
-             
-            CreateUserDTO dto = new CreateUserDTO("bob@example.com", "pass", "Bob", "K", "ADMIN");
-            Role adminRole = new Role(); adminRole.setName(RoleName.ROLE_ADMIN);
-            User savedUser = buildEnabledUser(2L, "bob@example.com", "hashed");
-            UserResponseDTO expectedResponse = buildResponseDTO(2L, "bob@example.com");
+        @DisplayName("security — anonymous self-registration asking for ADMIN gets ROLE_RH")
+        void register_anonymousAdminRequest_downgradedToRh() {
+            CreateUserDTO dto = new CreateUserDTO("eve@example.com", "pass", "Eve", "K", "ADMIN");
+            Role rhRole = new Role(); rhRole.setName(RoleName.ROLE_RH);
 
-            when(userRepository.existsByEmail("bob@example.com")).thenReturn(false);
+            when(userRepository.existsByEmail("eve@example.com")).thenReturn(false);
             when(passwordEncoder.encode("pass")).thenReturn("hashed");
-            when(roleRepository.findByName(RoleName.ROLE_ADMIN)).thenReturn(Optional.of(adminRole));
-            when(userRepository.save(any(User.class))).thenReturn(savedUser);
-            when(userMapper.toResponseDTO(savedUser)).thenReturn(expectedResponse);
+            when(roleRepository.findByName(RoleName.ROLE_RH)).thenReturn(Optional.of(rhRole));
+            when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-             
-            UserResponseDTO result = userService.register(dto);
+            userService.register(dto);
 
-             
-            assertThat(result.getEmail()).isEqualTo("bob@example.com");
-            verify(roleRepository).findByName(RoleName.ROLE_ADMIN);
+            verify(roleRepository).findByName(RoleName.ROLE_RH);
+            verify(roleRepository, never()).findByName(RoleName.ROLE_ADMIN);
+        }
+
+        @Test
+        @DisplayName("happy path — an authenticated admin can register a user with the ADMIN role")
+        void register_byAdmin_adminRoleHonoured() {
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                    "root@example.com", null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+            try {
+                CreateUserDTO dto = new CreateUserDTO("bob@example.com", "pass", "Bob", "K", "ADMIN");
+                Role adminRole = new Role(); adminRole.setName(RoleName.ROLE_ADMIN);
+                User savedUser = buildEnabledUser(2L, "bob@example.com", "hashed");
+                UserResponseDTO expectedResponse = buildResponseDTO(2L, "bob@example.com");
+
+                when(userRepository.existsByEmail("bob@example.com")).thenReturn(false);
+                when(passwordEncoder.encode("pass")).thenReturn("hashed");
+                when(roleRepository.findByName(RoleName.ROLE_ADMIN)).thenReturn(Optional.of(adminRole));
+                when(userRepository.save(any(User.class))).thenReturn(savedUser);
+                when(userMapper.toResponseDTO(savedUser)).thenReturn(expectedResponse);
+
+                UserResponseDTO result = userService.register(dto);
+
+                assertThat(result.getEmail()).isEqualTo("bob@example.com");
+                verify(roleRepository).findByName(RoleName.ROLE_ADMIN);
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
         }
 
         @Test
@@ -364,10 +387,25 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("edge case — non-empty password is NOT encoded (isEmpty() check in source)")
-        void updateUser_nonEmptyPassword_notEncoded() {
+        @DisplayName("happy path — a new password is encoded and set")
+        void updateUser_newPassword_isEncoded() {
             User user = buildEnabledUser(1L, "a@example.com", "old-enc");
             CreateUserDTO dto = new CreateUserDTO("a@example.com", "somePass", "A", "B", null);
+
+            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(passwordEncoder.encode("somePass")).thenReturn("new-enc");
+            when(userMapper.toResponseDTO(user)).thenReturn(buildResponseDTO(1L, "a@example.com"));
+
+            userService.updateUser(1L, dto);
+
+            assertThat(user.getPassword()).isEqualTo("new-enc");
+        }
+
+        @Test
+        @DisplayName("edge case — blank password leaves the current password untouched")
+        void updateUser_blankPassword_keepsExisting() {
+            User user = buildEnabledUser(1L, "a@example.com", "old-enc");
+            CreateUserDTO dto = new CreateUserDTO("a@example.com", " ", "A", "B", null);
 
             when(userRepository.findById(1L)).thenReturn(Optional.of(user));
             when(userMapper.toResponseDTO(user)).thenReturn(buildResponseDTO(1L, "a@example.com"));
@@ -375,23 +413,7 @@ class UserServiceImplTest {
             userService.updateUser(1L, dto);
 
             verify(passwordEncoder, never()).encode(anyString());
-        }
-
-        @Test
-        @DisplayName("edge case — empty-string password is encoded and set")
-        void updateUser_emptyPassword_isEncoded() {
-            User user = buildEnabledUser(1L, "a@example.com", "old-enc");
-            CreateUserDTO dto = new CreateUserDTO("a@example.com", "", "A", "B", null);
-
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-            when(passwordEncoder.encode("")).thenReturn("encoded-empty");
-            when(userMapper.toResponseDTO(user)).thenReturn(buildResponseDTO(1L, "a@example.com"));
-
-            userService.updateUser(1L, dto);
-
-             
-            verify(passwordEncoder).encode("");
-            assertThat(user.getPassword()).isEqualTo("encoded-empty");
+            assertThat(user.getPassword()).isEqualTo("old-enc");
         }
 
         @Test
@@ -514,6 +536,7 @@ class UserServiceImplTest {
 
              
             assertThat(user.isEnabled()).isFalse();
+            verify(userRepository).save(user);
         }
 
         @Test

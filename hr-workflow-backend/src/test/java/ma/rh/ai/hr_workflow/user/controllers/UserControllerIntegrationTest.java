@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.user.controllers;
 
 import ma.rh.ai.hr_workflow.config.AbstractIntegrationTest;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
+import ma.rh.ai.hr_workflow.user.model.RoleName;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,33 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
                         .content(body))
                 .andExpect(status().isConflict());
         }
+
+        @Test
+        @DisplayName("anonymous self-registration cannot grant ROLE_ADMIN")
+        void register_anonymous_cannotBecomeAdmin() throws Exception {
+            String body = objectMapper.writeValueAsString(buildDTO("sneaky@test.com", "pass123", "ROLE_ADMIN"));
+
+            mockMvc.perform(post("/api/v1/users/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.roles[0]").value("ROLE_RH"))
+                    .andExpect(jsonPath("$.roles.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("an authenticated admin can register another admin")
+        void register_byAdmin_canGrantAdmin() throws Exception {
+            createUser("root@test.com", "pass", RoleName.ROLE_ADMIN);
+            String token = getAuthToken("root@test.com", "pass");
+
+            mockMvc.perform(post("/api/v1/users/register")
+                            .header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(buildDTO("second-admin@test.com", "pass123", "ROLE_ADMIN"))))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.roles[0]").value("ROLE_ADMIN"));
+        }
     }
 
     @Nested
@@ -104,10 +132,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("admin can list all users")
         void getAllUsers_admin_returns_200() throws Exception {
-            mockMvc.perform(post("/api/v1/users/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("list@test.com", "pass", "ROLE_ADMIN"))))
-                    .andExpect(status().isCreated());
+            createUser("list@test.com", "pass", RoleName.ROLE_ADMIN);
 
             String token = getAuthToken("list@test.com", "pass");
 
@@ -147,10 +172,7 @@ class UserControllerIntegrationTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("admin can disable another user — returns 204")
         void disableUser_returns_204() throws Exception {
-            mockMvc.perform(post("/api/v1/users/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(buildDTO("admin-dis@test.com", "pass", "ROLE_ADMIN"))))
-                    .andExpect(status().isCreated());
+            createUser("admin-dis@test.com", "pass", RoleName.ROLE_ADMIN);
 
             String registerResponse = mockMvc.perform(post("/api/v1/users/register")
                     .contentType(MediaType.APPLICATION_JSON)

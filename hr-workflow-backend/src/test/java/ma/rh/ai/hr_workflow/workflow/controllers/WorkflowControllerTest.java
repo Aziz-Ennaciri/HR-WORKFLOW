@@ -113,7 +113,7 @@ class WorkflowControllerTest {
     @Test
     @DisplayName("updateWorkflow delegates to service and returns 200 OK")
     void updateWorkflow_returns200() {
-        UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "desc", null, null, null, null);
+        UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "desc", null, null, null, null, null);
         WorkflowResponseDTO response = new WorkflowResponseDTO();
         when(workflowService.updateWorkflow(1L, dto)).thenReturn(response);
 

@@ -8,6 +8,37 @@ import Sidebar from "@/components/layouts/sidebar";
 import { getWorkflowsUrl } from "@/lib/workflows";
 
 type Tab = "account" | "preferences" | "security" | "danger";
+type Flash = { type: "ok" | "err"; text: string };
+
+// Declared at module scope: components defined inside the page body get a new identity on
+// every render, which remounts their children and drops input focus on each keystroke.
+const Alert = ({ msg }: { msg: Flash | null }) =>
+  msg ? (
+    <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
+      {msg.text}
+    </div>
+  ) : null;
+
+const Section = ({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+    <div className="mb-5">
+      <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+      {description && <p className="text-sm text-gray-500 mt-0.5">{description}</p>}
+    </div>
+    {children}
+  </div>
+);
+
+const SaveBtn = ({ onClick, saving, disabled }: { onClick: () => void; saving: boolean; disabled?: boolean }) => (
+  <button
+    onClick={onClick}
+    disabled={saving || disabled}
+    className="mt-5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2"
+  >
+    {saving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+    {saving ? "Saving…" : "Save changes"}
+  </button>
+);
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -20,27 +51,27 @@ export default function SettingsPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
-  const [nameMsg, setNameMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [nameMsg, setNameMsg] = useState<Flash | null>(null);
 
   // Account – email form
   const [newEmail, setNewEmail] = useState("");
   const [emailPassword, setEmailPassword] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
-  const [emailMsg, setEmailMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [emailMsg, setEmailMsg] = useState<Flash | null>(null);
 
   // Account – password form
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
-  const [pwMsg, setPwMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [pwMsg, setPwMsg] = useState<Flash | null>(null);
 
   // Preferences
   const [theme, setTheme] = useState("SYSTEM");
   const [language, setLanguage] = useState("EN");
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [prefSaving, setPrefSaving] = useState(false);
-  const [prefMsg, setPrefMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [prefMsg, setPrefMsg] = useState<Flash | null>(null);
 
   // Danger zone
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -65,7 +96,7 @@ export default function SettingsPage() {
   const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
 
   const flash = (
-    setter: (v: { type: "ok" | "err"; text: string } | null) => void,
+    setter: (v: Flash | null) => void,
     type: "ok" | "err",
     text: string,
   ) => {
@@ -169,34 +200,6 @@ export default function SettingsPage() {
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
     },
   ];
-
-  const Alert = ({ msg }: { msg: { type: "ok" | "err"; text: string } | null }) =>
-    msg ? (
-      <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${msg.type === "ok" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
-        {msg.text}
-      </div>
-    ) : null;
-
-  const Section = ({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) => (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
-      <div className="mb-5">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-sm text-gray-500 mt-0.5">{description}</p>}
-      </div>
-      {children}
-    </div>
-  );
-
-  const SaveBtn = ({ onClick, saving, disabled }: { onClick: () => void; saving: boolean; disabled?: boolean }) => (
-    <button
-      onClick={onClick}
-      disabled={saving || disabled}
-      className="mt-5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2"
-    >
-      {saving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-      {saving ? "Saving…" : "Save changes"}
-    </button>
-  );
 
   return (
     <div className="flex h-screen bg-gray-50">

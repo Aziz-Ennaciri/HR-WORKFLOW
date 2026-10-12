@@ -11,13 +11,19 @@ export interface Workflow {
   name: string;
   description: string;
   version: number;
-  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  status: 'DRAFT' | 'ACTIVE' | 'UNACTIVATE' | 'ARCHIVED';
   createdAt: string;
+  createdById?: number;
+  createdByEmail?: string;
+  /** React Flow edges, serialized. */
+  edgesJson?: string | null;
+  /** Canvas positions keyed by node id: { "<id>": { x, y } }. */
+  layoutJson?: string | null;
 }
 
 export interface Node {
   id: number;
-  type: 'EMAIL' | 'GPT' | 'DRIVE' | 'EXCEL';
+  type: 'EMAIL' | 'GPT' | 'DRIVE' | 'EXCEL' | 'APPROVAL';
   order: number;
   configJson: string;
 }

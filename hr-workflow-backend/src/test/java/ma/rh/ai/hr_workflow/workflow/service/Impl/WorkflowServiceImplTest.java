@@ -365,7 +365,7 @@ class WorkflowServiceImplTest {
             Workflow existing = buildWorkflow(1L, "Old Name", WorkflowStatus.DRAFT);
             existing.setVersion(1);
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New Name", "new desc",
-                    null, null, null, null);
+                    null, null, null, null, null);
             Workflow saved = buildWorkflow(1L, "New Name", WorkflowStatus.DRAFT);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "New Name");
 
@@ -384,12 +384,12 @@ class WorkflowServiceImplTest {
         }
 
         @Test
-        @DisplayName("happy path — version, status and edgesJson applied when non-null")
+        @DisplayName("happy path — version, status, edgesJson and layoutJson applied when non-null")
         void updateWorkflow_happyPath_allOptionalFields() {
              
             Workflow existing = buildWorkflow(1L, "Old", WorkflowStatus.DRAFT);
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New", "desc",
-                    3, WorkflowStatus.ACTIVE, null, "{\"edges\":[]}");
+                    3, WorkflowStatus.ACTIVE, null, "{\"edges\":[]}", "{\"1\":{\"x\":10,\"y\":20}}");
             Workflow saved = buildWorkflow(1L, "New", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "New");
 
@@ -403,6 +403,7 @@ class WorkflowServiceImplTest {
             assertThat(existing.getVersion()).isEqualTo(3);
             assertThat(existing.getStatus()).isEqualTo(WorkflowStatus.ACTIVE);
             assertThat(existing.getEdgesJson()).isEqualTo("{\"edges\":[]}");
+            assertThat(existing.getLayoutJson()).isEqualTo("{\"1\":{\"x\":10,\"y\":20}}");
         }
 
         @Test
@@ -410,7 +411,7 @@ class WorkflowServiceImplTest {
         void updateWorkflow_notFound_throws() {
              
             when(workflowRepository.findById(99L)).thenReturn(Optional.empty());
-            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("N", "d", null, null, null, null);
+            UpdateWorkflowDTO dto = new UpdateWorkflowDTO("N", "d", null, null, null, null, null);
 
              
             RuntimeException ex = assertThrows(RuntimeException.class,

@@ -53,6 +53,9 @@ public class Workflow {
     @Column(columnDefinition = "TEXT")
     private String edgesJson;
 
+    @Column(columnDefinition = "TEXT")
+    private String layoutJson;
+
     @Column(nullable = false)
     private boolean deleted = false;
 

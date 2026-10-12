@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
+import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import ma.rh.ai.hr_workflow.integration.gpt.service.GptService;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
@@ -48,7 +49,7 @@ public class GptNodeHandler implements NodeHandler {
         if (data == null || data.isBlank() || !data.trim().startsWith("{")) return false;
         try {
             JsonNode root = objectMapper.readTree(data.trim());
-            return root.has("originalInput") && root.has("cvData");
+            return root.has(DriveOutput.ORIGINAL_INPUT) && root.has(DriveOutput.FILE_DATA);
         } catch (Exception e) {
             return false;
         }

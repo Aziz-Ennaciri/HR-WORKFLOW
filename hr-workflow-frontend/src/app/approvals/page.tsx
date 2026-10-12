@@ -51,14 +51,13 @@ export default function ApprovalsPage() {
     setActioningId(nodeInstanceId);
     try {
       await api.post(`/executions/nodes/${nodeInstanceId}/approve`, {
-        actor: user?.email || "Unknown",
         comment: comments[nodeInstanceId] || "Approved",
       });
       toast.success("Approved successfully!");
       setComments((prev) => ({ ...prev, [nodeInstanceId]: "" }));
       fetchApprovals();
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed to approve");
+      toast.error(e.response?.data?.detail || "Failed to approve");
     } finally {
       setActioningId(null);
     }
@@ -68,14 +67,13 @@ export default function ApprovalsPage() {
     setActioningId(nodeInstanceId);
     try {
       await api.post(`/executions/nodes/${nodeInstanceId}/reject`, {
-        actor: user?.email || "Unknown",
         comment: comments[nodeInstanceId] || "Rejected",
       });
       toast.success("Rejected successfully");
       setComments((prev) => ({ ...prev, [nodeInstanceId]: "" }));
       fetchApprovals();
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed to reject");
+      toast.error(e.response?.data?.detail || "Failed to reject");
     } finally {
       setActioningId(null);
     }

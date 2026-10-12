@@ -227,21 +227,12 @@ export default function ExecutionsPage() {
         api.get(getWorkflowsUrl()),
       ]);
 
-      let data = execRes.data || [];
+      const data = execRes.data || [];
       data.sort((a: any, b: any) => {
         const da = new Date(a.startedAt || a.createdAt).getTime();
         const db = new Date(b.startedAt || b.createdAt).getTime();
         return db - da;
       });
-
-      if (filters.status !== "all") {
-        data = data.filter((e: any) => e.status === filters.status);
-      }
-      if (filters.workflow !== "all") {
-        data = data.filter(
-          (e: any) => e.workflowId?.toString() === filters.workflow,
-        );
-      }
 
       setExecutions(data);
       setWorkflows(wfRes.data || []);
@@ -273,11 +264,19 @@ export default function ExecutionsPage() {
 
   if (!authReady) return null;
 
+  // Filters are applied at render time so changing them takes effect immediately,
+  // while polling keeps tracking every running execution, including hidden ones.
+  const visibleExecutions = executions.filter(
+    (e) =>
+      (filters.status === "all" || e.status === filters.status) &&
+      (filters.workflow === "all" || e.workflowId?.toString() === filters.workflow),
+  );
+
   const stats = {
-    total: executions.length,
-    completed: executions.filter((e) => e.status === "COMPLETED").length,
-    failed: executions.filter((e) => e.status === "FAILED").length,
-    running: executions.filter(
+    total: visibleExecutions.length,
+    completed: visibleExecutions.filter((e) => e.status === "COMPLETED").length,
+    failed: visibleExecutions.filter((e) => e.status === "FAILED").length,
+    running: visibleExecutions.filter(
       (e) => e.status === "IN_PROGRESS" || e.status === "RUNNING",
     ).length,
   };
@@ -389,12 +388,12 @@ export default function ExecutionsPage() {
 
           {/* Execution List */}
           <div className="space-y-2">
-            {loading && executions.length === 0 ? (
+            {loading && visibleExecutions.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-8 h-8 border-[2.5px] border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-gray-400 text-sm">Loading executions…</p>
               </div>
-            ) : executions.length === 0 ? (
+            ) : visibleExecutions.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-gray-400 text-base mb-1">
                   No executions found
@@ -404,7 +403,7 @@ export default function ExecutionsPage() {
                 </p>
               </div>
             ) : (
-              executions.map((execution) => (
+              visibleExecutions.map((execution) => (
                 <ExecutionCard
                   key={execution.id}
                   execution={execution}

@@ -29,8 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("WorkflowController Integration Tests")
 class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
 
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
 
     private User adminUser;
     private User rhUser;

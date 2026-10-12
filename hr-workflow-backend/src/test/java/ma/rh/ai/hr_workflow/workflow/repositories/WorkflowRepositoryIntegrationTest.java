@@ -24,8 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowRepositoryIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private WorkflowRepository workflowRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
 
     private User userA;
     private User userB;

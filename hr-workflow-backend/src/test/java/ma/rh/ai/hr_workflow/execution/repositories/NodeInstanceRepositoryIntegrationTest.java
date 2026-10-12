@@ -36,8 +36,6 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
     @Autowired private WorkflowInstancerepository workflowInstanceRepository;
     @Autowired private NodeRepository nodeRepository;
     @Autowired private WorkflowRepository workflowRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
 
     private WorkflowInstance workflowInstance;
     private Node node1;

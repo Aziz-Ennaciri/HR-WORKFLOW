@@ -373,17 +373,17 @@ class RealGptServiceImplTest {
 
 
     @Nested
-    @DisplayName("Prompt branch: combined JSON (originalInput + cvData)")
+    @DisplayName("Prompt branch: combined JSON (originalInput + fileData)")
     class PromptBranchCombined {
 
         @Test
-        @DisplayName("JSON with originalInput.prompt + cvData.cvs — builds combined prompt")
+        @DisplayName("JSON with originalInput.prompt + fileData.files — builds combined prompt")
         void analyze_combinedJsonInput_buildsCombinedPrompt() throws Exception {
                
             String configJson = ollamaConfigJson("llama3.2:3b");
             String inputData  = "{"
                     + "\"originalInput\":{\"prompt\":\"Rank the top 3 candidates\"},"
-                    + "\"cvData\":{\"cvs\":["
+                    + "\"fileData\":{\"files\":["
                     + "  {\"fileName\":\"alice.pdf\",\"content\":\"Alice has 5 years Java\"},"
                     + "  {\"fileName\":\"bob.pdf\",\"content\":\"Bob has 2 years Python\"}"
                     + "]}}";
@@ -411,7 +411,7 @@ class RealGptServiceImplTest {
             String configJson = ollamaConfigJson("llama3.2:3b");
             String inputData  = "{"
                     + "\"originalInput\":{\"criteria\":\"5 years Java\"},"
-                    + "\"cvData\":{\"cvs\":["
+                    + "\"fileData\":{\"files\":["
                     + "  {\"fileName\":\"carol.pdf\",\"content\":\"Carol Senior Dev\"}"
                     + "]}}";
             String mockResponse = ollamaResponse("Carol is the best", 100);

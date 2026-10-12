@@ -1,17 +1,19 @@
 package ma.rh.ai.hr_workflow.integration.drive.service.Impl;
 
+import ma.rh.ai.hr_workflow.integration.StoragePaths;
+import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -73,7 +75,7 @@ public class LocalDriveServiceImpl implements DriveService {
         log.info("📖 Local Drive: Reading files from folder...");
 
         String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
-        Path folderPath = Paths.get(storagePath, folderId);
+        Path folderPath = StoragePaths.resolveInside(storagePath, folderId);
 
         if (!Files.exists(folderPath)) {
             log.warn("⚠️ Folder not found: {} — creating it and returning empty result", folderPath);
@@ -82,21 +84,23 @@ public class LocalDriveServiceImpl implements DriveService {
         }
 
         List<Map<String, String>> files = new ArrayList<>();
-        Files.list(folderPath)
+        try (Stream<Path> listing = Files.list(folderPath)) {
+            listing
                 .filter(Files::isRegularFile)
                 .sorted()
                 .forEach(filePath -> {
                     try {
                         String content = extractTextFromFile(filePath);
                         Map<String, String> file = new HashMap<>();
-                        file.put("fileName", filePath.getFileName().toString());
-                        file.put("content", content);
+                        file.put(DriveOutput.FILE_NAME, filePath.getFileName().toString());
+                        file.put(DriveOutput.CONTENT, content);
                         files.add(file);
                         log.info("✅ Read file: {} ({} characters)", filePath.getFileName(), content.length());
                     } catch (IOException e) {
                         log.error("Failed to read file: " + filePath, e);
                     }
                 });
+        }
 
         log.info("✅ Local Drive: Read {} files", files.size());
         return buildCombinedOutput(inputData, folderId, files);
@@ -115,17 +119,17 @@ public class LocalDriveServiceImpl implements DriveService {
         }
 
         Map<String, Object> fileData = new HashMap<>();
-        fileData.put("totalFiles", files.size());
-        fileData.put("folder", folderId);
-        fileData.put("files", files);
+        fileData.put(DriveOutput.TOTAL_FILES, files.size());
+        fileData.put(DriveOutput.FOLDER, folderId);
+        fileData.put(DriveOutput.FILES, files);
 
         Map<String, Object> combined = new HashMap<>();
         if (originalInput != null) {
-            combined.put("originalInput", originalInput);
+            combined.put(DriveOutput.ORIGINAL_INPUT, originalInput);
         } else if (inputData != null) {
-            combined.put("originalInput", inputData);
+            combined.put(DriveOutput.ORIGINAL_INPUT, inputData);
         }
-        combined.put("fileData", fileData);
+        combined.put(DriveOutput.FILE_DATA, fileData);
 
         String output = objectMapper.writeValueAsString(combined);
         log.info("📤 DRIVE output (combined) length: {} characters", output.length());
@@ -165,10 +169,9 @@ public class LocalDriveServiceImpl implements DriveService {
         String fileName = config.getFileName() != null ? config.getFileName() : generateFileName();
         String folderId = config.getFolderId() != null ? config.getFolderId() : "default";
 
-        Path folderPath = Paths.get(storagePath, folderId);
+        Path folderPath = StoragePaths.resolveInside(storagePath, folderId);
+        Path filePath = StoragePaths.resolveInside(storagePath, folderId, fileName);
         Files.createDirectories(folderPath);
-
-        Path filePath = folderPath.resolve(fileName);
         try (FileWriter writer = new FileWriter(filePath.toFile())) {
             writer.write(inputData);
         }

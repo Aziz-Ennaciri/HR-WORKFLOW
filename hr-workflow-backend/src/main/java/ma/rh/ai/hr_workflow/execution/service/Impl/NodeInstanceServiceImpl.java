@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.execution.service.Impl;
 
 import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.execution.DTOs.ApproveNodeDTO;
@@ -23,16 +24,9 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
     }
 
     @Override
+    @Transactional
     public NodeInstance approveNode(Long nodeInstanceId, ApproveNodeDTO dto) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId)
-                .orElseThrow(() -> new ResourceNotFoundException("Node Instance not found"));
-
-        if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING &&
-                nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS &&
-                nodeInstance.getStatus() != NodeInstanceStatus.WAITING_APPROVAL) {
-            throw new IllegalStateException("can only approve pending, in progress, or waiting approval nodes");
-        }
-
+        NodeInstance nodeInstance = findAwaitingDecision(nodeInstanceId);
         nodeInstance.markCompleted(null);
         nodeInstance.setActor(dto.getActor());
         nodeInstance.setComment(dto.getComment());
@@ -40,41 +34,31 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
     }
 
     @Override
+    @Transactional
     public NodeInstance rejectNode(Long nodeInstanceId, ApproveNodeDTO dto) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
-        if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING && nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS) {
-            throw new IllegalStateException("can only approve pending and in progress nodes");
-        }
-        nodeInstance.markRejected(dto.getActor(),dto.getComment());
-        return nodeInstance;
+        NodeInstance nodeInstance = findAwaitingDecision(nodeInstanceId);
+        nodeInstance.markRejected(dto.getActor(), dto.getComment());
+        return nodeInstanceRepository.save(nodeInstance);
     }
 
     @Override
+    @Transactional
     public NodeInstance failNode(Long nodeInstanceId, String errorMessage) {
         NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
         if (nodeInstance.getStatus() != NodeInstanceStatus.PENDING && nodeInstance.getStatus() != NodeInstanceStatus.IN_PROGRESS) {
-            throw new IllegalStateException("can only approve pending and in progress nodes");
+            throw new IllegalStateException("can only fail pending and in progress nodes");
         }
         nodeInstance.markFailed(errorMessage);
+        return nodeInstanceRepository.save(nodeInstance);
+    }
+
+    /** Only a node paused at an APPROVAL step can be approved or rejected. */
+    private NodeInstance findAwaitingDecision(Long nodeInstanceId) {
+        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Node Instance not found"));
+        if (nodeInstance.getStatus() != NodeInstanceStatus.WAITING_APPROVAL) {
+            throw new IllegalStateException("Only nodes waiting for approval can be approved or rejected");
+        }
         return nodeInstance;
     }
-
-    @Override
-    public NodeInstance retryNode(Long nodeInstanceId) {
-        NodeInstance nodeInstance = nodeInstanceRepository.findById(nodeInstanceId).orElseThrow(()->new ResourceNotFoundException("Node Instance not found"));
-        if (nodeInstance.getStatus() != NodeInstanceStatus.FAILED) {
-            throw new IllegalStateException("can only retry failed nodes");
-        }
-        NodeInstance retryNodeInstance = new NodeInstance();
-        retryNodeInstance.setWorkflowInstance(nodeInstance.getWorkflowInstance());
-        retryNodeInstance.setNode(nodeInstance.getNode());
-        retryNodeInstance.setExecutionOrder(nodeInstance.getExecutionOrder());
-        retryNodeInstance.setStatus(NodeInstanceStatus.RETRYING);
-        retryNodeInstance.setInputData(nodeInstance.getInputData());
-        retryNodeInstance.setRetryCount(nodeInstance.getRetryCount() + 1);
-
-        NodeInstance savedNodeInstance = nodeInstanceRepository.save(retryNodeInstance);
-        return savedNodeInstance;
-    }
-    
 }

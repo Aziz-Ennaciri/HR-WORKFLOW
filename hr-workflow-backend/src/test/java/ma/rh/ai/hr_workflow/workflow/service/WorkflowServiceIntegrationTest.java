@@ -36,8 +36,6 @@ class WorkflowServiceIntegrationTest extends AbstractIntegrationTest {
     @Autowired private IWorkflowService workflowService;
     @Autowired private WorkflowRepository workflowRepository;
     @Autowired private NodeRepository nodeRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
     @Autowired private WorkflowInstancerepository instanceRepository;
 
     private User userA;

@@ -19,8 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("UserRepository Integration Tests")
 class UserRepositoryIntegrationTest extends AbstractIntegrationTest {
 
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
 
     private Role rhRole;
     private Role adminRole;

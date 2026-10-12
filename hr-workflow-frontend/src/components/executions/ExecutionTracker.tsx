@@ -199,9 +199,7 @@ export default function ExecutionTracker({
     if (!waitingApprovalNode) return;
     setSubmittingApproval(true);
     try {
-      const user = getUser();
       await api.post(`/executions/nodes/${waitingApprovalNode.id}/approve`, {
-        actor: user.email || user.firstName || "Unknown",
         comment: approvalComment || "Approved",
       });
       setApprovalComment("");
@@ -218,9 +216,7 @@ export default function ExecutionTracker({
     if (!waitingApprovalNode) return;
     setSubmittingApproval(true);
     try {
-      const user = getUser();
       await api.post(`/executions/nodes/${waitingApprovalNode.id}/reject`, {
-        actor: user.email || user.firstName || "Unknown",
         comment: approvalComment || "Rejected",
       });
       setApprovalComment("");

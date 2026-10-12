@@ -1,5 +1,6 @@
 package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
+import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -289,12 +290,12 @@ public class RealGptServiceImpl implements GptService {
             try {
                 JsonNode root = objectMapper.readTree(inputData.trim());
 
-                JsonNode originalInput = root.get("originalInput");
-                JsonNode cvData = root.get("cvData");
+                JsonNode originalInput = root.get(DriveOutput.ORIGINAL_INPUT);
+                JsonNode fileData = root.get(DriveOutput.FILE_DATA);
 
-                if (originalInput != null && cvData != null) {
+                if (originalInput != null && fileData != null) {
                     log.info("✅ Mode: Combined DRIVE output");
-                    return buildCombinedPrompt(originalInput, cvData);
+                    return buildCombinedPrompt(originalInput, fileData);
                 }
 
                 if (root.has("prompt") && !root.get("prompt").asText().isBlank()) {
@@ -336,7 +337,7 @@ public class RealGptServiceImpl implements GptService {
         }
     }
 
-    private String buildCombinedPrompt(JsonNode originalInput, JsonNode cvData) {
+    private String buildCombinedPrompt(JsonNode originalInput, JsonNode fileData) {
         StringBuilder p = new StringBuilder();
 
         if (originalInput.has("prompt")) {
@@ -348,20 +349,20 @@ public class RealGptServiceImpl implements GptService {
 
         // Data from previous node — formatted readably
         p.append("Here is the data:\n\n");
-        JsonNode items = cvData.get("cvs");
+        JsonNode items = fileData.get(DriveOutput.FILES);
         if (items != null && items.isArray()) {
             for (int i = 0; i < items.size(); i++) {
                 JsonNode item = items.get(i);
                 p.append("--- ");
-                p.append(item.has("fileName") ? item.get("fileName").asText() : "Item " + (i + 1));
+                p.append(item.has(DriveOutput.FILE_NAME) ? item.get(DriveOutput.FILE_NAME).asText() : "Item " + (i + 1));
                 p.append(" ---\n");
-                if (item.has("content")) {
-                    p.append(item.get("content").asText().trim());
+                if (item.has(DriveOutput.CONTENT)) {
+                    p.append(item.get(DriveOutput.CONTENT).asText().trim());
                 }
                 p.append("\n\n");
             }
         } else {
-            p.append(cvData.toString()).append("\n\n");
+            p.append(fileData.toString()).append("\n\n");
         }
 
         return p.toString();

@@ -4,9 +4,9 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.BadCredentialsException;
 import ma.rh.ai.hr_workflow.exceptions.DuplicateResourceException;
 import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.config.JwtTokenProvider;
+import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangeEmailDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.ChangePasswordDTO;
 import ma.rh.ai.hr_workflow.user.DTOs.CreateUserDTO;
@@ -24,6 +24,7 @@ import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.user.service.IUserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -56,7 +57,8 @@ public class UserServiceImpl implements IUserService {
         user.setEnabled(true);
         user.setCreatedAt(LocalDateTime.now());
 
-        final RoleName roleName = determineRole(dto.getRole());
+        // Self-registration always yields ROLE_RH; only an authenticated admin may assign a role.
+        final RoleName roleName = SecurityUtils.isAdmin() ? determineRole(dto.getRole()) : RoleName.ROLE_RH;
 
         Role userRole = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new IllegalStateException("Role not found: " + roleName));
@@ -102,7 +104,7 @@ public class UserServiceImpl implements IUserService {
             }
             user.setEmail(dto.getEmail());
         }
-        if (dto.getPassword() != null && dto.getPassword().isEmpty()){
+        if (dto.getPassword() != null && !dto.getPassword().isBlank()){
             user.setPassword(passwordEncoder.encode(dto.getPassword()));
         }
         user.setFirstName(dto.getFirstName());
@@ -124,9 +126,11 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Transactional
     public void disableUser(Long id){
         User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with Id"+id));
         user.setEnabled(false);
+        userRepository.save(user);
     }
 
     @Override

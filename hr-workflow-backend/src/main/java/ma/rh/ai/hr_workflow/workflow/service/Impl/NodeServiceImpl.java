@@ -110,6 +110,7 @@ public class NodeServiceImpl implements INodeService {
     }
 
     @Override
+    @Transactional
     public List<NodeResponseDTO> reorderNodes(Long workflowId, List<NodeOrderDTO> nodeOrders) {
         Workflow workflow = workflowRepository.findById(workflowId).orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {

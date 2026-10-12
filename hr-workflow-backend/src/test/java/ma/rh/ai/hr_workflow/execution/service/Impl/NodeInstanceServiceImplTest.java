@@ -3,15 +3,14 @@ package ma.rh.ai.hr_workflow.execution.service.Impl;
 import ma.rh.ai.hr_workflow.execution.DTOs.ApproveNodeDTO;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
-import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.workflow.model.Node;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -86,9 +85,9 @@ class NodeInstanceServiceImplTest {
     class ApproveNode {
 
         @Test
-        @DisplayName("happy path — PENDING node is approved, actor/comment set, saved, returned")
-        void approveNode_pendingNode_approvesAndSaves() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.PENDING);
+        @DisplayName("happy path — WAITING_APPROVAL node is approved, actor/comment set, saved, returned")
+        void approveNode_waitingApprovalNode_approvesAndSaves() {
+            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.WAITING_APPROVAL);
             NodeInstance saved = new NodeInstance();
             saved.setId(2L);
             when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
@@ -105,33 +104,9 @@ class NodeInstanceServiceImplTest {
         }
 
         @Test
-        @DisplayName("happy path — IN_PROGRESS node is approved")
-        void approveNode_inProgressNode_approvesAndSaves() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.IN_PROGRESS);
-            when(nodeInstanceRepository.findById(2L)).thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            service.approveNode(2L, dto("user", "ok"));
-
-            assertThat(ni.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
-        }
-
-        @Test
-        @DisplayName("happy path — WAITING_APPROVAL node is approved")
-        void approveNode_waitingApprovalNode_approvesAndSaves() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.WAITING_APPROVAL);
-            when(nodeInstanceRepository.findById(3L)).thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            service.approveNode(3L, dto("mgr", "approved"));
-
-            assertThat(ni.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
-        }
-
-        @Test
         @DisplayName("happy path — markCompleted(null) copies inputData to outputData")
         void approveNode_markCompletedNull_outputDataIsInputData() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.PENDING);
+            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.WAITING_APPROVAL);
             ni.setInputData("some input");
             when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
             when(nodeInstanceRepository.save(ni)).thenReturn(ni);
@@ -141,34 +116,16 @@ class NodeInstanceServiceImplTest {
             assertThat(ni.getOutputData()).isEqualTo("some input");
         }
 
-        @Test
-        @DisplayName("exception — COMPLETED node cannot be approved")
-        void approveNode_completedNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.COMPLETED);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
+        @ParameterizedTest(name = "{0} node cannot be approved")
+        @EnumSource(value = NodeInstanceStatus.class, names = "WAITING_APPROVAL", mode = EnumSource.Mode.EXCLUDE)
+        @DisplayName("exception — only WAITING_APPROVAL nodes can be approved (no skipping GPT/EMAIL steps)")
+        void approveNode_notWaiting_throws(NodeInstanceStatus status) {
+            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(nodeWithStatus(status)));
 
-
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
                     () -> service.approveNode(1L, dto("admin", "late")));
-            assertThat(ex.getMessage()).contains("can only approve");
-        }
-
-        @Test
-        @DisplayName("exception — REJECTED node cannot be approved")
-        void approveNode_rejectedNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.REJECTED);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            assertThrows(RuntimeException.class, () -> service.approveNode(1L, dto("x", null)));
-        }
-
-        @Test
-        @DisplayName("exception — FAILED node cannot be approved")
-        void approveNode_failedNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.FAILED);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            assertThrows(RuntimeException.class, () -> service.approveNode(1L, dto("x", null)));
+            assertThat(ex.getMessage()).contains("waiting for approval");
+            verify(nodeInstanceRepository, never()).save(any());
         }
 
         @Test
@@ -188,10 +145,11 @@ class NodeInstanceServiceImplTest {
     class RejectNode {
 
         @Test
-        @DisplayName("happy path — PENDING node is rejected, actor/comment set, NOT saved")
-        void rejectNode_pendingNode_marksRejectedWithoutSave() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.PENDING);
+        @DisplayName("happy path — WAITING_APPROVAL node is rejected, actor/comment set, and saved")
+        void rejectNode_waitingApprovalNode_marksRejectedAndSaves() {
+            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.WAITING_APPROVAL);
             when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
+            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
 
             NodeInstance result = service.rejectNode(1L, dto("admin", "not qualified"));
 
@@ -199,38 +157,17 @@ class NodeInstanceServiceImplTest {
             assertThat(result.getActor()).isEqualTo("admin");
             assertThat(result.getComment()).isEqualTo("not qualified");
             assertThat(result.getFinishedAt()).isNotNull();
+            verify(nodeInstanceRepository).save(ni);
+        }
+
+        @ParameterizedTest(name = "{0} node cannot be rejected")
+        @EnumSource(value = NodeInstanceStatus.class, names = "WAITING_APPROVAL", mode = EnumSource.Mode.EXCLUDE)
+        @DisplayName("exception — only WAITING_APPROVAL nodes can be rejected")
+        void rejectNode_notWaiting_throws(NodeInstanceStatus status) {
+            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(nodeWithStatus(status)));
+
+            assertThrows(IllegalStateException.class, () -> service.rejectNode(1L, dto("admin", null)));
             verify(nodeInstanceRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("happy path — IN_PROGRESS node is rejected")
-        void rejectNode_inProgressNode_marksRejected() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.IN_PROGRESS);
-            when(nodeInstanceRepository.findById(2L)).thenReturn(Optional.of(ni));
-
-            NodeInstance result = service.rejectNode(2L, dto("hr", "underqualified"));
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.REJECTED);
-        }
-
-        @Test
-        @DisplayName("exception — COMPLETED node cannot be rejected")
-        void rejectNode_completedNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.COMPLETED);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> service.rejectNode(1L, dto("admin", null)));
-            assertThat(ex.getMessage()).contains("can only approve pending and in progress");
-        }
-
-        @Test
-        @DisplayName("exception — WAITING_APPROVAL node cannot be rejected")
-        void rejectNode_waitingApprovalNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.WAITING_APPROVAL);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            assertThrows(RuntimeException.class, () -> service.rejectNode(1L, dto("x", null)));
         }
 
         @Test
@@ -250,17 +187,18 @@ class NodeInstanceServiceImplTest {
     class FailNode {
 
         @Test
-        @DisplayName("happy path — PENDING node is failed with error message, NOT saved")
-        void failNode_pendingNode_marksFailedWithoutSave() {
+        @DisplayName("happy path — PENDING node is failed with error message and saved")
+        void failNode_pendingNode_marksFailedAndSaves() {
             NodeInstance ni = nodeWithStatus(NodeInstanceStatus.PENDING);
             when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
+            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
 
             NodeInstance result = service.failNode(1L, "timeout");
 
             assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
             assertThat(result.getErrorMessage()).isEqualTo("timeout");
             assertThat(result.getFinishedAt()).isNotNull();
-            verify(nodeInstanceRepository, never()).save(any());
+            verify(nodeInstanceRepository).save(ni);
         }
 
         @Test
@@ -268,6 +206,7 @@ class NodeInstanceServiceImplTest {
         void failNode_inProgressNode_marksFailed() {
             NodeInstance ni = nodeWithStatus(NodeInstanceStatus.IN_PROGRESS);
             when(nodeInstanceRepository.findById(2L)).thenReturn(Optional.of(ni));
+            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
 
             NodeInstance result = service.failNode(2L, "network error");
 
@@ -283,7 +222,7 @@ class NodeInstanceServiceImplTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> service.failNode(1L, "too late"));
-            assertThat(ex.getMessage()).contains("can only approve pending and in progress");
+            assertThat(ex.getMessage()).contains("can only fail pending and in progress");
         }
 
         @Test
@@ -301,99 +240,6 @@ class NodeInstanceServiceImplTest {
             when(nodeInstanceRepository.findById(99L)).thenReturn(Optional.empty());
 
             assertThrows(RuntimeException.class, () -> service.failNode(99L, "gone"));
-        }
-    }
-
-
-    @Nested
-    @DisplayName("retryNode()")
-    class RetryNode {
-
-        @Test
-        @DisplayName("happy path — FAILED node creates new RETRYING instance with incremented retryCount")
-        void retryNode_failedNode_createsNewRetryInstance() {
-            WorkflowInstance wfInstance = new WorkflowInstance();
-            Node node = new Node();
-            node.setId(10L);
-
-            NodeInstance failed = new NodeInstance();
-            failed.setId(5L);
-            failed.setStatus(NodeInstanceStatus.FAILED);
-            failed.setWorkflowInstance(wfInstance);
-            failed.setNode(node);
-            failed.setExecutionOrder(2);
-            failed.setInputData("original input");
-            failed.setRetryCount(1);
-
-            when(nodeInstanceRepository.findById(5L)).thenReturn(Optional.of(failed));
-
-            ArgumentCaptor<NodeInstance> captor = ArgumentCaptor.forClass(NodeInstance.class);
-            NodeInstance saved = new NodeInstance();
-            saved.setId(6L);
-            when(nodeInstanceRepository.save(captor.capture())).thenReturn(saved);
-
-            NodeInstance result = service.retryNode(5L);
-
-            assertThat(result).isEqualTo(saved);
-            NodeInstance created = captor.getValue();
-            assertThat(created.getStatus()).isEqualTo(NodeInstanceStatus.RETRYING);
-            assertThat(created.getWorkflowInstance()).isEqualTo(wfInstance);
-            assertThat(created.getNode()).isEqualTo(node);
-            assertThat(created.getExecutionOrder()).isEqualTo(2);
-            assertThat(created.getInputData()).isEqualTo("original input");
-            assertThat(created.getRetryCount()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("happy path — retryCount starts at 0, becomes 1 on first retry")
-        void retryNode_firstRetry_retryCountIsOne() {
-            NodeInstance failed = new NodeInstance();
-            failed.setStatus(NodeInstanceStatus.FAILED);
-            failed.setRetryCount(0);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(failed));
-
-            ArgumentCaptor<NodeInstance> captor = ArgumentCaptor.forClass(NodeInstance.class);
-            when(nodeInstanceRepository.save(captor.capture())).thenReturn(new NodeInstance());
-
-            service.retryNode(1L);
-
-            assertThat(captor.getValue().getRetryCount()).isEqualTo(1);
-        }
-
-        @Test
-        @DisplayName("exception — PENDING node cannot be retried")
-        void retryNode_pendingNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.PENDING);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> service.retryNode(1L));
-            assertThat(ex.getMessage()).contains("can only retry failed nodes");
-        }
-
-        @Test
-        @DisplayName("exception — IN_PROGRESS node cannot be retried")
-        void retryNode_inProgressNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.IN_PROGRESS);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            assertThrows(RuntimeException.class, () -> service.retryNode(1L));
-        }
-
-        @Test
-        @DisplayName("exception — COMPLETED node cannot be retried")
-        void retryNode_completedNode_throws() {
-            NodeInstance ni = nodeWithStatus(NodeInstanceStatus.COMPLETED);
-            when(nodeInstanceRepository.findById(1L)).thenReturn(Optional.of(ni));
-
-            assertThrows(RuntimeException.class, () -> service.retryNode(1L));
-        }
-
-        @Test
-        @DisplayName("exception — node not found throws RuntimeException")
-        void retryNode_notFound_throws() {
-            when(nodeInstanceRepository.findById(99L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> service.retryNode(99L));
         }
     }
 }

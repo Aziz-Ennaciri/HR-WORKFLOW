@@ -177,6 +177,22 @@ class LocalDriveServiceImplTest {
                     () -> service.saveFile(brokenConfig, "data"));
             assertThat(ex.getMessage()).contains("Local Drive operation failed");
         }
+
+        @Test
+        @DisplayName("security — write outside the storage root via ../ is rejected and nothing is written")
+        void saveFile_write_pathTraversal_rejected() {
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.saveFile(writeConfig("write", "../escape", "pwned.txt"), "data"));
+            assertThat(ex.getMessage()).contains("escapes the storage directory");
+            assertThat(Files.exists(tempDir.getParent().resolve("escape/pwned.txt"))).isFalse();
+        }
+
+        @Test
+        @DisplayName("security — read of a folder outside the storage root is rejected")
+        void saveFile_read_pathTraversal_rejected() {
+            assertThrows(RuntimeException.class,
+                    () -> service.saveFile(readConfig("../.."), null));
+        }
     }
 
 

@@ -13,7 +13,6 @@ export default function RegisterPage() {
     lastName: "",
     email: "",
     password: "",
-    role: "RH",
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -43,8 +42,8 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
     if (formData.password !== confirmPassword) {
@@ -56,7 +55,7 @@ export default function RegisterPage() {
       await api.post("/users/register", formData);
       router.push("/login");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Registration failed");
+      setError(err.response?.data?.detail || err.response?.data?.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -172,55 +171,6 @@ export default function RegisterPage() {
               placeholder="you@company.com"
               required
             />
-          </div>
-        </div>
-
-        {/* Role */}
-        <div>
-          <label className="block text-sm font-medium text-[#2d3748] mb-1.5">
-            Role
-          </label>
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a0aec0]">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.8}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-            </div>
-            <select
-              value={formData.role}
-              onChange={(e) =>
-                setFormData({ ...formData, role: e.target.value })
-              }
-              className={`${inputBase} pl-9 pr-8 py-2.5 cursor-pointer appearance-none text-[#2d3748]`}
-            >
-              <option value="RH">HR User — Create and run workflows</option>
-              <option value="ADMIN">Admin — Approve workflow steps</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a0aec0] pointer-events-none">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
           </div>
         </div>
 

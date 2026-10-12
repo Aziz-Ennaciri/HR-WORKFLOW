@@ -44,8 +44,6 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
     @Autowired private NodeRepository nodeRepository;
     @Autowired private WorkflowInstancerepository instanceRepository;
     @Autowired private NodeInstanceRepository nodeInstanceRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     private User user;

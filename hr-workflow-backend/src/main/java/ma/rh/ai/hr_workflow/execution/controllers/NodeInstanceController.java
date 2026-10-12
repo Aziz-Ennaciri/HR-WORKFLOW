@@ -172,8 +172,12 @@ public class NodeInstanceController {
     @PreAuthorize("@access.canAccessNodeInstance(#id)")
     @Operation(summary = "Retry failed node")
     public ResponseEntity<NodeInstanceResponseDTO> retry(@PathVariable Long id) {
-        NodeInstance node = nodeInstanceService.retryNode(id);
-        return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(node));
+        NodeInstance node = nodeInstanceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
+        // Reuses the engine's retry path: resets this node in place and resumes the workflow from it
+        executionService.retryFromNode(node.getWorkflowInstance().getId(), node.getNode().getId());
+        return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(
+                nodeInstanceRepository.findById(id).orElseThrow()));
     }
 
     /** Only the assigned approver may decide; if nobody is assigned, an admin or the workflow owner may. */

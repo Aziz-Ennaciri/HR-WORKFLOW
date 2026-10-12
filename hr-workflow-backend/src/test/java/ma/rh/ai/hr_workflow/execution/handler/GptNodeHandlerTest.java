@@ -55,8 +55,8 @@ class GptNodeHandlerTest {
 
     private String combinedDriveJson(String prompt) {
         return "{\"originalInput\":{\"prompt\":\"" + prompt + "\"},"
-                + "\"cvData\":{\"totalCVs\":2,\"folder\":\"cv_uploads\","
-                + "\"cvs\":[{\"fileName\":\"alice.pdf\",\"content\":\"Alice 5yr Java\"},"
+                + "\"fileData\":{\"totalFiles\":2,\"folder\":\"cv_uploads\","
+                + "\"files\":[{\"fileName\":\"alice.pdf\",\"content\":\"Alice 5yr Java\"},"
                 + "{\"fileName\":\"bob.pdf\",\"content\":\"Bob 2yr Python\"}]}}";
     }
 
@@ -251,9 +251,9 @@ class GptNodeHandlerTest {
         }
 
         @Test
-        @DisplayName("edge case — nodeInputData is JSON but missing cvData → falls to legacy merge")
+        @DisplayName("edge case — nodeInputData is JSON but missing fileData → falls to legacy merge")
         void execute_jsonMissingCvData_legacyMerge() throws Exception {
-            String nodeInput = "{\"originalInput\":{\"prompt\":\"hello\"}}"; // missing cvData
+            String nodeInput = "{\"originalInput\":{\"prompt\":\"hello\"}}"; // missing fileData
             Node node = buildNode("{}");
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
@@ -268,7 +268,7 @@ class GptNodeHandlerTest {
         @Test
         @DisplayName("edge case — nodeInputData is JSON but missing originalInput → falls to legacy merge")
         void execute_jsonMissingOriginalInput_legacyMerge() throws Exception {
-            String nodeInput = "{\"cvData\":{\"cvs\":[]}}"; // missing originalInput
+            String nodeInput = "{\"fileData\":{\"files\":[]}}"; // missing originalInput
             Node node = buildNode("{}");
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");

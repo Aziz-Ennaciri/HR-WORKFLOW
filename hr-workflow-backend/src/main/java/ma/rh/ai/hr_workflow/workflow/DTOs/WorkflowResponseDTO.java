@@ -19,4 +19,5 @@ public class WorkflowResponseDTO {
     private String createdByEmail;
     private LocalDateTime createdAt;
     private String edgesJson;
+    private String layoutJson;
 }

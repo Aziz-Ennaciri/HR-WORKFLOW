@@ -1,10 +1,10 @@
 package ma.rh.ai.hr_workflow.integration.excel.service.Impl;
 
+import ma.rh.ai.hr_workflow.integration.StoragePaths;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -163,9 +163,7 @@ public class RealExcelServiceImpl implements ExcelService {
                 throw new RuntimeException("fileName is required for READ operation");
             }
 
-            Path filePath = folderId.isBlank()
-                    ? Paths.get(storagePath, fileName)
-                    : Paths.get(storagePath, folderId, fileName);
+            Path filePath = StoragePaths.resolveInside(storagePath, folderId, fileName);
 
             log.info("📖 Excel READ: reading file {}", filePath);
 

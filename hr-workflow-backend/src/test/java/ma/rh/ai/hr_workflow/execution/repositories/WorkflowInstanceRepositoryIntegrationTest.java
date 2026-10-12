@@ -28,8 +28,6 @@ class WorkflowInstanceRepositoryIntegrationTest extends AbstractIntegrationTest 
 
     @Autowired private WorkflowInstancerepository instanceRepository;
     @Autowired private WorkflowRepository workflowRepository;
-    @Autowired private UserRepository userRepository;
-    @Autowired private RoleRepository roleRepository;
 
     private User user;
     private Workflow workflow;

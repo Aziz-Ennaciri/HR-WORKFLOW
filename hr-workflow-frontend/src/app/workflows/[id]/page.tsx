@@ -125,6 +125,15 @@ export default function WorkflowDesignerPage() {
 
       const nodesResponse = await api.get(`/nodes/workflow/${params.id}`);
 
+      let layout: Record<string, { x: number; y: number }> = {};
+      if (response.data.layoutJson) {
+        try {
+          layout = JSON.parse(response.data.layoutJson);
+        } catch (e) {
+          console.error("Failed to parse layoutJson", e);
+        }
+      }
+
       if (nodesResponse.data && nodesResponse.data.length > 0) {
         const flowNodes = nodesResponse.data.map((node: any, index: number) => {
           let config = {};
@@ -137,7 +146,7 @@ export default function WorkflowDesignerPage() {
           return {
             id: node.id.toString(),
             type: node.type.toLowerCase(),
-            position: {
+            position: layout[node.id.toString()] ?? {
               x: 100 + index * 250,
               y: 100 + Math.floor(index / 3) * 150,
             },
@@ -437,7 +446,12 @@ export default function WorkflowDesignerPage() {
         setEdges(finalEdges);
       }
 
-      // Step 4: Persist workflow with correct edgesJson and final status
+      // Node ids above are already remapped to backend ids, so the layout keys match on reload
+      const layout = Object.fromEntries(
+        nodesRef.current.map((n) => [n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }]),
+      );
+
+      // Step 4: Persist workflow with correct edgesJson, layout and final status
       const finalStatus = wasActive ? "ACTIVE" : (workflow.status ?? "DRAFT");
       await api.put(`/workflows/${params.id}`, {
         name: workflow.name,
@@ -446,6 +460,7 @@ export default function WorkflowDesignerPage() {
         status: finalStatus,
         createdById: workflow.createdById,
         edgesJson: JSON.stringify(finalEdges),
+        layoutJson: JSON.stringify(layout),
       });
       if (wasActive) setWorkflow((w: any) => ({ ...w, status: "ACTIVE" }));
 

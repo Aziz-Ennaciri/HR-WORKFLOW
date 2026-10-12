@@ -12,5 +12,4 @@ public interface INodeInstanceService {
 
     NodeInstance failNode(Long nodeInstanceId, String errorMessage);
 
-    NodeInstance retryNode(Long nodeInstanceId);
 }

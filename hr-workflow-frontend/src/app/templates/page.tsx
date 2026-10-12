@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layouts/sidebar";
 import Button from "@/components/ui/Button";
@@ -38,35 +38,72 @@ const templates = [
   },
 ];
 
+type Template = (typeof templates)[number];
+
 export default function TemplatesPage() {
   const router = useRouter();
   const [workflows, setWorkflows] = useState<any[]>([]);
+  const [cloningId, setCloningId] = useState<number | null>(null);
 
   const authReady = useAuthGuard();
-  const cloneTemplate = async (template: any) => {
+
+  const fetchWorkflows = () =>
+    api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data)).catch(() => {});
+
+  useEffect(() => {
+    if (!authReady) return;
+    fetchWorkflows();
+  }, [authReady]);
+
+  const cloneTemplate = async (template: Template) => {
+    setCloningId(template.id);
     try {
-      const response = await api.post("/workflows", {
+      // POST /workflows only takes name/description; nodes are created separately, in chain order.
+      const { data: workflow } = await api.post("/workflows", {
         name: template.name + " (copy)",
-        nodes: template.nodes,
-        status: "DRAFT",
+        description: template.description,
       });
-      toast.success("Template cloned! You can edit it from the dashboard");
+      const { data: nodes } = await api.post(`/nodes/workflow/${workflow.id}/batch`,
+        template.nodes.map((type, index) => ({ type, order: index + 1, configJson: "{}" })),
+      );
+
+      // Connect the nodes in sequence and lay them out left-to-right, like the editor does.
+      const ids: string[] = nodes
+        .sort((a: any, b: any) => a.order - b.order)
+        .map((n: any) => n.id.toString());
+      const edges = ids.slice(1).map((target, i) => ({
+        id: `e${ids[i]}-${target}`,
+        source: ids[i],
+        target,
+        type: "deletable",
+        style: { stroke: "#94a3b8", strokeWidth: 2 },
+        markerEnd: { type: "arrowclosed", color: "#94a3b8" },
+      }));
+      const layout = Object.fromEntries(ids.map((id, i) => [id, { x: 100 + i * 250, y: 150 }]));
+      await api.put(`/workflows/${workflow.id}`, {
+        name: workflow.name,
+        description: workflow.description,
+        edgesJson: JSON.stringify(edges),
+        layoutJson: JSON.stringify(layout),
+      });
+
+      toast.success("Template cloned. Configure each node, then activate it.");
+      router.push(`/workflows/${workflow.id}`);
     } catch (e: any) {
       console.error("failed clone", e);
-      toast.error("Unable to clone template");
+      toast.error(e.response?.data?.detail || "Unable to clone template");
+      setCloningId(null);
     }
-
-    if (!authReady) return null;
   };
+
+  if (!authReady) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar
         workflows={workflows}
         onCreateWorkflow={() => router.push("/dashboard")}
-        onWorkflowDeleted={() =>
-          api.get(getWorkflowsUrl()).then((r) => setWorkflows(r.data))
-        }
+        onWorkflowDeleted={fetchWorkflows}
       />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-8 py-8">
@@ -96,8 +133,9 @@ export default function TemplatesPage() {
                   onClick={() => cloneTemplate(t)}
                   variant="primary"
                   className="mt-4"
+                  disabled={cloningId !== null}
                 >
-                  Clone
+                  {cloningId === t.id ? "Cloning…" : "Clone"}
                 </Button>
               </div>
             ))}

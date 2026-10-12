@@ -168,6 +168,7 @@ public class ExecutionTransactionHelper {
         }
 
         nodeInstance.setStatus(NodeInstanceStatus.PENDING);
+        nodeInstance.setRetryCount((nodeInstance.getRetryCount() == null ? 0 : nodeInstance.getRetryCount()) + 1);
         nodeInstance.setErrorMessage(null);
         nodeInstance.setStartedAt(null);
         nodeInstance.setFinishedAt(null);
