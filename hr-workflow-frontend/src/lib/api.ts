@@ -57,7 +57,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !isAuthEndpoint(original?.url)) {
       clearAuth();
       if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
-        window.location.href = "/login";
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/login?next=${next}`;
       }
     }
     return Promise.reject(error);

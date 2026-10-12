@@ -1,45 +1,21 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "react-hot-toast";
+import { Providers } from "./providers";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "HR Workflow System",
-  description: "Automate your HR processes with ease",
+  title: { default: "HR Workflow", template: "%s · HR Workflow" },
+  description: "Automate your HR processes with AI analysis, reports, approvals and email.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="flex flex-col min-h-screen bg-background text-foreground">
-        <main className="flex-grow">{children}</main>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: "#363636",
-              color: "#fff",
-            },
-            success: {
-              duration: 3000,
-              iconTheme: {
-                primary: "#4ade80",
-                secondary: "#fff",
-              },
-            },
-            error: {
-              duration: 4000,
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#fff",
-              },
-            },
-          }}
-        />
+    // next-themes sets the theme class on <html> before hydration
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <body className="min-h-screen">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

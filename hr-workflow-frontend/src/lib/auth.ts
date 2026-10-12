@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import type { User } from "@/types";
 
 // ─── Storage helpers ────────────────────────────────────────────
 // Use sessionStorage so sessions die when the browser/tab closes
@@ -11,7 +12,7 @@ export function getToken(): string | null {
   return sessionStorage.getItem("token");
 }
 
-export function getUser(): any | null {
+export function getUser(): User | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem("user");
   if (!raw) return null;
@@ -28,14 +29,14 @@ export function getRefreshToken(): string | null {
 }
 
 /** Stores a token pair after login or refresh. The access token is short-lived (minutes). */
-export function setAuth(token: string, user: any, refreshToken?: string) {
+export function setAuth(token: string, user: User, refreshToken?: string) {
   sessionStorage.setItem("token", token);
   sessionStorage.setItem("user", JSON.stringify(user));
   if (refreshToken) sessionStorage.setItem("refreshToken", refreshToken);
 }
 
 /** Updates the cached profile without touching the tokens. */
-export function setUser(user: any) {
+export function setUser(user: User) {
   sessionStorage.setItem("user", JSON.stringify(user));
 }
 
@@ -88,7 +89,8 @@ export function useAuthGuard() {
     }
 
     if (!isAuthenticated()) {
-      router.replace("/login");
+      // Come back here after signing in
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     } else {
       setChecked(true);
     }

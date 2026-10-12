@@ -58,10 +58,18 @@ A more detailed diagram is in [`docs/architecture.excalidraw`](docs/architecture
 
 ```bash
 cp .env.example .env
-# then edit .env: DB_PASSWORD, JWT_SECRET (openssl rand -base64 64), MAIL_USERNAME / MAIL_PASSWORD
+# then edit .env: DB_PASSWORD, JWT_SECRET (openssl rand -base64 64),
+# CONFIG_ENCRYPTION_KEY (openssl rand -base64 32), MAIL_USERNAME / MAIL_PASSWORD
 ```
 
-`.env` is git-ignored — never commit real credentials.
+`.env` is git-ignored — never commit real credentials. Keep `CONFIG_ENCRYPTION_KEY` stable: it encrypts the API keys stored in workflow steps, and changing it makes them unreadable.
+
+**First admin:** self-registration always creates an HR user. Promote the first administrator in the database, after which admins can create other admins through `POST /users/register`:
+
+```sql
+UPDATE user_roles SET role_id = (SELECT id FROM roles WHERE name = 'ROLE_ADMIN')
+WHERE user_id = (SELECT id FROM users WHERE email = 'you@company.com');
+```
 
 ### 2a. Run everything with Docker
 
@@ -88,6 +96,7 @@ cd hr-workflow-backend
 cd hr-workflow-frontend
 npm install
 npm run dev
+npm run check   # type-check + lint (no warnings allowed)
 ```
 
 ## Configuration
@@ -99,10 +108,14 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | `DB_URL` | JDBC URL | `jdbc:postgresql://localhost:5432/hr_workflow_db` |
 | `DB_USERNAME` / `DB_PASSWORD` | Database credentials | `admin` / *(required)* |
 | `JWT_SECRET` | HS512 signing key (≥ 64 bytes) | *(required)* |
-| `JWT_EXPIRATION_MS` | Token lifetime | `86400000` (24 h) |
+| `CONFIG_ENCRYPTION_KEY` | AES-256 key (base64, 32 bytes) for secrets in step settings | *(required)* |
+| `JWT_EXPIRATION_MS` | Access-token lifetime (renewed automatically with the refresh token) | `900000` (15 min) |
+| `JWT_REFRESH_EXPIRATION_MS` | Refresh-token lifetime | `604800000` (7 days) |
 | `MAIL_USERNAME` / `MAIL_PASSWORD` | SMTP credentials (Gmail app password) | — |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed origins | `http://localhost:3000` |
-| `DRIVE_STORAGE_PATH` | Folder used by the Drive node | `~/hr-workflow-files` |
+| `DRIVE_STORAGE_PATH` | Folder used by the Drive node and for generated reports | `~/hr-workflow-files` |
+| `DRIVE_PROVIDER` | `local` (storage folder) or `google` (Google Drive) | `local` |
+| `PUBLIC_API_URL` | How email recipients reach the API (report links) | `http://localhost:8080` |
 | `NEXT_PUBLIC_API_URL` | API base URL used by the frontend (build time) | `http://localhost:8080/api/v1` |
 
 ## Testing
@@ -116,15 +129,16 @@ The integration tests start a real PostgreSQL container, apply the Flyway migrat
 
 ## API overview
 
-All endpoints are under `/api/v1` and require `Authorization: Bearer <token>` except register/login.
+All endpoints are under `/api/v1` and require `Authorization: Bearer <token>` except register, login, refresh and logout.
+Lists of executions and users are paginated (`?page=0&size=20`, max 100) and return `{ content, page, size, totalElements, totalPages }`.
 Errors use the [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/problem+json` format.
 
 | Area | Endpoints |
 |------|-----------|
-| Auth & users | `POST /users/register`, `POST /users/login`, `GET/PATCH/DELETE /users/me`, … |
-| Workflows | `GET/POST /workflows`, `GET/PUT/PATCH/DELETE /workflows/{id}`, `POST /workflows/{id}/duplicate` |
+| Auth & users | `POST /users/register`, `POST /users/login`, `POST /users/refresh`, `POST /users/logout`, `GET/PATCH/DELETE /users/me`, … |
+| Workflows | `GET/POST /workflows`, `GET/PUT/PATCH/DELETE /workflows/{id}`, `PUT /workflows/{id}/graph` (save the editor canvas atomically), `POST /workflows/{id}/duplicate` |
 | Nodes | `/nodes/workflow/{workflowId}`, `/nodes/{id}` |
-| Executions | `POST /executions/trigger`, `GET /executions/{id}/detail`, `POST /executions/{id}/retry-from/{nodeId}` |
+| Executions | `POST /executions/trigger`, `GET /executions` (filters: `status`, `workflowId`), `GET /executions/stats`, `GET /executions/{id}/detail`, `POST /executions/nodes/{stepId}/retry` |
 | Approvals | `GET /executions/nodes/my-approvals`, `POST /executions/nodes/{id}/approve` · `/reject` |
 
 Full, interactive documentation is available in Swagger UI.

@@ -211,9 +211,10 @@ public class WorkflowServiceImpl implements IWorkflowService {
         if (nodes.isEmpty()) {
             throw new IllegalStateException("Workflow must have at least one node");
         }
-        List<WorkflowGraph.Edge> edges = WorkflowGraph.parseEdges(workflow.getEdgesJson());
-        if (!edges.isEmpty()) {
-            WorkflowGraph.executionOrder(nodes.stream().map(node -> node.getId().toString()).toList(), edges);
+        // A single step needs no connections; several must form one chain.
+        if (nodes.size() > 1) {
+            WorkflowGraph.executionOrder(nodes.stream().map(node -> node.getId().toString()).toList(),
+                    WorkflowGraph.parseEdges(workflow.getEdgesJson()));
         }
         List<String> configErrors = nodes.stream().flatMap(node -> nodeConfigValidator.validate(node).stream()).toList();
         if (!configErrors.isEmpty()) {

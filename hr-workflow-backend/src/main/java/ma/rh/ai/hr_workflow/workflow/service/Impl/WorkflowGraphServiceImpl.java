@@ -55,8 +55,10 @@ public class WorkflowGraphServiceImpl implements IWorkflowGraphService {
         }
 
         List<GraphNode> graphNodes = dto.getNodes();
+        List<String> nodeIds = graphNodes.stream().map(GraphNode::getId).toList();
         List<WorkflowGraph.Edge> edges = WorkflowGraph.parseEdges(dto.getEdges());
-        List<String> order = WorkflowGraph.executionOrder(graphNodes.stream().map(GraphNode::getId).toList(), edges);
+        WorkflowGraph.requireKnownEndpoints(nodeIds, edges);
+        List<String> order = executionOrder(workflow, nodeIds, edges, dto.getLayout());
         if (workflow.getStatus() == WorkflowStatus.ACTIVE && order.isEmpty()) {
             throw new IllegalStateException("An active workflow must keep at least one node");
         }
@@ -87,6 +89,25 @@ public class WorkflowGraphServiceImpl implements IWorkflowGraphService {
         workflow.setEdgesJson(WorkflowGraph.remapIds(json(dto.getEdges(), "[]"), idMap));
         workflow.setLayoutJson(dropUnknownKeys(WorkflowGraph.remapIds(json(dto.getLayout(), "{}"), idMap), idMap));
         return workflowMapper.toResponseDTO(workflowRepository.save(workflow));
+    }
+
+    /**
+     * An ACTIVE workflow must stay a runnable single chain. A draft may be saved half-built:
+     * if its connections don't form a chain yet, steps are ordered left to right on the canvas
+     * (activation checks the chain).
+     */
+    private static List<String> executionOrder(Workflow workflow, List<String> nodeIds, List<WorkflowGraph.Edge> edges,
+                                               JsonNode layout) {
+        try {
+            return WorkflowGraph.executionOrder(nodeIds, edges);
+        } catch (IllegalArgumentException e) {
+            if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
+                throw e;
+            }
+            return nodeIds.stream()
+                    .sorted(java.util.Comparator.comparingDouble(id -> layout == null ? 0 : layout.path(id).path("x").asDouble(0)))
+                    .toList();
+        }
     }
 
     private static Node resolve(Map<Long, Node> existing, String clientId, Workflow workflow) {

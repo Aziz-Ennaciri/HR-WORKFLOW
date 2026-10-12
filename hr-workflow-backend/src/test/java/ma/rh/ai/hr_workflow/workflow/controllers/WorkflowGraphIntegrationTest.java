@@ -102,17 +102,74 @@ class WorkflowGraphIntegrationTest extends AbstractIntegrationTest {
         assertThat(nodeRepository.findById(first.get(1).getId())).isEmpty();
     }
 
+    private static final String VALID_CHAIN = """
+            {"nodes":[{"id":"a","type":"DRIVE","configJson":"{\\"action\\":\\"read\\",\\"folderId\\":\\"cvs\\"}"},
+                      {"id":"b","type":"GPT","configJson":"{\\"prompt\\":\\"Rank\\"}"}],
+             "edges":[{"source":"a","target":"b"}]}
+            """;
+
+    private void activate() throws Exception {
+        mockMvc.perform(put("/api/v1/workflows/" + workflowId)
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Graph WF\",\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk());
+    }
+
     @Test
-    @DisplayName("an invalid graph is rejected with 400 and nothing is saved")
-    void saveGraph_invalidGraph_rejectedAtomically() throws Exception {
+    @DisplayName("a draft can be saved half-built: unconnected steps are ordered left to right")
+    void saveGraph_incompleteDraft_savedInCanvasOrder() throws Exception {
         saveGraph("""
-                {"nodes":[{"id":"a","type":"DRIVE"},{"id":"b","type":"GPT"},{"id":"c","type":"EMAIL"}],
-                 "edges":[{"source":"a","target":"b"},{"source":"a","target":"c"}]}
-                """)
+                {"nodes":[{"id":"right","type":"EMAIL"},{"id":"left","type":"DRIVE"}],
+                 "edges":[],
+                 "layout":{"left":{"x":10,"y":0},"right":{"x":400,"y":0}}}
+                """).andExpect(status().isOk());
+
+        assertThat(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId))
+                .extracting(Node::getType).containsExactly(NodeType.DRIVE, NodeType.EMAIL);
+    }
+
+    @Test
+    @DisplayName("an ACTIVE workflow must stay a single chain: a branching save is rejected and nothing changes")
+    void saveGraph_activeBranching_rejectedAtomically() throws Exception {
+        saveGraph(VALID_CHAIN).andExpect(status().isOk());
+        activate();
+        List<Node> before = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId);
+        String a = before.get(0).getId().toString();
+        String b = before.get(1).getId().toString();
+
+        saveGraph("""
+                {"nodes":[{"id":"%s","type":"DRIVE"},{"id":"%s","type":"GPT"},{"id":"c","type":"EMAIL"}],
+                 "edges":[{"source":"%s","target":"%s"},{"source":"%s","target":"c"}]}
+                """.formatted(a, b, a, b, a))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("branching")));
 
-        assertThat(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId)).isEmpty();
+        assertThat(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("activation requires several steps to be connected")
+    void activate_unconnectedSteps_rejected() throws Exception {
+        saveGraph("""
+                {"nodes":[{"id":"a","type":"DRIVE","configJson":"{}"},{"id":"b","type":"GPT","configJson":"{\\"prompt\\":\\"Rank\\"}"}],
+                 "edges":[]}
+                """).andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/v1/workflows/" + workflowId)
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Graph WF\",\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("single chain")));
+    }
+
+    @Test
+    @DisplayName("a connection to an unknown node is rejected even in a draft")
+    void saveGraph_unknownEndpoint_rejected() throws Exception {
+        saveGraph("""
+                {"nodes":[{"id":"a","type":"DRIVE"}],"edges":[{"source":"a","target":"ghost"}]}
+                """).andExpect(status().isBadRequest());
     }
 
     @Test

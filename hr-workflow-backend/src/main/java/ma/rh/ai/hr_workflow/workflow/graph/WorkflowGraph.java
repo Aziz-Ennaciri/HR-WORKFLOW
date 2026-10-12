@@ -61,6 +61,16 @@ public final class WorkflowGraph {
         return result;
     }
 
+    /** Rejects edges that point at nodes not on the canvas (always an error, even in a draft). */
+    public static void requireKnownEndpoints(Collection<String> nodeIds, List<Edge> edges) {
+        Set<String> nodes = Set.copyOf(nodeIds);
+        for (Edge edge : edges) {
+            if (!nodes.contains(edge.source()) || !nodes.contains(edge.target())) {
+                throw new IllegalArgumentException("A connection points to a node that does not exist");
+            }
+        }
+    }
+
     /**
      * Returns the node ids in execution order.
      *

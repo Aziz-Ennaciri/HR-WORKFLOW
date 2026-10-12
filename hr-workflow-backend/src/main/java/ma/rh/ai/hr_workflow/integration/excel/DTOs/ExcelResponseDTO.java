@@ -13,7 +13,9 @@ import lombok.NoArgsConstructor;
 public class ExcelResponseDTO {
     private Integer rowsProcessed;
     private Integer columnsProcessed;
-    private String outputFileUrl;    private String webFileUrl;    private Long fileSize;
+    private String outputFileUrl;
+    private String webFileUrl;
+    private Long fileSize;
     private String sheetName;
     private String operation;
     private LocalDateTime createdAt;
