@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.execution.DTOs.ApproveNodeDTO;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
+import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
+import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
 import ma.rh.ai.hr_workflow.execution.service.INodeInstanceService;
 
@@ -38,6 +40,15 @@ public class NodeInstanceServiceImpl implements INodeInstanceService{
     public NodeInstance rejectNode(Long nodeInstanceId, ApproveNodeDTO dto) {
         NodeInstance nodeInstance = findAwaitingDecision(nodeInstanceId);
         nodeInstance.markRejected(dto.getActor(), dto.getComment());
+
+        // A rejection ends the execution, in the same transaction as the decision.
+        WorkflowInstance instance = nodeInstance.getWorkflowInstance();
+        if (instance != null && !instance.isFinished()) {
+            instance.setStatus(WorkflowInstanceStatus.FAILED);
+            instance.setErrorMessage("Rejected at APPROVAL by " + dto.getActor());
+            instance.setErrorStackTrace(dto.getComment());
+            instance.complete();
+        }
         return nodeInstanceRepository.save(nodeInstance);
     }
 

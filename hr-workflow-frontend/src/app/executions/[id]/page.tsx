@@ -58,7 +58,7 @@ export default function ExecutionDetailPage() {
 
       const configs: Record<number, any> = {};
       for (const ni of data.nodeInstances || []) {
-        if (ni.nodeType === "EXCEL" && !nodeConfigMap[ni.nodeId]) {
+        if (ni.nodeType === "EXCEL" && ni.nodeId && !nodeConfigMap[ni.nodeId]) {
           try {
             const nodeResp = await api.get(`/nodes/${ni.nodeId}`);
             configs[ni.nodeId] = JSON.parse(nodeResp.data.configJson || "{}");
@@ -263,7 +263,6 @@ export default function ExecutionDetailPage() {
                         <NodeResultCard
                           key={ni.id}
                           nodeInstance={ni}
-                          executionId={executionId}
                           onRetry={fetchDetail}
                           onDownloadExcel={() => downloadExcel(ni)}
                         />
@@ -341,12 +340,10 @@ const NODE_ICONS: Record<string, string> = {
 
 function NodeResultCard({
   nodeInstance,
-  executionId,
   onRetry,
   onDownloadExcel,
 }: {
   nodeInstance: any;
-  executionId: number;
   onRetry: () => void;
   onDownloadExcel: () => void;
 }) {
@@ -364,12 +361,11 @@ function NodeResultCard({
     e.stopPropagation();
     setRetrying(true);
     try {
-      await api.post(
-        `/executions/${executionId}/retry-from/${nodeInstance.nodeId}`,
-      );
+      // Retry by step id: it still works if the workflow node was deleted since this run.
+      await api.post(`/executions/nodes/${nodeInstance.id}/retry`);
       onRetry();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Retry failed");
+      toast.error(err?.response?.data?.detail || "Retry failed");
     } finally {
       setRetrying(false);
     }

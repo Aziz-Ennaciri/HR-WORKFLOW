@@ -24,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -80,6 +81,22 @@ public abstract class AbstractIntegrationTest {
         user.setCreatedAt(LocalDateTime.now());
         user.setRoles(new HashSet<>(Set.of(roleRepository.findByName(roleName).orElseThrow())));
         return userRepository.save(user);
+    }
+
+    /** Polls until the condition holds; for assertions on work done by the background engine. */
+    protected static void await(String description, BooleanSupplier condition) {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (!condition.getAsBoolean()) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new AssertionError("Timed out waiting for: " + description);
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("Interrupted while waiting for: " + description);
+            }
+        }
     }
 
     protected String getAuthToken(String email, String password) throws Exception {

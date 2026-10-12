@@ -345,6 +345,11 @@ class WorkflowControllerIntegrationTest extends AbstractIntegrationTest {
                     .andExpect(status().isCreated())
                     .andReturn();
             Long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+            mockMvc.perform(post("/api/v1/nodes/workflow/" + id)
+                    .header("Authorization", adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"type\":\"EMAIL\",\"order\":1,\"configJson\":\"{}\"}"))
+                    .andExpect(status().isCreated());
 
             UpdateWorkflowDTO activateDTO = new UpdateWorkflowDTO();
             activateDTO.setName("ToActivate");

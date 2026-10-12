@@ -7,10 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
 import ma.rh.ai.hr_workflow.integration.gpt.service.GptService;
-import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 
 @Slf4j
@@ -27,10 +25,10 @@ public class GptNodeHandler implements NodeHandler {
     }
 
     @Override
-    public String execute(Node node, NodeInstance nodeInstance) throws Exception {
-        String configJson = node.getConfigJson();
-        String nodeInputData = nodeInstance.getInputData();
-        String workflowInputData = nodeInstance.getWorkflowInstance().getInputData();
+    public String execute(NodeExecutionContext context) throws Exception {
+        String configJson = context.configJson();
+        String nodeInputData = context.inputData();
+        String workflowInputData = context.workflowInputData();
 
         String inputForGpt;
 

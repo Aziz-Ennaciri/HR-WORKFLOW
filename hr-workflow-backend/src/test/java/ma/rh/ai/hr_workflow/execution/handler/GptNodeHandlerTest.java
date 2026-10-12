@@ -88,7 +88,7 @@ class GptNodeHandlerTest {
 
             when(gptService.analyze(config, driveOutput)).thenReturn(gptResult);
 
-            String result = handler.execute(node, ni);
+            String result = handler.execute(HandlerTestSupport.context(node, ni));
 
             assertThat(result).isEqualTo(gptResult);
             verify(gptService).analyze(config, driveOutput);
@@ -103,7 +103,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(driveOutput, "FILTERING_CRITERIA:{\"Profile\":\"Dev\"}");
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> inputCaptor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(eq(config), inputCaptor.capture());
@@ -128,7 +128,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, workflowInput);
             when(gptService.analyze(any(), any())).thenReturn("result");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> inputCaptor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(eq(config), inputCaptor.capture());
@@ -146,7 +146,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(null, workflowInput);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -163,7 +163,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance("   ", workflowInput);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -180,7 +180,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -197,7 +197,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, "   ");
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -212,7 +212,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(null, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -228,7 +228,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("result");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -243,7 +243,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -258,7 +258,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -273,7 +273,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance(nodeInput, null);
             when(gptService.analyze(any(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(any(), captor.capture());
@@ -296,7 +296,7 @@ class GptNodeHandlerTest {
                     .thenThrow(new RuntimeException("Ollama unavailable"));
 
             RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> handler.execute(node, ni));
+                    () -> handler.execute(HandlerTestSupport.context(node, ni)));
             assertThat(ex.getMessage()).contains("Ollama unavailable");
         }
 
@@ -309,7 +309,7 @@ class GptNodeHandlerTest {
                     .thenThrow(new Exception("Network timeout"));
 
             Exception ex = assertThrows(Exception.class,
-                    () -> handler.execute(node, ni));
+                    () -> handler.execute(HandlerTestSupport.context(node, ni)));
             assertThat(ex.getMessage()).contains("Network timeout");
         }
     }
@@ -328,7 +328,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance("data", null);
             when(gptService.analyze(any(), any())).thenReturn("result");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             ArgumentCaptor<String> configCaptor = ArgumentCaptor.forClass(String.class);
             verify(gptService).analyze(configCaptor.capture(), any());
@@ -342,7 +342,7 @@ class GptNodeHandlerTest {
             NodeInstance ni = buildNodeInstance("some data", null);
             when(gptService.analyze(isNull(), any())).thenReturn("ok");
 
-            handler.execute(node, ni);
+            handler.execute(HandlerTestSupport.context(node, ni));
 
             verify(gptService).analyze(isNull(), any());
         }

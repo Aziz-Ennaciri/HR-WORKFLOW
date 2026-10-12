@@ -13,12 +13,9 @@ import ma.rh.ai.hr_workflow.execution.mappers.NodeInstanceMapper;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
-import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
-import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
 import ma.rh.ai.hr_workflow.execution.service.INodeInstanceService;
-import ma.rh.ai.hr_workflow.execution.service.Impl.ExecutionTransactionHelper;
-import ma.rh.ai.hr_workflow.execution.service.Impl.WorkflowExecutionServiceImpl;
+import ma.rh.ai.hr_workflow.execution.service.IWorkflowExecutionService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,9 +38,7 @@ public class NodeInstanceController {
     private final INodeInstanceService nodeInstanceService;
     private final NodeInstanceRepository nodeInstanceRepository;
     private final NodeInstanceMapper nodeInstanceMapper;
-    private final WorkflowExecutionServiceImpl executionService;
-    private final WorkflowInstancerepository workflowInstanceRepository;
-    private final ExecutionTransactionHelper txHelper;
+    private final IWorkflowExecutionService executionService;
     private final ObjectMapper objectMapper;
     private final AccessGuard accessGuard;
 
@@ -84,7 +79,7 @@ public class NodeInstanceController {
 
             // Extract instructions from node config
             try {
-                String configJson = ni.getNode().getConfigJson();
+                String configJson = ni.getConfigSnapshot();
                 if (configJson != null) {
                     JsonNode config = objectMapper.readTree(configJson);
                     if (config.has("instructions")) {
@@ -135,14 +130,8 @@ public class NodeInstanceController {
         dto.setActor(SecurityUtils.currentUserEmail());
 
         NodeInstance node = nodeInstanceService.approveNode(id, dto);
-
-        Long workflowInstanceId = node.getWorkflowInstance().getId();
-        WorkflowInstance wfInstance = workflowInstanceRepository.findById(workflowInstanceId)
-                .orElse(null);
-
-        if (wfInstance != null && wfInstance.getStatus() == WorkflowInstanceStatus.PAUSED) {
-            executionService.resumeAfterApproval(workflowInstanceId);
-        }
+        // Resuming is idempotent: only one worker can claim the paused execution.
+        executionService.resumeAfterApproval(node.getWorkflowInstance().getId());
 
         return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(node));
     }
@@ -160,11 +149,6 @@ public class NodeInstanceController {
         dto.setActor(SecurityUtils.currentUserEmail());
 
         NodeInstance node = nodeInstanceService.rejectNode(id, dto);
-        Long workflowInstanceId = node.getWorkflowInstance().getId();
-        txHelper.failInstance(workflowInstanceId,
-                "Rejected at APPROVAL by " + dto.getActor(),
-                dto.getComment());
-
         return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(node));
     }
 
@@ -172,12 +156,11 @@ public class NodeInstanceController {
     @PreAuthorize("@access.canAccessNodeInstance(#id)")
     @Operation(summary = "Retry failed node")
     public ResponseEntity<NodeInstanceResponseDTO> retry(@PathVariable Long id) {
-        NodeInstance node = nodeInstanceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"));
-        // Reuses the engine's retry path: resets this node in place and resumes the workflow from it
-        executionService.retryFromNode(node.getWorkflowInstance().getId(), node.getNode().getId());
+        // Resets this step in place and resumes the execution from it
+        executionService.retryStep(id);
         return ResponseEntity.ok(nodeInstanceMapper.toResponseDTO(
-                nodeInstanceRepository.findById(id).orElseThrow()));
+                nodeInstanceRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Node instance not found"))));
     }
 
     /** Only the assigned approver may decide; if nobody is assigned, an admin or the workflow owner may. */

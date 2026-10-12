@@ -3,6 +3,7 @@ package ma.rh.ai.hr_workflow.workflow.controllers;
 import java.util.List;
 
 import ma.rh.ai.hr_workflow.workflow.DTOs.PatchWorkflowDTO;
+import ma.rh.ai.hr_workflow.workflow.DTOs.SaveWorkflowGraphDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.UpdateWorkflowDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import ma.rh.ai.hr_workflow.config.SecurityUtils;
 import ma.rh.ai.hr_workflow.workflow.DTOs.CreateWorkflowDTO;
 import ma.rh.ai.hr_workflow.workflow.DTOs.WorkflowResponseDTO;
+import ma.rh.ai.hr_workflow.workflow.service.IWorkflowGraphService;
 import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 
 @RestController
@@ -24,6 +26,7 @@ import ma.rh.ai.hr_workflow.workflow.service.IWorkflowService;
 @RequiredArgsConstructor
 public class WorkflowController {
     private final IWorkflowService workflowService;
+    private final IWorkflowGraphService workflowGraphService;
 
     @PostMapping
     @Operation(summary = "Create a new workflow")
@@ -58,6 +61,15 @@ public class WorkflowController {
             @RequestBody UpdateWorkflowDTO dto) {
         WorkflowResponseDTO updated = workflowService.updateWorkflow(id, dto);
         return ResponseEntity.ok(updated);
+    }
+
+    @PutMapping("/{id}/graph")
+    @PreAuthorize("@access.canAccessWorkflow(#id)")
+    @Operation(summary = "Save the editor canvas (nodes, connections, layout) in one transaction")
+    public ResponseEntity<WorkflowResponseDTO> saveGraph(
+            @PathVariable Long id,
+            @Valid @RequestBody SaveWorkflowGraphDTO dto) {
+        return ResponseEntity.ok(workflowGraphService.saveGraph(id, dto));
     }
 
     @PatchMapping("/{id}")

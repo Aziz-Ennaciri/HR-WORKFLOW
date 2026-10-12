@@ -216,39 +216,6 @@ export default function WorkflowDesignerPage() {
     setNodes((nds) => [...nds, newNode]);
   };
 
-  const deriveOrderFromEdges = (
-    allNodes: Node[],
-    allEdges: Edge[],
-  ): Map<string, number> => {
-    const outEdge = new Map<string, string>();
-    const incomingCount = new Map<string, number>();
-    allNodes.forEach((n) => incomingCount.set(n.id, 0));
-    allEdges.forEach((e) => {
-      outEdge.set(e.source, e.target);
-      incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1);
-    });
-
-    const orderMap = new Map<string, number>();
-    const visited = new Set<string>();
-    let order = 1;
-    let current: string | undefined = allNodes.find(
-      (n) => (incomingCount.get(n.id) ?? 0) === 0,
-    )?.id;
-    while (current && !visited.has(current)) {
-      orderMap.set(current, order++);
-      visited.add(current);
-      current = outEdge.get(current);
-    }
-
-    // Disconnected nodes fallback: order by canvas X position
-    allNodes
-      .filter((n) => !visited.has(n.id))
-      .sort((a, b) => a.position.x - b.position.x)
-      .forEach((n) => orderMap.set(n.id, order++));
-
-    return orderMap;
-  };
-
   useEffect(() => {
     if (validationErrors.length === 0) return;
     const timer = setTimeout(() => {
@@ -377,102 +344,29 @@ export default function WorkflowDesignerPage() {
     setInvalidNodeIds(new Set());
 
     try {
-      const wasActive = workflow?.status === "ACTIVE";
-
-      // Step 1: Deactivate if currently active so we can edit
-      if (wasActive) {
-        await api.put(`/workflows/${params.id}`, {
-          name: workflow.name,
-          description: workflow.description,
-          version: workflow.version,
-          status: "DRAFT",
-          createdById: workflow.createdById,
-          edgesJson: JSON.stringify(edgesRef.current),
-        });
-        setWorkflow((w: any) => ({ ...w, status: "DRAFT" }));
-      }
-
-      // Step 2: Sync nodes and build old-id → new-backend-id map
-      const existingNodesResponse = await api.get(`/nodes/workflow/${params.id}`);
-      const existingNodes = existingNodesResponse.data;
-      const existingNodeIds = new Set(existingNodes.map((n: any) => n.id.toString()));
-      const currentNodeIds = new Set(nodesRef.current.map((n) => n.id));
-
-      const nodesToDelete = existingNodes.filter(
-        (n: any) => !currentNodeIds.has(n.id.toString()),
-      );
-      for (const node of nodesToDelete) {
-        try {
-          await api.delete(`/nodes/${node.id}`);
-        } catch {
-          console.warn("⚠️ Failed to delete node", node.id, "- might have executions");
-        }
-      }
-
-      const orderMap = deriveOrderFromEdges(nodesRef.current, edgesRef.current);
-      const idRemap = new Map<string, string>();
-
-      for (const node of nodesRef.current) {
-        const order = orderMap.get(node.id) ?? 1;
-        const isExisting = existingNodeIds.has(node.id);
-
-        if (isExisting) {
-          await api.put(`/nodes/${node.id}`, {
-            type: node.data.label,
-            order,
-            configJson: JSON.stringify(node.data.config || {}),
-          });
-        } else {
-          const oldId = node.id;
-          const response = await api.post(`/nodes/workflow/${params.id}`, {
-            type: node.data.label,
-            order,
-            configJson: JSON.stringify(node.data.config || {}),
-          });
-          const newId = response.data.id.toString();
-          idRemap.set(oldId, newId);
-          node.id = newId;
-        }
-      }
-
-      // Step 3: Remap edge source/target to backend IDs (fixes the disappearing-edges bug)
-      let finalEdges = edgesRef.current;
-      if (idRemap.size > 0) {
-        finalEdges = edgesRef.current.map((edge) => ({
-          ...edge,
-          source: idRemap.get(edge.source) ?? edge.source,
-          target: idRemap.get(edge.target) ?? edge.target,
-        }));
-        setEdges(finalEdges);
-      }
-
-      // Node ids above are already remapped to backend ids, so the layout keys match on reload
-      const layout = Object.fromEntries(
-        nodesRef.current.map((n) => [n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }]),
-      );
-
-      // Step 4: Persist workflow with correct edgesJson, layout and final status
-      const finalStatus = wasActive ? "ACTIVE" : (workflow.status ?? "DRAFT");
-      await api.put(`/workflows/${params.id}`, {
-        name: workflow.name,
-        description: workflow.description,
-        version: workflow.version,
-        status: finalStatus,
-        createdById: workflow.createdById,
-        edgesJson: JSON.stringify(finalEdges),
-        layoutJson: JSON.stringify(layout),
+      // One request, one transaction: nodes, connections and positions are saved together or not at all.
+      // The server derives the execution order from the connections and rejects anything that is not a single chain.
+      await api.put(`/workflows/${params.id}/graph`, {
+        nodes: nodesRef.current.map((node) => ({
+          id: node.id,
+          type: node.data.label,
+          configJson: JSON.stringify(node.data.config || {}),
+        })),
+        edges: edgesRef.current,
+        layout: Object.fromEntries(
+          nodesRef.current.map((node) => [
+            node.id,
+            { x: Math.round(node.position.x), y: Math.round(node.position.y) },
+          ]),
+        ),
       });
-      if (wasActive) setWorkflow((w: any) => ({ ...w, status: "ACTIVE" }));
 
       alert("✅ Workflow saved successfully!");
       await fetchWorkflow();
     } catch (error: any) {
-      alert(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to save workflow",
-      );
-      await fetchWorkflow();
+      setValidationErrors([
+        error.response?.data?.detail || error.message || "Failed to save workflow",
+      ]);
     }
   };
   if (!authReady) return null;

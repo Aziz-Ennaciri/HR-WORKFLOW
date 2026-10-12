@@ -3,9 +3,7 @@ package ma.rh.ai.hr_workflow.execution.handler;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.integration.email.service.EmailService;
-import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 
 @Component
@@ -19,14 +17,9 @@ public class EmailNodeHandler implements NodeHandler{
     }
 
     @Override
-    public String execute(Node node, NodeInstance nodeInstance) throws Exception {
-        
-        String configJson = node.getConfigJson();
-        String inputData = nodeInstance.getInputData();
-        
-        String workflowName = nodeInstance.getWorkflowInstance().getWorkflow().getName();
-
+    public String execute(NodeExecutionContext context) throws Exception {
+        String workflowName = context.workflowName();
         String workflowKey = workflowName.toLowerCase().replaceAll("\\s+", "-");
-        return emailService.sendEmail(configJson, inputData, workflowName, workflowKey);
+        return emailService.sendEmail(context.configJson(), context.inputData(), workflowName, workflowKey);
     }
 }

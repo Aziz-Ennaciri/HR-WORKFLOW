@@ -16,6 +16,10 @@ public interface NodeInstanceRepository extends JpaRepository<NodeInstance,Long>
 
     List<NodeInstance> findByWorkflowInstanceIdOrderByExecutionOrderAsc(Long instanceId);
 
+    List<NodeInstance> findByWorkflowInstanceIdAndStatus(Long instanceId, NodeInstanceStatus status);
+
+    boolean existsByWorkflowInstanceIdAndStatus(Long instanceId, NodeInstanceStatus status);
+
     List<NodeInstance> findByAssignedToIdAndStatusOrderByCreatedAtDesc(Long userId, NodeInstanceStatus status);
 
     long countByAssignedToIdAndStatus(Long userId, NodeInstanceStatus status);

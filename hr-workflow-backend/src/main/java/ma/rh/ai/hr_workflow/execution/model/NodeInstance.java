@@ -11,15 +11,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
+import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -38,10 +39,23 @@ public class NodeInstance {
     @JoinColumn(name = "workflow_instance_id", nullable = false)
     private WorkflowInstance workflowInstance;
 
+    /** The workflow node this step was created from; null once that node is deleted (history is kept). */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "node_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
+    @JoinColumn(name = "node_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Node node;
+
+    /** Node type frozen at trigger time. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NodeType nodeType;
+
+    /** Node config frozen at trigger time: edits to the workflow never affect a running execution. */
+    @Column(columnDefinition = "TEXT")
+    private String configSnapshot;
+
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_to_id")
@@ -55,7 +69,6 @@ public class NodeInstance {
 
     private String actor;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String comment;
 
@@ -106,6 +119,13 @@ public class NodeInstance {
         this.actor = actor;
         this.comment = comment;
         complete();
+    }
+
+    /** Copies the node's current type and config so this step runs exactly what was triggered. */
+    public void snapshot(Node source) {
+        this.node = source;
+        this.nodeType = source.getType();
+        this.configSnapshot = source.getConfigJson();
     }
 
     public void markFailed(String error) {

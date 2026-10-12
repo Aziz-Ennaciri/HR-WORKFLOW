@@ -1,5 +1,10 @@
 package ma.rh.ai.hr_workflow.workflow.service.Impl;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import ma.rh.ai.hr_workflow.workflow.graph.WorkflowGraph;
+
 import ma.rh.ai.hr_workflow.exceptions.ResourceNotFoundException;
 import ma.rh.ai.hr_workflow.user.model.User;
 import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
@@ -122,16 +127,19 @@ public class WorkflowServiceImpl implements IWorkflowService {
             workflow.setVersion(dto.getVersion());
         }
 
-        if (dto.getStatus() != null) {
-            workflow.setStatus(dto.getStatus());
-        }
-
         if (dto.getEdgesJson() != null) {
             workflow.setEdgesJson(dto.getEdgesJson());
         }
 
         if (dto.getLayoutJson() != null) {
             workflow.setLayoutJson(dto.getLayoutJson());
+        }
+
+        if (dto.getStatus() != null) {
+            if (dto.getStatus() == WorkflowStatus.ACTIVE && workflow.getStatus() != WorkflowStatus.ACTIVE) {
+                validateRunnable(workflow);
+            }
+            workflow.setStatus(dto.getStatus());
         }
 
         Workflow updated = workflowRepository.save(workflow);
@@ -161,9 +169,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new IllegalStateException("Only DRAFT workflows can be activated");
         }
-        if (workflow.getNodes().isEmpty()) {
-            throw new IllegalStateException("Workflow must have at least one node");
-        }
+        validateRunnable(workflow);
         workflow.setStatus(WorkflowStatus.ACTIVE);
         return workflowMapper.toResponseDTO(workflow);
     }
@@ -175,7 +181,8 @@ public class WorkflowServiceImpl implements IWorkflowService {
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found"));
 
         workflowInstanceRepository
-                .findByWorkflowIdAndStatusIn(id, List.of(WorkflowInstanceStatus.RUNNING, WorkflowInstanceStatus.PENDING))
+                .findByWorkflowIdAndStatusIn(id, List.of(
+                        WorkflowInstanceStatus.RUNNING, WorkflowInstanceStatus.PENDING, WorkflowInstanceStatus.PAUSED))
                 .forEach(instance -> {
                     instance.setStatus(WorkflowInstanceStatus.CANCELLED);
                     workflowInstanceRepository.save(instance);
@@ -200,10 +207,11 @@ public class WorkflowServiceImpl implements IWorkflowService {
         copy.setVersion(1);
         copy.setStatus(WorkflowStatus.DRAFT);
         copy.setCreatedBy(user);
-        copy.setEdgesJson(original.getEdgesJson());
 
         Workflow savedCopy = workflowRepository.save(copy);
 
+        // Edges and layout reference node ids, so they are rewritten to point at the copied nodes.
+        Map<String, String> idMap = new HashMap<>();
         List<Node> originalNodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflowId);
         for (Node originalNode : originalNodes) {
             Node newNode = new Node();
@@ -211,8 +219,13 @@ public class WorkflowServiceImpl implements IWorkflowService {
             newNode.setType(originalNode.getType());
             newNode.setOrderIndex(originalNode.getOrderIndex());
             newNode.setConfigJson(originalNode.getConfigJson());
-            nodeRepository.save(newNode);
+            Node savedNode = nodeRepository.save(newNode);
+            if (originalNode.getId() != null && savedNode != null && savedNode.getId() != null) {
+                idMap.put(originalNode.getId().toString(), savedNode.getId().toString());
+            }
         }
+        copy.setEdgesJson(WorkflowGraph.remapIds(original.getEdgesJson(), idMap));
+        copy.setLayoutJson(WorkflowGraph.remapIds(original.getLayoutJson(), idMap));
 
         return workflowMapper.toResponseDTO(savedCopy);
     }
@@ -230,5 +243,17 @@ public class WorkflowServiceImpl implements IWorkflowService {
         workflow.setStatus(WorkflowStatus.ARCHIVED);
         workflow.setUpdatedAt(LocalDateTime.now());
         return workflowMapper.toResponseDTO(workflow);
+    }
+
+    /** A workflow can only be activated if it has nodes and its connections form a single chain. */
+    private void validateRunnable(Workflow workflow) {
+        List<Node> nodes = nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(workflow.getId());
+        if (nodes.isEmpty()) {
+            throw new IllegalStateException("Workflow must have at least one node");
+        }
+        List<WorkflowGraph.Edge> edges = WorkflowGraph.parseEdges(workflow.getEdgesJson());
+        if (!edges.isEmpty()) {
+            WorkflowGraph.executionOrder(nodes.stream().map(node -> node.getId().toString()).toList(), edges);
+        }
     }
 }

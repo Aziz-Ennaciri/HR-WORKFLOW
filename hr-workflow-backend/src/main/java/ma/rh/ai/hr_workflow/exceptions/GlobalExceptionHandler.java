@@ -2,6 +2,7 @@ package ma.rh.ai.hr_workflow.exceptions;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateResourceException.class)
     public ProblemDetail handleDuplicate(DuplicateResourceException ex) {
         return problem(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Two requests changed the same execution at once (e.g. a double-clicked approve). */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleConcurrentUpdate(ObjectOptimisticLockingFailureException ex) {
+        return problem(HttpStatus.CONFLICT, "This item was changed by another request. Refresh and try again.");
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class,

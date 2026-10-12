@@ -1,611 +1,420 @@
 package ma.rh.ai.hr_workflow.execution.service.Impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ma.rh.ai.hr_workflow.execution.handler.ApprovalNodeHandler;
-import ma.rh.ai.hr_workflow.execution.handler.NodeHandler;
+import ma.rh.ai.hr_workflow.execution.handler.NodeExecutionContext;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.execution.model.NodeInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstance;
 import ma.rh.ai.hr_workflow.execution.model.WorkflowInstanceStatus;
 import ma.rh.ai.hr_workflow.execution.repositories.NodeInstanceRepository;
 import ma.rh.ai.hr_workflow.execution.repositories.WorkflowInstancerepository;
+import ma.rh.ai.hr_workflow.user.model.User;
+import ma.rh.ai.hr_workflow.user.repositories.UserRepository;
 import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 import ma.rh.ai.hr_workflow.workflow.model.Workflow;
-import ma.rh.ai.hr_workflow.workflow.repositories.NodeRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ExecutionTransactionHelper")
 class ExecutionTransactionHelperTest {
 
-    @Mock
-    private WorkflowInstancerepository workflowInstanceRepository;
+    @Mock private WorkflowInstancerepository workflowInstanceRepository;
+    @Mock private NodeInstanceRepository nodeInstanceRepository;
+    @Mock private UserRepository userRepository;
 
-    @Mock
-    private NodeInstanceRepository nodeInstanceRepository;
-
-    @Mock
-    private NodeRepository nodeRepository;
-
-    @InjectMocks
     private ExecutionTransactionHelper helper;
+    private WorkflowInstance execution;
 
+    @BeforeEach
+    void setUp() {
+        helper = new ExecutionTransactionHelper(workflowInstanceRepository, nodeInstanceRepository,
+                userRepository, new ApprovalNodeHandler(new ObjectMapper()));
 
-    private WorkflowInstance pendingInstance(Long id) {
-        WorkflowInstance wi = new WorkflowInstance();
-        wi.setId(id);
-        wi.setStatus(WorkflowInstanceStatus.PENDING);
-        Workflow wf = new Workflow();
-        wf.setId(10L);
-        wf.setName("Test WF");
-        wi.setWorkflow(wf);
-        wi.setInputData("{\"key\":\"value\"}");
-        return wi;
+        Workflow workflow = new Workflow();
+        workflow.setName("Hiring");
+        execution = new WorkflowInstance();
+        execution.setId(1L);
+        execution.setWorkflow(workflow);
+        execution.setInputData("{\"prompt\":\"rank\"}");
     }
 
-    private Node makeNode(Long id, NodeType type, int orderIndex) {
-        Node node = new Node();
-        node.setId(id);
-        node.setType(type);
-        node.setOrderIndex(orderIndex);
-        return node;
+    private NodeInstance step(long id, int order, NodeType type, NodeInstanceStatus status) {
+        NodeInstance step = new NodeInstance();
+        step.setId(id);
+        step.setExecutionOrder(order);
+        step.setNodeType(type);
+        step.setConfigSnapshot("{\"step\":" + id + "}");
+        step.setStatus(status);
+        step.setWorkflowInstance(execution);
+        return step;
     }
 
-    private NodeInstance pendingNodeInstance(Long id, WorkflowInstance wi, Node node) {
-        NodeInstance ni = new NodeInstance();
-        ni.setId(id);
-        ni.setWorkflowInstance(wi);
-        ni.setNode(node);
-        ni.setStatus(NodeInstanceStatus.PENDING);
-        ni.setInputData("input");
-        return ni;
+    private void givenExecution(WorkflowInstanceStatus status) {
+        execution.setStatus(status);
+        when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(execution));
     }
 
+    private void givenSteps(NodeInstance... steps) {
+        when(nodeInstanceRepository.findByWorkflowInstanceIdOrderByExecutionOrderAsc(1L)).thenReturn(List.of(steps));
+    }
 
     @Nested
-    @DisplayName("startInstance()")
-    class StartInstance {
+    @DisplayName("claim()")
+    class Claim {
 
         @Test
-        @DisplayName("happy path — PENDING instance is started and saved")
-        void startInstance_pendingInstance_startsAndSaves() {
-            WorkflowInstance wi = pendingInstance(1L);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
+        @DisplayName("PENDING execution is started and flushed (the version check happens here)")
+        void claim_pending_startsExecution() {
+            givenExecution(WorkflowInstanceStatus.PENDING);
 
-            helper.startInstance(1L);
+            assertThat(helper.claim(1L)).isTrue();
 
-            assertThat(wi.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
-            verify(workflowInstanceRepository).save(wi);
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
+            assertThat(execution.getStartedAt()).isNotNull();
+            verify(workflowInstanceRepository).saveAndFlush(execution);
         }
 
         @Test
-        @DisplayName("edge case — already RUNNING instance is NOT saved again")
-        void startInstance_alreadyRunning_notSavedAgain() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setStatus(WorkflowInstanceStatus.RUNNING);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
+        @DisplayName("PAUSED execution whose approval was decided resumes, keeping its start time")
+        void claim_pausedAndDecided_resumes() {
+            LocalDateTime started = LocalDateTime.now().minusMinutes(5);
+            execution.setStartedAt(started);
+            givenExecution(WorkflowInstanceStatus.PAUSED);
+            when(nodeInstanceRepository.existsByWorkflowInstanceIdAndStatus(1L, NodeInstanceStatus.WAITING_APPROVAL))
+                    .thenReturn(false);
 
-            helper.startInstance(1L);
+            assertThat(helper.claim(1L)).isTrue();
 
-            verify(workflowInstanceRepository, never()).save(any());
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.RUNNING);
+            assertThat(execution.getStartedAt()).isEqualTo(started);
         }
 
         @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void startInstance_notFound_throws() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
+        @DisplayName("PAUSED execution still waiting for approval is not claimed")
+        void claim_pausedAndWaiting_refused() {
+            givenExecution(WorkflowInstanceStatus.PAUSED);
+            when(nodeInstanceRepository.existsByWorkflowInstanceIdAndStatus(1L, NodeInstanceStatus.WAITING_APPROVAL))
+                    .thenReturn(true);
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> helper.startInstance(99L));
-            assertThat(ex.getMessage()).contains("Workflow instance not found");
+            assertThat(helper.claim(1L)).isFalse();
+            verify(workflowInstanceRepository, never()).saveAndFlush(any());
         }
-    }
 
+        @ParameterizedTest(name = "{0} execution is not claimed")
+        @EnumSource(value = WorkflowInstanceStatus.class, names = {"RUNNING", "COMPLETED", "FAILED", "CANCELLED"})
+        @DisplayName("running or finished executions are not claimed again")
+        void claim_notClaimable(WorkflowInstanceStatus status) {
+            givenExecution(status);
 
-    @Nested
-    @DisplayName("getWorkflowNodes()")
-    class GetWorkflowNodes {
-
-        @Test
-        @DisplayName("happy path — delegates to nodeRepository with correct workflow id")
-        void getWorkflowNodes_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node n1 = makeNode(1L, NodeType.EMAIL, 0);
-            Node n2 = makeNode(2L, NodeType.GPT, 1);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(n1, n2));
-
-            List<Node> result = helper.getWorkflowNodes(1L);
-
-            assertThat(result).containsExactly(n1, n2);
-            verify(nodeRepository).findByWorkflowIdOrderByOrderIndexAsc(10L);
+            assertThat(helper.claim(1L)).isFalse();
+            assertThat(execution.getStatus()).isEqualTo(status);
         }
 
         @Test
-        @DisplayName("edge case — workflow with no nodes returns empty list")
-        void getWorkflowNodes_noNodes_returnsEmpty() {
-            WorkflowInstance wi = pendingInstance(1L);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(10L)).thenReturn(List.of());
-
-            List<Node> result = helper.getWorkflowNodes(1L);
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void getWorkflowNodes_instanceNotFound_throws() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> helper.getWorkflowNodes(99L));
-        }
-    }
-
-
-    @Nested
-    @DisplayName("getInstanceInputData()")
-    class GetInstanceInputData {
-
-        @Test
-        @DisplayName("happy path — returns inputData from the instance")
-        void getInstanceInputData_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setInputData("{\"x\":1}");
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            String result = helper.getInstanceInputData(1L);
-
-            assertThat(result).isEqualTo("{\"x\":1}");
-        }
-
-        @Test
-        @DisplayName("edge case — null inputData is returned as-is")
-        void getInstanceInputData_nullData_returnsNull() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setInputData(null);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-
-            String result = helper.getInstanceInputData(1L);
-
-            assertThat(result).isNull();
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void getInstanceInputData_notFound_throws() {
-            when(workflowInstanceRepository.findById(5L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> helper.getInstanceInputData(5L));
-        }
-    }
-
-
-    @Nested
-    @DisplayName("updateCurrentNode()")
-    class UpdateCurrentNode {
-
-        @Test
-        @DisplayName("happy path — sets currentNode and saves")
-        void updateCurrentNode_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
-
-            helper.updateCurrentNode(1L, 2L);
-
-            assertThat(wi.getCurrentNode()).isEqualTo(node);
-            verify(workflowInstanceRepository).save(wi);
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void updateCurrentNode_instanceNotFound_throws() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> helper.updateCurrentNode(99L, 1L));
-        }
-
-        @Test
-        @DisplayName("exception — node not found throws RuntimeException")
-        void updateCurrentNode_nodeNotFound_throws() {
-            WorkflowInstance wi = pendingInstance(1L);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(99L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> helper.updateCurrentNode(1L, 99L));
-        }
-
-        @Test
-        @DisplayName("edge case — optimistic lock on CANCELLED instance is silently ignored")
-        void updateCurrentNode_optimisticLock_cancelledInstance_silentlyIgnored() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-
-            WorkflowInstance cancelledFresh = pendingInstance(1L);
-            cancelledFresh.setStatus(WorkflowInstanceStatus.CANCELLED);
-
-            when(workflowInstanceRepository.findById(1L))
-                    .thenReturn(Optional.of(wi))
-                    .thenReturn(Optional.of(cancelledFresh));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(workflowInstanceRepository.save(wi))
-                    .thenThrow(new ObjectOptimisticLockingFailureException(WorkflowInstance.class, 1L));
-
-            assertDoesNotThrow(() -> helper.updateCurrentNode(1L, 2L));
-        }
-
-        @Test
-        @DisplayName("edge case — optimistic lock on FAILED instance is silently ignored")
-        void updateCurrentNode_optimisticLock_failedInstance_silentlyIgnored() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            WorkflowInstance failedFresh = pendingInstance(1L);
-            failedFresh.setStatus(WorkflowInstanceStatus.FAILED);
-
-            when(workflowInstanceRepository.findById(1L))
-                    .thenReturn(Optional.of(wi))
-                    .thenReturn(Optional.of(failedFresh));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(workflowInstanceRepository.save(wi))
-                    .thenThrow(new ObjectOptimisticLockingFailureException(WorkflowInstance.class, 1L));
-
-            assertDoesNotThrow(() -> helper.updateCurrentNode(1L, 2L));
-        }
-
-        @Test
-        @DisplayName("edge case — optimistic lock on RUNNING instance is rethrown")
-        void updateCurrentNode_optimisticLock_runningInstance_rethrows() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            WorkflowInstance runningFresh = pendingInstance(1L);
-            runningFresh.setStatus(WorkflowInstanceStatus.RUNNING);
-
-            when(workflowInstanceRepository.findById(1L))
-                    .thenReturn(Optional.of(wi))
-                    .thenReturn(Optional.of(runningFresh));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(workflowInstanceRepository.save(wi))
-                    .thenThrow(new ObjectOptimisticLockingFailureException(WorkflowInstance.class, 1L));
-
-            assertThrows(ObjectOptimisticLockingFailureException.class,
-                    () -> helper.updateCurrentNode(1L, 2L));
-        }
-    }
-
-
-    @Nested
-    @DisplayName("executeNode()")
-    class ExecuteNode {
-
-        @Test
-        @DisplayName("happy path — handler succeeds, node marked COMPLETED")
-        void executeNode_handlerSucceeds_markedCompleted() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.saveAndFlush(ni)).thenReturn(ni);
-            when(handler.execute(node, ni)).thenReturn("output-data");
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            NodeInstance result = helper.executeNode(1L, 2L, "input-data", handler);
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
-            assertThat(result.getOutputData()).isEqualTo("output-data");
-        }
-
-        @Test
-        @DisplayName("happy path — APPROVAL signal marks node WAITING_APPROVAL")
-        void executeNode_approvalSignal_markedWaitingApproval() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.APPROVAL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.saveAndFlush(ni)).thenReturn(ni);
-            when(handler.execute(node, ni)).thenReturn(ApprovalNodeHandler.APPROVAL_SIGNAL);
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            NodeInstance result = helper.executeNode(1L, 2L, "input", handler);
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.WAITING_APPROVAL);
-        }
-
-        @Test
-        @DisplayName("edge case — handler throws Exception, node marked FAILED")
-        void executeNode_handlerThrows_markedFailed() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.GPT, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.saveAndFlush(ni)).thenReturn(ni);
-            when(handler.execute(node, ni)).thenThrow(new RuntimeException("GPT timeout"));
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            NodeInstance result = helper.executeNode(1L, 2L, "input", handler);
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
-            assertThat(result.getErrorMessage()).contains("GPT timeout");
-        }
-
-        @Test
-        @DisplayName("edge case — already COMPLETED node is returned as-is without re-execution")
-        void executeNode_alreadyCompleted_returnedWithoutExecution() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            ni.setStatus(NodeInstanceStatus.COMPLETED);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-
-            NodeInstance result = helper.executeNode(1L, 2L, "input", handler);
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
-            verify(handler, never()).execute(any(), any());
-        }
-
-        @Test
-        @DisplayName("edge case — already REJECTED node is returned as-is without re-execution")
-        void executeNode_alreadyRejected_returnedWithoutExecution() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.APPROVAL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            ni.setStatus(NodeInstanceStatus.REJECTED);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-
-            NodeInstance result = helper.executeNode(1L, 2L, "input", handler);
-
-            assertThat(result.getStatus()).isEqualTo(NodeInstanceStatus.REJECTED);
-            verify(handler, never()).execute(any(), any());
-        }
-
-        @Test
-        @DisplayName("edge case — node instance not in DB is created and persisted")
-        void executeNode_nodeInstanceNotFound_createdAndPersisted() throws Exception {
-            // Arrange
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeHandler handler = mock(NodeHandler.class);
-
-            NodeInstance savedNi = pendingNodeInstance(10L, wi, node);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.empty());
-            when(nodeInstanceRepository.save(any(NodeInstance.class))).thenReturn(savedNi);
-            when(nodeInstanceRepository.saveAndFlush(any(NodeInstance.class))).thenReturn(savedNi);
-            when(handler.execute(eq(node), any())).thenReturn("result");
-
-            NodeInstance result = helper.executeNode(1L, 2L, "fresh-input", handler);
-
-            verify(nodeInstanceRepository, atLeast(2)).save(any(NodeInstance.class));
-        }
-
-        @Test
-        @DisplayName("edge case — null handler output falls back to inputData for outputData")
-        void executeNode_nullOutput_outputDataFallsToInput() throws Exception {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            ni.setInputData("my-input");
-            NodeHandler handler = mock(NodeHandler.class);
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeRepository.findById(2L)).thenReturn(Optional.of(node));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.saveAndFlush(ni)).thenReturn(ni);
-            when(handler.execute(node, ni)).thenReturn(null);
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-
-            NodeInstance result = helper.executeNode(1L, 2L, "my-input", handler);
-
-            assertThat(result.getOutputData()).isEqualTo("my-input");
-        }
-    }
-
-
-    @Nested
-    @DisplayName("pauseInstance()")
-    class PauseInstance {
-
-        @Test
-        @DisplayName("happy path — status set to PAUSED and saved")
-        void pauseInstance_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setStatus(WorkflowInstanceStatus.RUNNING);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
-
-            helper.pauseInstance(1L);
-
-            assertThat(wi.getStatus()).isEqualTo(WorkflowInstanceStatus.PAUSED);
-            verify(workflowInstanceRepository).save(wi);
-        }
-
-        @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void pauseInstance_notFound_throws() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
-
-            assertThrows(RuntimeException.class, () -> helper.pauseInstance(99L));
+        @DisplayName("missing execution is not claimed")
+        void claim_missing() {
+            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.empty());
+            assertThat(helper.claim(1L)).isFalse();
         }
     }
 
     @Nested
-    @DisplayName("completeInstance()")
-    class CompleteInstance {
+    @DisplayName("nextStep()")
+    class NextStep {
 
         @Test
-        @DisplayName("happy path — status COMPLETED and outputData set")
-        void completeInstance_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setStatus(WorkflowInstanceStatus.RUNNING);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
+        @DisplayName("first pending step starts with the execution input and its frozen config")
+        void nextStep_firstStep() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            Node node = new Node();
+            NodeInstance first = step(10, 1, NodeType.DRIVE, NodeInstanceStatus.PENDING);
+            first.setNode(node);
+            givenSteps(first, step(11, 2, NodeType.GPT, NodeInstanceStatus.PENDING));
 
-            helper.completeInstance(1L, "final-output");
+            NodeExecutionContext context = helper.nextStep(1L).orElseThrow();
 
-            assertThat(wi.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
-            assertThat(wi.getOutputData()).isEqualTo("final-output");
-            verify(workflowInstanceRepository).save(wi);
+            assertThat(context.nodeInstanceId()).isEqualTo(10L);
+            assertThat(context.nodeType()).isEqualTo(NodeType.DRIVE);
+            assertThat(context.configJson()).isEqualTo("{\"step\":10}");
+            assertThat(context.inputData()).isEqualTo("{\"prompt\":\"rank\"}");
+            assertThat(context.workflowInputData()).isEqualTo("{\"prompt\":\"rank\"}");
+            assertThat(context.workflowName()).isEqualTo("Hiring");
+            assertThat(first.getStatus()).isEqualTo(NodeInstanceStatus.IN_PROGRESS);
+            assertThat(first.getInputData()).isEqualTo("{\"prompt\":\"rank\"}");
+            assertThat(execution.getCurrentNode()).isSameAs(node);
         }
 
         @Test
-        @DisplayName("exception — instance not found throws RuntimeException")
-        void completeInstance_notFound_throws() {
-            // Arrange
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
+        @DisplayName("a later step receives the previous step's output")
+        void nextStep_chainsOutput() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            NodeInstance done = step(10, 1, NodeType.DRIVE, NodeInstanceStatus.COMPLETED);
+            done.setOutputData("drive output");
+            givenSteps(done, step(11, 2, NodeType.GPT, NodeInstanceStatus.PENDING));
 
-            // Act & Assert
-            assertThrows(RuntimeException.class, () -> helper.completeInstance(99L, "out"));
+            NodeExecutionContext context = helper.nextStep(1L).orElseThrow();
+
+            assertThat(context.nodeInstanceId()).isEqualTo(11L);
+            assertThat(context.inputData()).isEqualTo("drive output");
+        }
+
+        @Test
+        @DisplayName("when every step is done the execution completes with the last output")
+        void nextStep_allDone_completes() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            NodeInstance last = step(10, 1, NodeType.GPT, NodeInstanceStatus.COMPLETED);
+            last.setOutputData("final");
+            givenSteps(last);
+
+            assertThat(helper.nextStep(1L)).isEmpty();
+
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
+            assertThat(execution.getOutputData()).isEqualTo("final");
+            assertThat(execution.getFinishedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("a step waiting for approval pauses the execution")
+        void nextStep_waitingApproval_pauses() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            givenSteps(step(10, 1, NodeType.APPROVAL, NodeInstanceStatus.WAITING_APPROVAL));
+
+            assertThat(helper.nextStep(1L)).isEmpty();
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.PAUSED);
+        }
+
+        @Test
+        @DisplayName("a rejected step fails the execution")
+        void nextStep_rejected_fails() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            givenSteps(step(10, 1, NodeType.APPROVAL, NodeInstanceStatus.REJECTED));
+
+            assertThat(helper.nextStep(1L)).isEmpty();
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
+        }
+
+        @Test
+        @DisplayName("a step left IN_PROGRESS (outcome never recorded) fails the execution instead of re-running it")
+        void nextStep_leftoverInProgress_fails() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            givenSteps(step(10, 1, NodeType.EMAIL, NodeInstanceStatus.IN_PROGRESS));
+
+            assertThat(helper.nextStep(1L)).isEmpty();
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
+        }
+
+        @ParameterizedTest(name = "{0} execution yields no step")
+        @EnumSource(value = WorkflowInstanceStatus.class, names = "RUNNING", mode = EnumSource.Mode.EXCLUDE)
+        @DisplayName("only a RUNNING execution hands out steps (cancelled/paused/finished stop the loop)")
+        void nextStep_notRunning(WorkflowInstanceStatus status) {
+            givenExecution(status);
+
+            assertThat(helper.nextStep(1L)).isEmpty();
+            verifyNoInteractions(nodeInstanceRepository);
         }
     }
-
 
     @Nested
-    @DisplayName("failInstance()")
-    class FailInstance {
+    @DisplayName("recordResult()")
+    class RecordResult {
 
         @Test
-        @DisplayName("happy path — status set to FAILED with error details")
-        void failInstance_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setStatus(WorkflowInstanceStatus.RUNNING);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
+        @DisplayName("stores the output and continues while the execution is RUNNING")
+        void recordResult_completes() {
+            execution.setStatus(WorkflowInstanceStatus.RUNNING);
+            NodeInstance running = step(10, 1, NodeType.GPT, NodeInstanceStatus.IN_PROGRESS);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(running));
 
-            helper.failInstance(1L, "Something broke", "stack trace");
+            assertThat(helper.recordResult(10L, "analysis")).isTrue();
 
-            assertThat(wi.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
-            assertThat(wi.getErrorMessage()).isEqualTo("Something broke");
-            assertThat(wi.getErrorStackTrace()).isEqualTo("stack trace");
-            verify(workflowInstanceRepository).save(wi);
+            assertThat(running.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
+            assertThat(running.getOutputData()).isEqualTo("analysis");
         }
 
         @Test
-        @DisplayName("edge case — instance not found is silently skipped (no exception)")
-        void failInstance_notFound_silentlySkipped() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
+        @DisplayName("an execution cancelled meanwhile keeps its status and stops the loop")
+        void recordResult_cancelledMeanwhile_stops() {
+            execution.setStatus(WorkflowInstanceStatus.CANCELLED);
+            NodeInstance running = step(10, 1, NodeType.GPT, NodeInstanceStatus.IN_PROGRESS);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(running));
 
-            assertDoesNotThrow(() -> helper.failInstance(99L, "error", "trace"));
-            verify(workflowInstanceRepository, never()).save(any());
+            assertThat(helper.recordResult(10L, "analysis")).isFalse();
+
+            assertThat(running.getStatus()).isEqualTo(NodeInstanceStatus.COMPLETED);
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("the approval signal pauses step and execution together and assigns the approver")
+        void recordResult_approval_pausesAtomically() {
+            execution.setStatus(WorkflowInstanceStatus.RUNNING);
+            NodeInstance approval = step(10, 1, NodeType.APPROVAL, NodeInstanceStatus.IN_PROGRESS);
+            approval.setConfigSnapshot("{\"approverEmail\":\"boss@test.com\"}");
+            User boss = new User();
+            boss.setEmail("boss@test.com");
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(approval));
+            when(userRepository.findByEmail("boss@test.com")).thenReturn(Optional.of(boss));
+
+            assertThat(helper.recordResult(10L, ApprovalNodeHandler.APPROVAL_SIGNAL)).isFalse();
+
+            assertThat(approval.getStatus()).isEqualTo(NodeInstanceStatus.WAITING_APPROVAL);
+            assertThat(approval.getAssignedTo()).isSameAs(boss);
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.PAUSED);
         }
     }
 
+    @Nested
+    @DisplayName("failures and retries")
+    class Failures {
+
+        @Test
+        @DisplayName("recordRetry counts the attempt and keeps the last error")
+        void recordRetry_increments() {
+            NodeInstance running = step(10, 1, NodeType.GPT, NodeInstanceStatus.IN_PROGRESS);
+            running.setRetryCount(1);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(running));
+
+            helper.recordRetry(10L, "timeout");
+
+            assertThat(running.getRetryCount()).isEqualTo(2);
+            assertThat(running.getErrorMessage()).isEqualTo("timeout");
+            assertThat(running.getStatus()).isEqualTo(NodeInstanceStatus.IN_PROGRESS);
+        }
+
+        @Test
+        @DisplayName("recordFailure fails the step and the execution")
+        void recordFailure_failsBoth() {
+            execution.setStatus(WorkflowInstanceStatus.RUNNING);
+            NodeInstance running = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.IN_PROGRESS);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(running));
+
+            helper.recordFailure(10L, "SMTP down", "trace");
+
+            assertThat(running.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
+            assertThat(execution.getErrorMessage()).isEqualTo("Failed at EMAIL: SMTP down");
+            assertThat(execution.getErrorStackTrace()).isEqualTo("trace");
+        }
+
+        @Test
+        @DisplayName("recordFailure leaves a cancelled execution CANCELLED")
+        void recordFailure_cancelledStaysCancelled() {
+            execution.setStatus(WorkflowInstanceStatus.CANCELLED);
+            NodeInstance running = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.IN_PROGRESS);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(running));
+
+            helper.recordFailure(10L, "SMTP down", null);
+
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("failInstance never overwrites a finished execution")
+        void failInstance_keepsFinished() {
+            givenExecution(WorkflowInstanceStatus.COMPLETED);
+
+            helper.failInstance(1L, "late error", null);
+
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.COMPLETED);
+        }
+
+        @Test
+        @DisplayName("failInterrupted fails a RUNNING execution and its in-flight step")
+        void failInterrupted_running() {
+            givenExecution(WorkflowInstanceStatus.RUNNING);
+            NodeInstance inFlight = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.IN_PROGRESS);
+            when(nodeInstanceRepository.findByWorkflowInstanceIdAndStatus(1L, NodeInstanceStatus.IN_PROGRESS))
+                    .thenReturn(List.of(inFlight));
+
+            helper.failInterrupted(1L);
+
+            assertThat(inFlight.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.FAILED);
+            assertThat(execution.getErrorMessage()).contains("restart");
+        }
+
+        @Test
+        @DisplayName("failInterrupted ignores executions that are not RUNNING")
+        void failInterrupted_notRunning() {
+            givenExecution(WorkflowInstanceStatus.PAUSED);
+
+            helper.failInterrupted(1L);
+
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.PAUSED);
+            verifyNoInteractions(nodeInstanceRepository);
+        }
+    }
 
     @Nested
     @DisplayName("resetForRetry()")
     class ResetForRetry {
 
         @Test
-        @DisplayName("happy path — FAILED node and instance reset to PENDING")
-        void resetForRetry_happyPath() {
-            WorkflowInstance wi = pendingInstance(1L);
-            wi.setStatus(WorkflowInstanceStatus.FAILED);
+        @DisplayName("resets the failed step and execution and picks up the node's current config")
+        void resetForRetry_resets() {
+            execution.setStatus(WorkflowInstanceStatus.FAILED);
+            execution.setErrorMessage("boom");
+            Node node = new Node();
+            node.setType(NodeType.EMAIL);
+            node.setConfigJson("{\"to\":\"fixed@test.com\"}");
+            NodeInstance failed = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.FAILED);
+            failed.setNode(node);
+            failed.setErrorMessage("bad address");
+            failed.setRetryCount(0);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(failed));
 
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            ni.setStatus(NodeInstanceStatus.FAILED);
-            ni.setErrorMessage("old error");
+            assertThat(helper.resetForRetry(10L)).isEqualTo(1L);
 
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-            when(nodeInstanceRepository.save(ni)).thenReturn(ni);
-            when(workflowInstanceRepository.save(wi)).thenReturn(wi);
-
-            helper.resetForRetry(1L, 2L);
-
-            assertThat(ni.getStatus()).isEqualTo(NodeInstanceStatus.PENDING);
-            assertThat(ni.getErrorMessage()).isNull();
-            assertThat(wi.getStatus()).isEqualTo(WorkflowInstanceStatus.PENDING);
-            assertThat(wi.getErrorMessage()).isNull();
+            assertThat(failed.getStatus()).isEqualTo(NodeInstanceStatus.PENDING);
+            assertThat(failed.getRetryCount()).isEqualTo(1);
+            assertThat(failed.getErrorMessage()).isNull();
+            assertThat(failed.getConfigSnapshot()).isEqualTo("{\"to\":\"fixed@test.com\"}");
+            assertThat(execution.getStatus()).isEqualTo(WorkflowInstanceStatus.PENDING);
+            assertThat(execution.getErrorMessage()).isNull();
         }
 
         @Test
-        @DisplayName("exception — execution instance not found throws RuntimeException")
-        void resetForRetry_executionNotFound_throws() {
-            when(workflowInstanceRepository.findById(99L)).thenReturn(Optional.empty());
+        @DisplayName("a step whose node was deleted retries with its frozen config")
+        void resetForRetry_deletedNode_keepsSnapshot() {
+            execution.setStatus(WorkflowInstanceStatus.FAILED);
+            NodeInstance failed = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.FAILED);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(failed));
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> helper.resetForRetry(99L, 1L));
-            assertThat(ex.getMessage()).contains("Execution not found");
+            helper.resetForRetry(10L);
+
+            assertThat(failed.getConfigSnapshot()).isEqualTo("{\"step\":10}");
         }
 
         @Test
-        @DisplayName("exception — node instance not found throws RuntimeException")
-        void resetForRetry_nodeInstanceNotFound_throws() {
-            WorkflowInstance wi = pendingInstance(1L);
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 99L))
-                    .thenReturn(Optional.empty());
+        @DisplayName("only FAILED steps of FAILED executions can be retried")
+        void resetForRetry_rejectsOtherStates() {
+            execution.setStatus(WorkflowInstanceStatus.FAILED);
+            NodeInstance done = step(10, 1, NodeType.EMAIL, NodeInstanceStatus.COMPLETED);
+            when(nodeInstanceRepository.findById(10L)).thenReturn(Optional.of(done));
+            assertThrows(IllegalStateException.class, () -> helper.resetForRetry(10L));
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
-                    () -> helper.resetForRetry(1L, 99L));
-            assertThat(ex.getMessage()).contains("Node instance not found");
-        }
-
-        @Test
-        @DisplayName("exception — node in non-FAILED state throws IllegalStateException")
-        void resetForRetry_nodeNotFailed_throws() {
-            WorkflowInstance wi = pendingInstance(1L);
-            Node node = makeNode(2L, NodeType.EMAIL, 0);
-            NodeInstance ni = pendingNodeInstance(10L, wi, node);
-            ni.setStatus(NodeInstanceStatus.COMPLETED); // not FAILED
-
-            when(workflowInstanceRepository.findById(1L)).thenReturn(Optional.of(wi));
-            when(nodeInstanceRepository.findByWorkflowInstanceIdAndNodeId(1L, 2L))
-                    .thenReturn(Optional.of(ni));
-
-            IllegalStateException ex = assertThrows(IllegalStateException.class,
-                    () -> helper.resetForRetry(1L, 2L));
-            assertThat(ex.getMessage()).contains("not in FAILED state");
+            execution.setStatus(WorkflowInstanceStatus.RUNNING);
+            NodeInstance failed = step(11, 2, NodeType.EMAIL, NodeInstanceStatus.FAILED);
+            when(nodeInstanceRepository.findById(11L)).thenReturn(Optional.of(failed));
+            assertThrows(IllegalStateException.class, () -> helper.resetForRetry(11L));
         }
     }
 }

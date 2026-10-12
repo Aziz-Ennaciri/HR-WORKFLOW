@@ -47,7 +47,7 @@ class DriveNodeHandlerTest {
 
         when(driveService.saveFile(any(), any())).thenReturn("{\"fileId\":\"abc\"}");
 
-        String result = handler.execute(node, ni);
+        String result = handler.execute(HandlerTestSupport.context(node, ni));
 
         assertThat(result).isEqualTo("{\"fileId\":\"abc\"}");
         verify(driveService).saveFile(

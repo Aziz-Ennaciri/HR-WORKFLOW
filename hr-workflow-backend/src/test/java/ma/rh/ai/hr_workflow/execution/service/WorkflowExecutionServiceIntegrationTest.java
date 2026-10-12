@@ -160,21 +160,22 @@ class WorkflowExecutionServiceIntegrationTest extends AbstractIntegrationTest {
             dto.setWorkflowId(activeWorkflow.getId());
             WorkflowInstance instance = executionService.triggerWorkflow(dto, user);
 
-            instance.setStatus(WorkflowInstanceStatus.FAILED);
-            instance.setErrorMessage("Simulated failure");
-            instanceRepository.save(instance);
-
+            // There is no SMTP server in tests, so the real run fails at the EMAIL step.
+            await("execution to fail", () -> instanceRepository.findById(instance.getId()).orElseThrow()
+                    .getStatus() == WorkflowInstanceStatus.FAILED);
             NodeInstance nodeInstance = nodeInstanceRepository
                     .findByWorkflowInstanceIdOrderByExecutionOrderAsc(instance.getId())
                     .get(0);
-            nodeInstance.setStatus(NodeInstanceStatus.FAILED);
-            nodeInstance.setErrorMessage("Email send timeout");
-            nodeInstanceRepository.save(nodeInstance);
+            assertThat(nodeInstance.getStatus()).isEqualTo(NodeInstanceStatus.FAILED);
 
-            executionService.retryFromNode(instance.getId(), nodeInstance.getNode().getId());
-            WorkflowInstance updated = instanceRepository.findById(instance.getId()).orElseThrow();
-            assertThat(updated).isNotNull();
-            assertThat(updated.getId()).isEqualTo(instance.getId());
+            executionService.retryFromNode(instance.getId(), emailNode.getId());
+
+            // The retry runs the step again (and it fails again), counting the attempt.
+            await("retried execution to fail again", () -> {
+                NodeInstance step = nodeInstanceRepository.findById(nodeInstance.getId()).orElseThrow();
+                return step.getRetryCount() == 1 && step.getStatus() == NodeInstanceStatus.FAILED
+                        && instanceRepository.findById(instance.getId()).orElseThrow().getStatus() == WorkflowInstanceStatus.FAILED;
+            });
         }
     }
 }

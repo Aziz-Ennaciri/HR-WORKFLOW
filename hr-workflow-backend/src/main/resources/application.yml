@@ -62,3 +62,24 @@ google:
 drive:
   storage:
     path: ${DRIVE_STORAGE_PATH:${user.home}/hr-workflow-files}
+
+# Workflow engine (see ExecutionProperties for all options and defaults)
+execution:
+  worker:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 100
+  retry:
+    # Only transient errors (timeouts, connection failures, HTTP 5xx/429) are retried
+    max-attempts: 3
+    initial-backoff: 1s
+    multiplier: 2.0
+  sweeper:
+    enabled: true
+    interval: PT30S  # ISO-8601, also read by @Scheduled
+    pending-grace: 30s
+
+gpt:
+  http:
+    connect-timeout: 5s
+    read-timeout: 120s

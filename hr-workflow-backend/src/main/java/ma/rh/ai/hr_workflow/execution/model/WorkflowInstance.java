@@ -18,6 +18,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -75,6 +76,9 @@ public class WorkflowInstance {
 
     private LocalDateTime createdAt;
 
+    @Version
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -85,6 +89,12 @@ public class WorkflowInstance {
         if (this.startedAt != null) {
             this.durationMs = java.time.Duration.between(startedAt, finishedAt).toMillis();
         }
+    }
+
+    public boolean isFinished() {
+        return status == WorkflowInstanceStatus.COMPLETED
+                || status == WorkflowInstanceStatus.FAILED
+                || status == WorkflowInstanceStatus.CANCELLED;
     }
 
     public void start() {

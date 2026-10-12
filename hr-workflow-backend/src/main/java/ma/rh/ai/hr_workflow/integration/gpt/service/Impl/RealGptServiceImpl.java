@@ -1,16 +1,19 @@
 package ma.rh.ai.hr_workflow.integration.gpt.service.Impl;
 
 import ma.rh.ai.hr_workflow.integration.drive.DTOs.DriveOutput;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.rh.ai.hr_workflow.integration.gpt.dtos.GptConfigDTO;
 import ma.rh.ai.hr_workflow.integration.gpt.dtos.GptResponseDTO;
@@ -28,11 +30,29 @@ import ma.rh.ai.hr_workflow.integration.gpt.service.GptService;
 @Slf4j
 @Service
 @Primary
-@RequiredArgsConstructor
 public class RealGptServiceImpl implements GptService {
 
+    private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(120);
+
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    @Autowired
+    public RealGptServiceImpl(ObjectMapper objectMapper,
+                              @Value("${gpt.http.connect-timeout:5s}") Duration connectTimeout,
+                              @Value("${gpt.http.read-timeout:120s}") Duration readTimeout) {
+        this.objectMapper = objectMapper;
+        // Without timeouts a hung LLM call would block an engine worker thread forever.
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+        this.restTemplate = new RestTemplate(requestFactory);
+    }
+
+    public RealGptServiceImpl(ObjectMapper objectMapper) {
+        this(objectMapper, DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT);
+    }
 
     @Value("${google.ollama.url:http://localhost:11434/api/generate}")
     private String ollamaUrl;

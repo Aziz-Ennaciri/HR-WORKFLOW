@@ -5,10 +5,8 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
-import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.integration.excel.DTOs.ExcelConfigDTO;
 import ma.rh.ai.hr_workflow.integration.excel.service.ExcelService;
-import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 
 @Component
@@ -24,13 +22,13 @@ public class ExcelNodeHandler implements NodeHandler {
     }
 
     @Override
-    public String execute(Node node, NodeInstance nodeInstance) throws Exception {
-        String enrichedConfig = enrichConfig(node.getConfigJson());
+    public String execute(NodeExecutionContext context) throws Exception {
+        String enrichedConfig = enrichConfig(context.configJson());
         ExcelConfigDTO config = objectMapper.readValue(enrichedConfig, ExcelConfigDTO.class);
         if ("READ".equals(config.getOperation())) {
             return excelService.readData(enrichedConfig);
         }
-        return excelService.processData(enrichedConfig, nodeInstance.getInputData());
+        return excelService.processData(enrichedConfig, context.inputData());
     }
 
     // Auto-fill WRITE defaults so the frontend only needs to send {fileName: "..."}

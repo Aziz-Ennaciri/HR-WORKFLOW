@@ -168,16 +168,12 @@ class WorkflowExecutionControllerIntegrationTest extends AbstractIntegrationTest
             Long instanceId = objectMapper.readTree(triggered.getResponse().getContentAsString())
                     .get("id").asLong();
 
-            WorkflowInstance instance = instanceRepository.findById(instanceId).orElseThrow();
-            instance.setStatus(WorkflowInstanceStatus.FAILED);
-            instanceRepository.save(instance);
-
+            // There is no SMTP server in tests, so the real run fails at the EMAIL step.
+            await("execution to fail", () -> instanceRepository.findById(instanceId).orElseThrow()
+                    .getStatus() == WorkflowInstanceStatus.FAILED);
             NodeInstance ni = nodeInstanceRepository
                     .findByWorkflowInstanceIdOrderByExecutionOrderAsc(instanceId)
                     .get(0);
-            ni.setStatus(NodeInstanceStatus.FAILED);
-            ni.setErrorMessage("Email timeout");
-            nodeInstanceRepository.save(ni);
 
             // Act & Assert
             mockMvc.perform(post("/api/v1/executions/" + instanceId + "/retry-from/" + ni.getNode().getId())

@@ -52,7 +52,7 @@ class ExcelNodeHandlerTest {
         ni.setInputData("{\"analysis\":\"Alice is best\"}");
         when(excelService.processData(any(), any())).thenReturn("/output/report.xlsx");
 
-        String result = handler.execute(node, ni);
+        String result = handler.execute(HandlerTestSupport.context(node, ni));
 
         assertThat(result).isEqualTo("/output/report.xlsx");
     }
@@ -66,7 +66,7 @@ class ExcelNodeHandlerTest {
         ni.setInputData("{}");
         when(excelService.readData(any())).thenReturn("[{\"Name\":\"Alice\"}]");
 
-        String result = handler.execute(node, ni);
+        String result = handler.execute(HandlerTestSupport.context(node, ni));
 
         assertThat(result).isEqualTo("[{\"Name\":\"Alice\"}]");
         verify(excelService).readData(any());
@@ -82,7 +82,7 @@ class ExcelNodeHandlerTest {
         ni.setInputData("{\"analysis\":\"data\"}");
         when(excelService.processData(any(), any())).thenReturn("/output/report.xlsx");
 
-        String result = handler.execute(node, ni);
+        String result = handler.execute(HandlerTestSupport.context(node, ni));
 
         assertThat(result).isEqualTo("/output/report.xlsx");
         verify(excelService).processData(any(), any());
@@ -99,7 +99,7 @@ class ExcelNodeHandlerTest {
         when(excelService.processData(any(), any())).thenReturn("ok");
         ArgumentCaptor<String> inputCaptor = ArgumentCaptor.forClass(String.class);
 
-        handler.execute(node, ni);
+        handler.execute(HandlerTestSupport.context(node, ni));
 
         verify(excelService).processData(any(), inputCaptor.capture());
         assertThat(inputCaptor.getValue()).isEqualTo("{\"analysis\":\"Alice is best\"}");

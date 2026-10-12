@@ -13,7 +13,6 @@ public interface NodeInstanceMapper {
 
     @Mapping(target = "workflowInstanceId", source = "workflowInstance.id")
     @Mapping(target = "nodeId", source = "node.id")
-    @Mapping(target = "nodeType", expression = "java(nodeInstance.getNode().getType().name())")
     @Mapping(target = "status", expression = "java(nodeInstance.getStatus().name())")
     @Mapping(target = "assignedToId", source = "assignedTo.id")
     @Mapping(target = "assignedToEmail", source = "assignedTo.email")

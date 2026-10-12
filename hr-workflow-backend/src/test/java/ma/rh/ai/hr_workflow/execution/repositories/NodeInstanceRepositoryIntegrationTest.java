@@ -82,7 +82,7 @@ class NodeInstanceRepositoryIntegrationTest extends AbstractIntegrationTest {
     private NodeInstance buildNodeInstance(Node node, NodeInstanceStatus status, int order) {
         NodeInstance ni = new NodeInstance();
         ni.setWorkflowInstance(workflowInstance);
-        ni.setNode(node);
+        ni.snapshot(node);
         ni.setExecutionOrder(order);
         ni.setStatus(status);
         ni.setCreatedAt(LocalDateTime.now());

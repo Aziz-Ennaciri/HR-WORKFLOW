@@ -56,7 +56,7 @@ class EmailNodeHandlerTest {
 
         when(emailService.sendEmail(any(), any(), any(), any())).thenReturn("sent");
 
-        String result = handler.execute(node, ni);
+        String result = handler.execute(HandlerTestSupport.context(node, ni));
 
         assertThat(result).isEqualTo("sent");
         verify(emailService).sendEmail(

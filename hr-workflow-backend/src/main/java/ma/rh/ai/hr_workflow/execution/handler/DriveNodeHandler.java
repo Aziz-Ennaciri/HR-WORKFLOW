@@ -3,9 +3,7 @@ package ma.rh.ai.hr_workflow.execution.handler;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import ma.rh.ai.hr_workflow.execution.model.NodeInstance;
 import ma.rh.ai.hr_workflow.integration.drive.service.DriveService;
-import ma.rh.ai.hr_workflow.workflow.model.Node;
 import ma.rh.ai.hr_workflow.workflow.model.NodeType;
 
 @Component
@@ -20,12 +18,7 @@ public class DriveNodeHandler implements NodeHandler {
     }
 
     @Override
-    public String execute(Node node, NodeInstance nodeInstance) throws Exception {
-        String configJson = node.getConfigJson();
-        String inputData = nodeInstance.getInputData();
-        
-        String result = driveService.saveFile(configJson, inputData);
-        
-        return result;
+    public String execute(NodeExecutionContext context) throws Exception {
+        return driveService.saveFile(context.configJson(), context.inputData());
     }
 }

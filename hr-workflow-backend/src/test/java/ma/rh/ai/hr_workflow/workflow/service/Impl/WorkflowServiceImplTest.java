@@ -389,11 +389,14 @@ class WorkflowServiceImplTest {
              
             Workflow existing = buildWorkflow(1L, "Old", WorkflowStatus.DRAFT);
             UpdateWorkflowDTO dto = new UpdateWorkflowDTO("New", "desc",
-                    3, WorkflowStatus.ACTIVE, null, "{\"edges\":[]}", "{\"1\":{\"x\":10,\"y\":20}}");
+                    3, WorkflowStatus.ACTIVE, null, "[]", "{\"1\":{\"x\":10,\"y\":20}}");
             Workflow saved = buildWorkflow(1L, "New", WorkflowStatus.ACTIVE);
             WorkflowResponseDTO expected = buildResponseDTO(1L, "New");
+            Node node = new Node();
+            node.setId(1L);
 
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(node));
             when(workflowRepository.save(existing)).thenReturn(saved);
             when(workflowMapper.toResponseDTO(saved)).thenReturn(expected);
 
@@ -402,7 +405,7 @@ class WorkflowServiceImplTest {
 
             assertThat(existing.getVersion()).isEqualTo(3);
             assertThat(existing.getStatus()).isEqualTo(WorkflowStatus.ACTIVE);
-            assertThat(existing.getEdgesJson()).isEqualTo("{\"edges\":[]}");
+            assertThat(existing.getEdgesJson()).isEqualTo("[]");
             assertThat(existing.getLayoutJson()).isEqualTo("{\"1\":{\"x\":10,\"y\":20}}");
         }
 
@@ -437,6 +440,7 @@ class WorkflowServiceImplTest {
             WorkflowResponseDTO expected = buildResponseDTO(1L, "W");
 
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(w));
+            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(n));
             when(workflowMapper.toResponseDTO(w)).thenReturn(expected);
 
              
@@ -552,52 +556,58 @@ class WorkflowServiceImplTest {
     class DuplicateWorkflow {
 
         @Test
-        @DisplayName("happy path — creates copy with 'Copy of' prefix, copies all nodes")
+        @DisplayName("happy path — copies nodes and rewires edges/layout to the copied node ids")
         void duplicateWorkflow_happyPath() {
-             
             Workflow original = buildWorkflow(1L, "Original", WorkflowStatus.ACTIVE);
-            original.setEdgesJson("[{}]");
             original.setDescription("original desc");
+            original.setEdgesJson("[{\"id\":\"e10-11\",\"source\":\"10\",\"target\":\"11\",\"type\":\"deletable\"}]");
+            original.setLayoutJson("{\"10\":{\"x\":1,\"y\":2},\"11\":{\"x\":3,\"y\":4}}");
 
             Node node1 = new Node();
             node1.setId(10L);
             node1.setOrderIndex(1);
             node1.setConfigJson("{\"type\":\"email\"}");
+            Node node2 = new Node();
+            node2.setId(11L);
+            node2.setOrderIndex(2);
 
             User user = buildUser(2L, "user@test.com");
-
             when(workflowRepository.findById(1L)).thenReturn(Optional.of(original));
             when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
-
-            Workflow savedCopy = new Workflow();
-            savedCopy.setId(99L);
-            savedCopy.setName("Copy of Original");
-            when(workflowRepository.save(any(Workflow.class))).thenReturn(savedCopy);
-            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(node1));
-
+            when(workflowRepository.save(any(Workflow.class))).thenAnswer(inv -> {
+                Workflow w = inv.getArgument(0);
+                w.setId(99L);
+                return w;
+            });
+            when(nodeRepository.findByWorkflowIdOrderByOrderIndexAsc(1L)).thenReturn(List.of(node1, node2));
+            long[] nextId = {50L};
+            when(nodeRepository.save(any(Node.class))).thenAnswer(inv -> {
+                Node n = inv.getArgument(0);
+                n.setId(nextId[0]++);
+                return n;
+            });
             WorkflowResponseDTO expected = buildResponseDTO(99L, "Copy of Original");
-            when(workflowMapper.toResponseDTO(savedCopy)).thenReturn(expected);
+            when(workflowMapper.toResponseDTO(any(Workflow.class))).thenReturn(expected);
 
-             
             WorkflowResponseDTO result = service.duplicateWorkflow(1L, "user@test.com");
 
-             
             assertThat(result).isEqualTo(expected);
-
             ArgumentCaptor<Workflow> workflowCaptor = ArgumentCaptor.forClass(Workflow.class);
             verify(workflowRepository).save(workflowCaptor.capture());
             Workflow copy = workflowCaptor.getValue();
             assertThat(copy.getName()).isEqualTo("Copy of Original");
             assertThat(copy.getStatus()).isEqualTo(WorkflowStatus.DRAFT);
             assertThat(copy.getVersion()).isEqualTo(1);
-            assertThat(copy.getEdgesJson()).isEqualTo("[{}]");
+            assertThat(copy.getEdgesJson())
+                    .contains("\"source\":\"50\"", "\"target\":\"51\"", "\"id\":\"e50-51\"", "\"type\":\"deletable\"");
+            assertThat(copy.getLayoutJson()).isEqualTo("{\"50\":{\"x\":1,\"y\":2},\"51\":{\"x\":3,\"y\":4}}");
 
             ArgumentCaptor<Node> nodeCaptor = ArgumentCaptor.forClass(Node.class);
-            verify(nodeRepository).save(nodeCaptor.capture());
-            Node copiedNode = nodeCaptor.getValue();
+            verify(nodeRepository, times(2)).save(nodeCaptor.capture());
+            Node copiedNode = nodeCaptor.getAllValues().get(0);
             assertThat(copiedNode.getOrderIndex()).isEqualTo(1);
             assertThat(copiedNode.getConfigJson()).isEqualTo("{\"type\":\"email\"}");
-            assertThat(copiedNode.getWorkflow()).isEqualTo(savedCopy);
+            assertThat(copiedNode.getWorkflow()).isSameAs(copy);
         }
 
         @Test
